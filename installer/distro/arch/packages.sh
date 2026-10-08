@@ -18,6 +18,7 @@ info "Installing Arch packages..."
 INSTALL_FISH="${INSTALL_FISH:-true}"
 INSTALL_PAPIRUS="${INSTALL_PAPIRUS:-true}"
 INSTALL_DARKLY="${INSTALL_DARKLY:-true}"
+INSTALL_SYSTEMSETTINGS="${INSTALL_SYSTEMSETTINGS:-true}"
 
 if ! command -v yay >/dev/null 2>&1; then
     info "yay not found - installing..."
@@ -66,14 +67,36 @@ UTILITY_PACKAGES=(
     xdg-utils sassc bat ripgrep lazygit xdg-user-dirs
 )
 
+# What the independent session (KWin + the Caelestia shell, no plasmashell) needs from KDE.
+# The shell calls these directly, so they are listed here instead of relying on plasmashell's
+# dependencies: plasma-workspace (plasma-apply-colorscheme, the logout service), kscreenlocker
+# (the lockscreen greeter) with plasma5support (a module the lockscreen imports),
+# layer-shell-qt (the SDDM Wayland greeter and the lockscreen), the portal and polkit agent,
+# powerdevil (brightness, idle, lid and Keep Awake), kscreen (monitor settings page) and the
+# default apps. systemsettings is optional and hosts the kscreen page.
+SESSION_PACKAGES=(
+    plasma-workspace kscreenlocker plasma5support layer-shell-qt
+    xdg-desktop-portal-kde xorg-xwayland polkit-kde-agent powerdevil kscreen
+    konsole dolphin ark
+)
+
 PACKAGES=()
 case "$PACKAGE_GROUP" in
     core)   PACKAGES=("${CORE_PACKAGES[@]}") ;;
     shell)  PACKAGES=("${SHELL_PACKAGES[@]}") ;;
     themes) PACKAGES=("${THEME_PACKAGES[@]}") ;;
     utils)  PACKAGES=("${UTILITY_PACKAGES[@]}") ;;
-    all|*)  PACKAGES=("${CORE_PACKAGES[@]}" "${SHELL_PACKAGES[@]}" "${THEME_PACKAGES[@]}" "${UTILITY_PACKAGES[@]}") ;;
+    session) PACKAGES=("${SESSION_PACKAGES[@]}") ;;
+    all|*)  PACKAGES=("${CORE_PACKAGES[@]}" "${SHELL_PACKAGES[@]}" "${THEME_PACKAGES[@]}" "${UTILITY_PACKAGES[@]}" "${SESSION_PACKAGES[@]}") ;;
 esac
+
+if [[ "$PACKAGE_GROUP" == "all" || "$PACKAGE_GROUP" == "session" ]]; then
+    if [[ "$INSTALL_SYSTEMSETTINGS" == "true" ]]; then
+        PACKAGES+=(systemsettings)
+    else
+        info "Skipping System Settings installation by user choice."
+    fi
+fi
 
 if [[ "$PACKAGE_GROUP" == "all" || "$PACKAGE_GROUP" == "shell" ]]; then
     if [[ "$INSTALL_FISH" == "true" ]]; then
