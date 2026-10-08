@@ -159,6 +159,8 @@ vector<Step> steps = {
      "finalize"},
     {"Create autostart entries", "scripts/10-autostart.sh", "PENDING",
      "finalize"},
+    {"Install independent session", "scripts/12-independent-session.sh",
+     "PENDING", "finalize"},
     {"Install optional components", "scripts/11-optional-apps.sh", "PENDING",
      "finalize"},
 };

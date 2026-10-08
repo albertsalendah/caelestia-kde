@@ -1,0 +1,6 @@
+[Desktop Entry]
+Name=Caelestia
+Comment=KWin and the Caelestia shell, no Plasma shell
+Exec=/usr/local/bin/caelestia-wm-session
+Type=Application
+DesktopNames=KDE

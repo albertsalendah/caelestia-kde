@@ -1,0 +1,9 @@
+[Unit]
+Description=KWin Wayland compositor (Caelestia session)
+PartOf=graphical-session.target
+
+[Service]
+Type=simple
+ExecStart=/usr/bin/kwin_wayland_wrapper --xwayland
+ExecStartPost=/usr/bin/gdbus wait --session --timeout 30 org.kde.KWinWrapper
+Slice=session.slice

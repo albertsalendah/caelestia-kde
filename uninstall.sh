@@ -675,6 +675,34 @@ if command -v kwriteconfig6 >/dev/null 2>&1; then
     fi
 fi
 
+# The independent session (scripts/12-independent-session.sh). The login manager itself is
+# left alone, except SDDM when that step enabled it and nothing else did: with the session
+# gone there is nothing to log in to that the user did not have before.
+SESSION_FILES=(
+    /usr/local/bin/caelestia-wm-session
+    /usr/local/lib/systemd/user/caelestia-kwin.service
+    /usr/local/lib/systemd/user/caelestia-session.target
+    /usr/local/share/wayland-sessions/caelestia.desktop
+    /etc/sddm.conf.d/zz-wayland-greeter.conf
+)
+for session_file in "${SESSION_FILES[@]}"; do
+    if [[ -e "$session_file" ]]; then
+        caelestia_sudo rm -f "$session_file"
+        ok "Removed independent session file: $session_file"
+    fi
+done
+caelestia_sudo rmdir /usr/local/share/wayland-sessions /usr/local/lib/systemd/user 2>/dev/null || true
+
+SESSION_SDDM_FLAG="${XDG_STATE_HOME:-$HOME/.local/state}/caelestia/session-enabled-sddm"
+if [[ -f "$SESSION_SDDM_FLAG" ]]; then
+    if caelestia_sudo systemctl disable sddm.service 2>/dev/null; then
+        ok "Disabled SDDM, which the session install had enabled. The next boot goes to a text login."
+    else
+        warn "Could not disable sddm.service; run 'sudo systemctl disable sddm.service' to undo it."
+    fi
+    rm -f "$SESSION_SDDM_FLAG"
+fi
+
 if [[ -f /usr/local/bin/caelestia-greeter-sync ]]; then
     caelestia_sudo rm -f /usr/local/bin/caelestia-greeter-sync
     ok "Removed login screen sync helper: caelestia-greeter-sync"

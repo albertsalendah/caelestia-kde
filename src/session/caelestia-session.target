@@ -1,0 +1,7 @@
+[Unit]
+Description=Caelestia session (KWin + Caelestia shell, no Plasma shell)
+Requires=caelestia-kwin.service graphical-session.target
+BindsTo=caelestia-kwin.service graphical-session.target
+Wants=graphical-session-pre.target xdg-desktop-autostart.target
+After=graphical-session-pre.target caelestia-kwin.service
+Before=graphical-session.target xdg-desktop-autostart.target

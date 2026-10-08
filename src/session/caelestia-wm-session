@@ -1,0 +1,104 @@
+#!/usr/bin/env bash
+# caelestia-wm-session: start KWin + the Caelestia shell without Plasma.
+# Run by the login manager's session entry (caelestia.desktop), or from a TTY login by its full
+# path. Installed to /usr/local/bin by scripts/12-independent-session.sh.
+set -u
+
+XDG_RUNTIME_DIR="${XDG_RUNTIME_DIR:-/run/user/$(id -u)}"
+export XDG_RUNTIME_DIR
+# Use the systemd user manager's bus (no dbus-run-session), so KWin and every
+# user service share one session bus.
+export DBUS_SESSION_BUS_ADDRESS="${DBUS_SESSION_BUS_ADDRESS:-unix:path=$XDG_RUNTIME_DIR/bus}"
+
+export XDG_SESSION_TYPE=wayland
+export XDG_CURRENT_DESKTOP=KDE
+export XDG_SESSION_DESKTOP=KDE
+export KDE_FULL_SESSION=true
+export KDE_SESSION_VERSION=6
+
+say() {
+    printf 'caelestia-wm-session: %s\n' "$*" >&2
+    logger -t caelestia-wm-session -- "$*" 2>/dev/null || true   # also in the journal
+}
+
+# Teardown, run once on any exit: KWin ending, a failed start, or a signal. SIGKILL cannot be
+# caught. Stopping the target stops KWin, the shell and the autostart apps (all PartOf it).
+cleaned=0
+cleanup() {
+    [ "$cleaned" = 1 ] && return
+    cleaned=1
+    systemctl --user stop caelestia-session.target 2>/dev/null || true
+    systemctl --user unset-environment WAYLAND_DISPLAY DISPLAY 2>/dev/null || true
+}
+trap cleanup EXIT
+trap 'exit 143' TERM
+trap 'exit 129' HUP
+trap 'exit 130' INT
+
+# 0. Forget a display left over from an earlier session. If the user manager still carries
+#    an old WAYLAND_DISPLAY (for example the manager outlived a session that did not clean
+#    up), KWin starts as a nested Wayland client and never drives the screen.
+unset WAYLAND_DISPLAY DISPLAY
+systemctl --user unset-environment WAYLAND_DISPLAY DISPLAY 2>/dev/null || true
+
+# 0b. Source the Plasma environment scripts, as Plasma's startup does: system directories
+#     first, then the user's, so the user wins. The installer's caelestia.sh lives here (PATH,
+#     QML2_IMPORT_PATH, CAELESTIA_*). set +u because those scripts do not expect it.
+env_dirs=()
+IFS=: read -ra _cfg_dirs <<< "${XDG_CONFIG_DIRS:-/etc/xdg}"
+for _d in "${_cfg_dirs[@]}"; do env_dirs+=("$_d/plasma-workspace/env"); done
+env_dirs+=("${XDG_CONFIG_HOME:-$HOME/.config}/plasma-workspace/env")
+set +u
+for _d in "${env_dirs[@]}"; do
+    [ -d "$_d" ] || continue
+    for _f in "$_d"/*.sh; do
+        [ -r "$_f" ] || continue
+        # shellcheck disable=SC1090
+        . "$_f" || say "environment script $_f returned an error"
+    done
+done
+set -u
+
+# 1. Share this login's environment with systemd user services and D-Bus-activated
+#    programs. KWin needs XDG_SESSION_ID / XDG_VTNR / XDG_SEAT to take over the display.
+dbus-update-activation-environment --systemd --all || systemctl --user import-environment
+
+# 2. Start the session (KWin, then graphical-session.target, then caelestia-shell.service).
+if ! systemctl --user start caelestia-session.target; then
+    say "caelestia-session.target failed to start. See: journalctl --user -b -u caelestia-kwin"
+    exit 1
+fi
+
+# 3. Make sure user services can see the display. KWin may already have exported it.
+if ! systemctl --user show-environment | grep -q '^WAYLAND_DISPLAY='; then
+    for sock in "$XDG_RUNTIME_DIR"/wayland-[0-9]*; do
+        [ -S "$sock" ] || continue
+        export WAYLAND_DISPLAY="${sock##*/}"
+        dbus-update-activation-environment --systemd WAYLAND_DISPLAY
+        say "KWin did not export WAYLAND_DISPLAY; imported ${WAYLAND_DISPLAY} instead"
+        break
+    done
+else
+    say "WAYLAND_DISPLAY was exported to the user manager by KWin"
+fi
+
+# 3b. Start the Plasma helpers this session needs: the polkit agent (password prompts) and
+#     powerdevil (idle actions, screen brightness). Both are PartOf=graphical-session.target,
+#     so they stop with the session, but they are not ordered after KWin, so they are started
+#     here, now that KWin is up. Not with After=graphical-session.target drop-ins on them
+#     (finding C: that made an ordering cycle). --no-block, because powerdevil is Type=dbus
+#     and should not delay step 4.
+for unit in plasma-polkit-agent.service plasma-powerdevil.service; do
+    if systemctl --user cat "$unit" >/dev/null 2>&1; then
+        systemctl --user start --no-block "$unit" || say "could not start $unit"
+    else
+        say "$unit is not installed; skipped"
+    fi
+done
+
+# 4. Stay alive until KWin exits; the EXIT trap (cleanup) then tears everything down. The wait
+#    builtin lets a signal interrupt the sleep at once.
+while systemctl --user is-active --quiet caelestia-kwin.service; do
+    sleep 2 &
+    wait $!
+done
