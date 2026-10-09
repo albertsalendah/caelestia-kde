@@ -4,6 +4,11 @@ set -euo pipefail
 source "$(dirname "${BASH_SOURCE[0]}")/lib/log.sh"
 source "$(dirname "${BASH_SOURCE[0]}")/lib/privileges.sh"
 
+# Wrapped so a test can say which programs exist without touching PATH.
+has_command() {
+    command -v "$1" >/dev/null 2>&1
+}
+
 echo
 echo ""
 echo "  Caelestia  Live System Tweaks"
@@ -200,6 +205,53 @@ tweak_default_shell() {
     ok "Shell configuration applied."
 }
 
+tweak_default_terminal() {
+    # The shell's terminal setting defaults to foot, compiled into its plugin. When foot is
+    # not installed but Konsole is, record Konsole in shell.json instead. A terminal the user
+    # already chose is kept, and so is foot on a machine that has it.
+    if has_command foot || ! has_command konsole; then
+        info "Leaving the shell's default terminal alone."
+        return 0
+    fi
+
+    local config="${XDG_CONFIG_HOME:-$HOME/.config}/caelestia/shell.json"
+    mkdir -p "$(dirname "$config")"
+
+    local result
+    if ! result="$(python3 - "$config" 2>/dev/null <<'EOF'
+import json, os, sys
+
+path = sys.argv[1]
+data = {}
+if os.path.exists(path):
+    with open(path, encoding="utf-8") as f:
+        text = f.read().strip()
+    if text:
+        data = json.loads(text)
+apps = data.setdefault("general", {}).setdefault("apps", {})
+if "terminal" in apps:
+    print("kept")
+    sys.exit(0)
+apps["terminal"] = ["konsole"]
+tmp = path + ".new"
+with open(tmp, "w", encoding="utf-8") as f:
+    json.dump(data, f, indent=4)
+    f.write("\n")
+os.replace(tmp, path)
+print("set")
+EOF
+    )"; then
+        warn "Could not read $config, so the default terminal was not set. Choose it in Settings > Apps."
+        return 0
+    fi
+
+    if [[ "$result" == "set" ]]; then
+        ok "Konsole is the shell's default terminal."
+    else
+        info "A terminal is already chosen in shell.json. Keeping it."
+    fi
+}
+
 tweak_user_avatar_symlinks() {
     if [[ -e "$HOME/.face.icon" || -L "$HOME/.face.icon" ]]; then
         # shellcheck disable=SC2088
@@ -236,6 +288,7 @@ tweak_five_desktops
 tweak_remove_panels
 tweak_no_splash_screen
 tweak_default_shell
+tweak_default_terminal
 tweak_default_scheme
 tweak_user_avatar_symlinks
 tweak_reload_kde
