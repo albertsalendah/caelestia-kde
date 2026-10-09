@@ -19,6 +19,14 @@ fi
 PACK_DIR="$WALLS_DIR/dharmx-digital"
 DEFAULT_IMAGE="$PACK_DIR/a_couple_of_people_standing_on_a_mountain.png"
 
+# The shell ships its own wallpaper (shell/assets/wallpaper.webp), which 04-deploy-kde.sh and the
+# shell fall back to, so the pack is an extra: about 100 MB from a third party's repository.
+INSTALL_WALLPAPER_PACK="${INSTALL_WALLPAPER_PACK:-false}"
+if [[ "$INSTALL_WALLPAPER_PACK" != "true" ]]; then
+    skip "Not downloading the wallpaper pack; the bundled wallpaper is the default (set INSTALL_WALLPAPER_PACK=true for dharmx/walls, about 100 MB)."
+    exit 0
+fi
+
 info "Downloading wallpaper pack (dharmx/walls digital)..."
 
 if [[ -d "$PACK_DIR" ]] && [[ -n "$(ls -A "$PACK_DIR" 2>/dev/null)" ]]; then
