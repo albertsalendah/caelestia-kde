@@ -32,8 +32,9 @@ if status is-interactive
     abbr la 'ls -a'
     abbr lla 'ls -la'
 
-    # Custom colors
-    if isatty stdout
+    # Custom colors. Not over SSH: the sequences would recolor the terminal on the other end
+    # of the connection, which is not this machine's.
+    if isatty stdout; and not set -q SSH_CONNECTION; and not set -q SSH_TTY
         cat ~/.cache/caelestia/terminal-sequences 2> /dev/null
     end
 

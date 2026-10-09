@@ -1040,6 +1040,19 @@ commit() {
 }
 
 # Only a shell on a pty wants the escapes; anything else echoed them.
+# True when a process on the terminal $1 (a name like pts/3 or 3) belongs to an SSH login.
+# Such a terminal is on another machine; recoloring it would change a terminal this
+# machine's theme has no business with.
+pty_is_ssh() {
+    local name="${1##*/}" proc_dir="${CAELESTIA_PROC_DIR:-/proc}" pid
+    for pid in $(ps -t "$name" -o pid= 2>/dev/null); do
+        if tr '\0' '\n' < "$proc_dir/$pid/environ" 2>/dev/null | grep -q '^SSH_\(CONNECTION\|TTY\)='; then
+            return 0
+        fi
+    done
+    return 1
+}
+
 apply_terms() {
     local file="$1" sequence pty name comm
     [[ -s "$file" ]] || return 0
@@ -1048,6 +1061,7 @@ apply_terms() {
     for pty in /dev/pts/[0-9]*; do
         [[ -w "$pty" ]] || continue
         name="${pty##*/}"
+        pty_is_ssh "$name" && continue
         comm="$(ps -t "$name" -o comm= 2>/dev/null | head -n 1 | tr -d ' ')" || continue
         case "$comm" in
             sh|bash|zsh|fish|dash|ksh|mksh|nu|elvish|xonsh)
