@@ -112,6 +112,27 @@ release_tag() {
     sed -nE 's/^[[:space:]]*VERSION=//p' "$BUNDLE_DIR/.github/version.env" 2>/dev/null | tr -d '[:space:]'
 }
 
+# The prebuilt installer is the one published for the released version, so it may only stand in
+# for a checkout that is that release: the released tag itself, or main sitting on its remote tip.
+# A branch, a stale main or a checkout with commits of its own has installer sources the prebuilt
+# does not contain (a new step, say), so it compiles its own. A bundle that is not a git checkout
+# (a downloaded archive) cannot be told apart from the release and keeps the prebuilt.
+checkout_may_use_prebuilt_installer() {
+    local head revision
+    head="$(git -C "$BUNDLE_DIR" rev-parse HEAD 2>/dev/null || true)"
+    [[ -n "$head" ]] || return 0
+
+    revision="$(release_tag)"
+    [[ -n "$revision" ]] || return 1
+
+    if [[ "$(git -C "$BUNDLE_DIR" describe --tags --exact-match "$head" 2>/dev/null || true)" == "$revision" ]]; then
+        return 0
+    fi
+
+    [[ "$(git -C "$BUNDLE_DIR" branch --show-current 2>/dev/null || true)" == "main" ]] || return 1
+    [[ "$head" == "$(git -C "$BUNDLE_DIR" rev-parse --verify --quiet refs/remotes/origin/main 2>/dev/null || true)" ]]
+}
+
 try_download_prebuilt_installer() {
     local arch
     arch="$(uname -m)"
@@ -172,7 +193,7 @@ stop_spinner() {
 start_spinner
 
 PREBUILT_BIN=""
-if [[ -z "${CAELESTIA_FORCE_BUILD_INSTALLER:-}" ]] && command -v curl >/dev/null 2>&1; then
+if [[ -z "${CAELESTIA_FORCE_BUILD_INSTALLER:-}" ]] && command -v curl >/dev/null 2>&1 && checkout_may_use_prebuilt_installer; then
     PREBUILT_BIN="$(try_download_prebuilt_installer || true)"
 fi
 
@@ -191,7 +212,7 @@ else
     if [[ -n "${CAELESTIA_FORCE_BUILD_INSTALLER:-}" ]]; then
         echo "[INFO]  CAELESTIA_FORCE_BUILD_INSTALLER set - compiling locally."
     else
-        echo "[INFO]  No prebuilt binary for v$(tui_version) - compiling locally."
+        echo "[INFO]  No prebuilt installer applies to this checkout (v$(tui_version)) - compiling locally."
     fi
     STAMP="$BUNDLE_DIR/installer/build/.tui_stamp"
     if [[ -x "$BIN" && -f "$STAMP" ]] && [[ "$(cat "$STAMP" 2>/dev/null)" == "$(tui_version)" ]]; then
