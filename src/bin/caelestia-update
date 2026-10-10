@@ -8,6 +8,36 @@ info() { echo "[INFO]  $*"; }
 ok()   { echo "[OK]    $*"; }
 warn() { echo "[WARN]  $*"; }
 
+# Where this install's updates come from. An install records the repository it was made from
+# (.update_source) and the branch (.update_branch); one with no record is upstream's, as it always
+# was. src/bin/caelestia-check-updates carries an identical copy of this function, and
+# tests/test_update_source.sh keeps the two the same.
+UPSTREAM_REPO="https://github.com/ladybug-me/caelestia-kde.git"
+resolve_update_source() {
+    local config="${1:-$HOME/.config/quickshell/caelestia}" recorded branch
+
+    REPO_URL="$UPSTREAM_REPO"
+    IS_FORK=0
+    FORK_BRANCH=""
+
+    recorded="$(head -n 1 -- "$config/.update_source" 2>/dev/null | tr -d '[:space:]')"
+    if [[ -z "$recorded" || "${recorded,,}" == "${UPSTREAM_REPO,,}" ]]; then
+        return 0
+    fi
+
+    REPO_URL="$recorded"
+    IS_FORK=1
+    branch="$(head -n 1 -- "$config/.update_branch" 2>/dev/null | tr -d '[:space:]')"
+    if [[ -n "$branch" && "$branch" != "HEAD" ]]; then
+        FORK_BRANCH="$branch"
+    fi
+}
+
+# A test sources this file for the function above; stop here so nothing below runs.
+if [[ "${BASH_SOURCE[0]}" != "$0" ]]; then
+    return 0
+fi
+
 run_stage() {
     local timeout_seconds="$1"
     shift
@@ -19,21 +49,39 @@ run_stage() {
     fi
 }
 
-BRANCH="${1:-main}"
+resolve_update_source
+
+BRANCH="${1:-}"
 TARGET_REF="${2:-}"
-if [ "$BRANCH" != "main" ] && [ "$BRANCH" != "dev" ]; then
-    echo "Warning: Branch '$BRANCH' is not allowed. Falling back to 'main'."
-    BRANCH="main"
+if [ "$IS_FORK" -eq 1 ]; then
+    # An install made from a fork follows the branch it was made from, in that fork. main and dev
+    # are upstream's branches, and the fork may have neither.
+    if [ -z "$FORK_BRANCH" ]; then
+        die "This install came from $REPO_URL, but the branch it was made from is not recorded. Update it from your clone: git pull, then bash scripts/setup.sh."
+    fi
+    if [ -n "$BRANCH" ] && [ "$BRANCH" != "$FORK_BRANCH" ]; then
+        echo "Warning: Branch '$BRANCH' is not the one this install follows. Using '$FORK_BRANCH'."
+    fi
+    BRANCH="$FORK_BRANCH"
+else
+    BRANCH="${BRANCH:-main}"
+    if [ "$BRANCH" != "main" ] && [ "$BRANCH" != "dev" ]; then
+        echo "Warning: Branch '$BRANCH' is not allowed. Falling back to 'main'."
+        BRANCH="main"
+    fi
 fi
-if ! git ls-remote --exit-code --heads https://github.com/ladybug-me/caelestia-kde.git "$BRANCH" >/dev/null 2>&1; then
+if ! git ls-remote --exit-code --heads "$REPO_URL" "$BRANCH" >/dev/null 2>&1; then
+    if [ "$IS_FORK" -eq 1 ]; then
+        die "Branch '$BRANCH' does not exist on $REPO_URL."
+    fi
     echo "Warning: Branch '$BRANCH' does not exist on remote. Falling back to 'main'."
     BRANCH="main"
 fi
 
 if [ -n "$TARGET_REF" ]; then
-    if git ls-remote --exit-code --tags https://github.com/ladybug-me/caelestia-kde.git "$TARGET_REF" >/dev/null 2>&1; then
+    if git ls-remote --exit-code --tags "$REPO_URL" "$TARGET_REF" >/dev/null 2>&1; then
         TARGET_KIND="tag"
-    elif [ "$BRANCH" = "dev" ] && [[ "$TARGET_REF" =~ ^[0-9a-f]{7,40}$ ]]; then
+    elif { [ "$BRANCH" = "dev" ] || [ "$IS_FORK" -eq 1 ]; } && [[ "$TARGET_REF" =~ ^[0-9a-f]{7,40}$ ]]; then
         # Dev can also install or revert to a specific commit, not just a tag.
         TARGET_KIND="commit"
     else
@@ -190,14 +238,14 @@ if [[ ! -d "$UPD_DIR/repo/.git" ]]; then
     mkdir -p "$UPD_DIR/repo"
     cd "$UPD_DIR/repo" || die "Failed to enter $UPD_DIR/repo"
     git init -q
-    git remote add origin https://github.com/ladybug-me/caelestia-kde.git
+    git remote add origin "$REPO_URL"
 else
     cd "$UPD_DIR/repo" || die "Failed to enter $UPD_DIR/repo"
     if git rev-parse HEAD >/dev/null 2>&1; then
         git reset --hard -q HEAD || die "Failed to reset repository state"
     fi
     git clean -fdx -q
-    git remote set-url origin https://github.com/ladybug-me/caelestia-kde.git
+    git remote set-url origin "$REPO_URL"
 fi
 
 # Always enforce sparse-checkout rules
@@ -327,6 +375,11 @@ fi
 # but the shell was deliberately not rebuilt, so the new revision would describe a state
 # nobody can see (#651). The previous value stays, still naming the running shell.
 if record_installed_revision "$BUNDLE_DIR" "$HOME/.config/quickshell/caelestia"; then
+    # The checkout here is a cache, and the name of its local branch means nothing. An install
+    # made from a fork keeps following the branch it was updated from.
+    if [ "$IS_FORK" -eq 1 ]; then
+        printf '%s\n' "$BRANCH" > "$HOME/.config/quickshell/caelestia/.update_branch"
+    fi
     info "Saved commit hash: $(cat "$HOME/.config/quickshell/caelestia/.current_commit" 2>/dev/null || true)"
 elif [[ "${CAELESTIA_SKIP_BUILD:-0}" == "1" ]]; then
     info "Shell build skipped; the recorded revision still describes the running shell."

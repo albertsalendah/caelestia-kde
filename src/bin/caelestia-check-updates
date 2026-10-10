@@ -2,6 +2,36 @@
 # caelestia-check-updates - run by a systemd timer: count pending updates and notify.
 export PATH="$HOME/.local/bin:$PATH"
 
+# Where this install's updates come from. An install records the repository it was made from
+# (.update_source) and the branch (.update_branch); one with no record is upstream's, as it always
+# was. src/bin/caelestia-check-updates carries an identical copy of this function, and
+# tests/test_update_source.sh keeps the two the same.
+UPSTREAM_REPO="https://github.com/ladybug-me/caelestia-kde.git"
+resolve_update_source() {
+    local config="${1:-$HOME/.config/quickshell/caelestia}" recorded branch
+
+    REPO_URL="$UPSTREAM_REPO"
+    IS_FORK=0
+    FORK_BRANCH=""
+
+    recorded="$(head -n 1 -- "$config/.update_source" 2>/dev/null | tr -d '[:space:]')"
+    if [[ -z "$recorded" || "${recorded,,}" == "${UPSTREAM_REPO,,}" ]]; then
+        return 0
+    fi
+
+    REPO_URL="$recorded"
+    IS_FORK=1
+    branch="$(head -n 1 -- "$config/.update_branch" 2>/dev/null | tr -d '[:space:]')"
+    if [[ -n "$branch" && "$branch" != "HEAD" ]]; then
+        FORK_BRANCH="$branch"
+    fi
+}
+
+# A test sources this file for the function above; stop here so nothing below runs.
+if [[ "${BASH_SOURCE[0]}" != "$0" ]]; then
+    return 0
+fi
+
 # No git, nothing to check.
 if ! command -v git &> /dev/null; then
     exit 0
@@ -17,9 +47,15 @@ fi
 
 # UI updates (GitHub)
 REPO="$HOME/.cache/caelestia-update-repo"
-BRANCH=$(cat "$HOME/.config/quickshell/caelestia/.update_branch" 2>/dev/null || echo "main")
-if [ "$BRANCH" != "main" ] && [ "$BRANCH" != "dev" ]; then
-    BRANCH="main"
+resolve_update_source
+if [ "$IS_FORK" -eq 1 ]; then
+    # An install made from a fork follows the branch it was made from, in that fork.
+    BRANCH="$FORK_BRANCH"
+else
+    BRANCH=$(cat "$HOME/.config/quickshell/caelestia/.update_branch" 2>/dev/null || echo "main")
+    if [ "$BRANCH" != "main" ] && [ "$BRANCH" != "dev" ]; then
+        BRANCH="main"
+    fi
 fi
 
 # No interactive prompts, and a timeout so a hung network cannot stall the timer.
@@ -30,20 +66,32 @@ GIT_TIMEOUT=30
 # itself failing (offline, DNS, timeout). Only "the branch is gone" may rewrite the user's
 # stored choice, or a laptop that is briefly offline silently moves itself to main.
 ls_status=0
-timeout ${GIT_TIMEOUT} git ls-remote --exit-code --heads https://github.com/ladybug-me/caelestia-kde.git "$BRANCH" >/dev/null 2>&1 || ls_status=$?
+if [ -n "$BRANCH" ]; then
+    timeout ${GIT_TIMEOUT} git ls-remote --exit-code --heads "$REPO_URL" "$BRANCH" >/dev/null 2>&1 || ls_status=$?
+fi
 if [ "$ls_status" -eq 2 ]; then
-    echo "[WARN] Branch '$BRANCH' does not exist on the remote; falling back to main." >&2
-    BRANCH="main"
-    mkdir -p "$HOME/.config/quickshell/caelestia"
-    echo "$BRANCH" > "$HOME/.config/quickshell/caelestia/.update_branch"
+    if [ "$IS_FORK" -eq 1 ]; then
+        # A fork has no main to fall back to, and the recorded branch is not ours to rewrite.
+        echo "[WARN] Branch '$BRANCH' does not exist on $REPO_URL; not checking for updates." >&2
+        BRANCH=""
+    else
+        echo "[WARN] Branch '$BRANCH' does not exist on the remote; falling back to main." >&2
+        BRANCH="main"
+        mkdir -p "$HOME/.config/quickshell/caelestia"
+        echo "$BRANCH" > "$HOME/.config/quickshell/caelestia/.update_branch"
+    fi
 fi
 
 _localCommit="$(cat "$HOME/.config/quickshell/caelestia/.current_commit" 2>/dev/null)"
 CAELESTIA_PENDING=0
 
-if [ -n "$_localCommit" ]; then
+if [ -n "$_localCommit" ] && [ -n "$BRANCH" ]; then
+    # The cache has to be a clone of this install's repository; one made for another is dropped.
+    if [ -d "$REPO" ] && [ "$(git -C "$REPO" remote get-url origin 2>/dev/null)" != "$REPO_URL" ]; then
+        rm -rf -- "$REPO"
+    fi
     if [ ! -d "$REPO" ]; then
-        timeout ${GIT_TIMEOUT} git clone --bare --filter=blob:none https://github.com/ladybug-me/caelestia-kde.git "$REPO" >/dev/null 2>&1 || true
+        timeout ${GIT_TIMEOUT} git clone --bare --filter=blob:none "$REPO_URL" "$REPO" >/dev/null 2>&1 || true
     else
         timeout ${GIT_TIMEOUT} git -C "$REPO" fetch --force origin "$BRANCH:$BRANCH" >/dev/null 2>&1 || true
     fi
