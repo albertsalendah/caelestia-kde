@@ -28,6 +28,20 @@ https://github.com/user-attachments/assets/38b24e7f-fdd9-43db-872b-8c0ac23a44fd
 curl -fsSL https://raw.githubusercontent.com/ladybug-me/caelestia-kde/main/install.sh | sh
 ```
 
+> [!NOTE]
+> The one-liner installs upstream's `main`. This branch, `independent-session`, adds an
+> [independent session](#independent-session-arch-based); install it from a clone:
+>
+> ```bash
+> git clone --recurse-submodules --branch independent-session https://github.com/albertsalendah/caelestia-kde.git
+> cd caelestia-kde
+> bash scripts/setup.sh
+> ```
+>
+> The first run compiles the installer and the shell plugin on your machine, so it takes a while.
+> The installer is a terminal UI: run it in a real terminal (over SSH, inside `tmux`, so a dropped
+> connection does not stop it).
+
 ### Updating
 
 - **Installer TUI:** run the installer and choose *Update*
@@ -36,6 +50,11 @@ curl -fsSL https://raw.githubusercontent.com/ladybug-me/caelestia-kde/main/insta
 
 Shell settings are preserved across updates.
 
+> [!NOTE]
+> The installer's *Update*, Nexus -> Updates and `update.sh` look at `ladybug-me/caelestia-kde`
+> (`main` and `dev`), not at this branch. To pick up changes from this branch, run `git pull` in
+> your clone and run `bash scripts/setup.sh` again.
+
 ### Uninstalling
 
 Choose *Uninstall* from the installer TUI, or run:
@@ -43,6 +62,54 @@ Choose *Uninstall* from the installer TUI, or run:
 ```bash
 bash ./uninstall.sh
 ```
+
+## Independent session (Arch-based)
+
+This branch installs one more login-screen entry, **Caelestia**, that starts KWin and the Caelestia
+shell without `plasmashell`. Nothing is removed: the Plasma session and any other session stay as
+they were, and you choose one at the login screen.
+
+| Installed | Where |
+| --- | --- |
+| Session program | `/usr/local/bin/caelestia-wm-session` |
+| KWin unit and session target | `/usr/local/lib/systemd/user/caelestia-kwin.service` and `caelestia-session.target` |
+| Login-screen entry | `/usr/local/share/wayland-sessions/caelestia.desktop` |
+| Wayland greeter (SDDM only) | `/etc/sddm.conf.d/zz-wayland-greeter.conf` |
+
+The step looks at the login manager the machine uses:
+
+| Login manager | What the step does |
+| --- | --- |
+| Plasma Login | installs the entry only |
+| SDDM | installs the entry and a drop-in that switches SDDM to a Wayland greeter |
+| none enabled | installs SDDM, adds the drop-in and enables it |
+| anything else | installs the entry and warns that the login manager may not list it |
+
+The Wayland greeter matters. With SDDM's default Xorg greeter, about 4 in 9 logins on the test
+machine ended on a black screen. The Caelestia SDDM theme shows a session picker below the password
+field (full variant), so you can pick Caelestia or Plasma.
+
+**Packages.** The session installs `plasma-workspace`, `kscreenlocker`, `plasma5support`,
+`layer-shell-qt`, `xdg-desktop-portal-kde`, `xorg-xwayland`, `polkit-kde-agent`, `powerdevil`,
+`kscreen`, `konsole`, `dolphin`, `ark` and `systemsettings`, because the shell calls their tools.
+`plasma-workspace` brings the `plasmashell` binary and a Plasma login entry with it, but nothing in
+the Caelestia session starts `plasmashell`. When foot is not installed and you have not chosen a
+terminal, the installer records Konsole as the shell's terminal.
+
+**Options.** Set these in the environment before you run `bash scripts/setup.sh`:
+
+| Variable | Default | Effect |
+| --- | --- | --- |
+| `INSTALL_SYSTEMSETTINGS` | `true` | `false` skips System Settings, which hosts the display settings page |
+| `INSTALL_WALLPAPER_PACK` | `false` | `true` downloads the dharmx wallpaper pack (about 100 MB); otherwise the shell's bundled wallpaper is used |
+
+For example: `INSTALL_WALLPAPER_PACK=true bash scripts/setup.sh`.
+
+**Tested on.** CachyOS with SDDM. The Plasma Login and no-login-manager paths have only unit tests.
+Fedora, Debian and packaged installs skip this step.
+
+**Uninstalling.** `bash ./uninstall.sh` removes the session files listed above. It leaves the login
+manager alone, except SDDM when this step was the one that enabled it.
 
 ## Keybinds
 
