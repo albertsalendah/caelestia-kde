@@ -81,10 +81,14 @@ fi
 
 info "Setting up cliphist background service..."
 mkdir -p "$HOME/.config/systemd/user"
+# An earlier install wanted this unit from default.target. Disable it while the old
+# unit file is still in place, so that link is removed and not left beside the new one.
+systemctl --user disable cliphist.service >/dev/null 2>&1 || true
 cat > "$HOME/.config/systemd/user/cliphist.service" << 'EOF'
 [Unit]
 Description=Clipboard history service
 After=graphical-session.target
+PartOf=graphical-session.target
 
 [Service]
 Type=simple
@@ -93,7 +97,7 @@ Restart=always
 RestartSec=3
 
 [Install]
-WantedBy=default.target
+WantedBy=graphical-session.target
 EOF
 systemctl --user daemon-reload
 systemctl --user enable --now cliphist.service 2>/dev/null || true
