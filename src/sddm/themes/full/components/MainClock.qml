@@ -23,6 +23,13 @@ Item {
             "opsz": 224 * centerScale
         })
 
+    Timer {
+        interval: 1000
+        running: true
+        repeat: true
+        onTriggered: root.currentTime = new Date()
+    }
+
     FontLoader {
         id: googleSansFlex
 

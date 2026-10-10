@@ -201,6 +201,13 @@ Rectangle {
         radius: 70
         color: "transparent"
 
+        Timer {
+            interval: 1000
+            running: true
+            repeat: true
+            onTriggered: mainCard.currentTime = new Date()
+        }
+
         BlurWrapper {
             anchors.centerIn: parent
             targetWidth: mainCard.width
