@@ -83,4 +83,84 @@ test_record_installed_revision_falls_back_to_the_commit_for_the_version() {
         ".current_version should fall back to the committed version.env"
 }
 
+test_record_installed_revision_records_where_the_checkout_came_from() {
+    require_git || return 0
+    local tmp
+    tmp="$(new_tmpdir)"
+    make_repo "$tmp/repo" "v9.9.9"
+    git -C "$tmp/repo" remote add origin https://github.com/albertsalendah/caelestia-kde
+
+    record_installed_revision "$tmp/repo" "$tmp/config"
+
+    assert_eq "https://github.com/albertsalendah/caelestia-kde.git" "$(cat "$tmp/config/.update_source")" \
+        ".update_source should name the repository the checkout was cloned from"
+}
+
+test_record_installed_revision_writes_one_spelling_for_every_way_of_cloning() {
+    require_git || return 0
+    local tmp url
+    tmp="$(new_tmpdir)"
+    make_repo "$tmp/repo" "v9.9.9"
+
+    for url in git@github.com:albertsalendah/caelestia-kde.git \
+               ssh://git@github.com/albertsalendah/caelestia-kde \
+               git://github.com/albertsalendah/caelestia-kde.git \
+               https://github.com/albertsalendah/caelestia-kde/; do
+        git -C "$tmp/repo" remote remove origin 2>/dev/null
+        git -C "$tmp/repo" remote add origin "$url"
+        record_installed_revision "$tmp/repo" "$tmp/config"
+        assert_eq "https://github.com/albertsalendah/caelestia-kde.git" "$(cat "$tmp/config/.update_source")" \
+            "$url should be written as the https address"
+    done
+}
+
+test_record_installed_revision_never_writes_a_credential_from_the_remote() {
+    require_git || return 0
+    local tmp
+    tmp="$(new_tmpdir)"
+    make_repo "$tmp/repo" "v9.9.9"
+
+    git -C "$tmp/repo" remote add origin https://someone:s3cret-token@github.com/albertsalendah/caelestia-kde.git
+    record_installed_revision "$tmp/repo" "$tmp/config"
+    assert_not_contains "$(cat "$tmp/config/.update_source")" "s3cret-token" "a token in a GitHub remote must not reach the file"
+
+    git -C "$tmp/repo" remote set-url origin https://someone:s3cret-token@git.example.org/team/caelestia-kde.git
+    record_installed_revision "$tmp/repo" "$tmp/config"
+    assert_not_contains "$(cat "$tmp/config/.update_source")" "s3cret-token" "nor a token in a remote on another host"
+    assert_eq "https://git.example.org/team/caelestia-kde.git" "$(cat "$tmp/config/.update_source")" \
+        "the rest of that address should be kept as it was"
+}
+
+test_record_installed_revision_leaves_no_source_when_there_is_no_origin() {
+    require_git || return 0
+    local tmp
+    tmp="$(new_tmpdir)"
+    make_repo "$tmp/repo" "v9.9.9"
+    mkdir -p "$tmp/config"
+    printf 'https://github.com/old/owner.git\n' > "$tmp/config/.update_source"
+
+    record_installed_revision "$tmp/repo" "$tmp/config"
+
+    assert_file_missing "$tmp/config/.update_source"
+}
+
+test_a_skipped_build_keeps_the_recorded_source() {
+    require_git || return 0
+    local tmp
+    tmp="$(new_tmpdir)"
+    make_repo "$tmp/repo" "v9.9.9"
+    git -C "$tmp/repo" remote add origin https://github.com/albertsalendah/caelestia-kde
+    mkdir -p "$tmp/config"
+    printf 'https://github.com/previous/install.git\n' > "$tmp/config/.update_source"
+
+    CAELESTIA_SKIP_BUILD=1 record_installed_revision "$tmp/repo" "$tmp/config"
+
+    assert_eq "https://github.com/previous/install.git" "$(cat "$tmp/config/.update_source")" \
+        "the source must keep describing the shell that is actually running"
+}
+
+test_normalize_repo_url_leaves_a_local_path_alone() {
+    assert_eq "/srv/mirror/caelestia-kde" "$(normalize_repo_url /srv/mirror/caelestia-kde)" "only GitHub addresses are rewritten"
+}
+
 run_tests
