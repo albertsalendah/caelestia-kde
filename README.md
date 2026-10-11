@@ -51,9 +51,14 @@ curl -fsSL https://raw.githubusercontent.com/ladybug-me/caelestia-kde/main/insta
 Shell settings are preserved across updates.
 
 > [!NOTE]
-> The installer's *Update*, Nexus -> Updates and `update.sh` look at `ladybug-me/caelestia-kde`
-> (`main` and `dev`), not at this branch. To pick up changes from this branch, run `git pull` in
-> your clone and run `bash scripts/setup.sh` again.
+> An install made from a fork follows that fork. Nexus -> Updates, the update notification and
+> `caelestia-update` use the repository and branch recorded at install time (this fork's
+> `independent-session`, not upstream's `main` and `dev`), and `update.sh` follows the branch its
+> clone is on. They update the shell and its configuration. The session files in `/usr/local`, the
+> SDDM theme and the `cliphist` unit are not among them: after pulling changes to those, run
+> `bash scripts/setup.sh` again. An install made before the source was recorded (it has no
+> `.update_source` in `~/.config/quickshell/caelestia`) keeps following upstream until `setup.sh`
+> has been run once more.
 
 ### Uninstalling
 

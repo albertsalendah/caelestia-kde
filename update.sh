@@ -7,6 +7,7 @@ source "$(dirname "${BASH_SOURCE[0]}")/scripts/lib/log.sh"
 source "$(dirname "${BASH_SOURCE[0]}")/scripts/lib/privileges.sh"
 source "$(dirname "${BASH_SOURCE[0]}")/scripts/lib/install-fs.sh"
 source "$(dirname "${BASH_SOURCE[0]}")/scripts/lib/submodules.sh"
+source "$(dirname "${BASH_SOURCE[0]}")/scripts/lib/update-source.sh"
 
 section() {
     local title="$1"
@@ -43,7 +44,11 @@ if [ -d "$BUNDLE_DIR/.git" ]; then
         STASHED=1
     fi
 
-    if [ -n "${1:-}" ]; then
+    if clone_is_fork "$BUNDLE_DIR"; then
+        # A clone of a fork follows the branch it is on, in that fork. main and dev are upstream's.
+        BRANCH="$(fork_update_branch "$BUNDLE_DIR" "${1:-}")" || die "Cannot tell which branch to update."
+        info "Following this clone's branch on origin: $BRANCH"
+    elif [ -n "${1:-}" ]; then
         BRANCH="$1"
         if [[ "$BRANCH" != "main" && "$BRANCH" != "dev" ]]; then
             warn "Branch '$BRANCH' is not allowed. Falling back to main."
@@ -76,7 +81,10 @@ if [ -d "$BUNDLE_DIR/.git" ]; then
         fi
     fi
 
-    if [[ "$BRANCH" != "main" && "$BRANCH" != "dev" ]]; then
+    if clone_is_fork "$BUNDLE_DIR"; then
+        git -C "$BUNDLE_DIR" ls-remote --exit-code --heads origin "$BRANCH" >/dev/null 2>&1 || \
+            die "Remote branch '$BRANCH' not found on origin. Not falling back to main: that is upstream's branch."
+    elif [[ "$BRANCH" != "main" && "$BRANCH" != "dev" ]]; then
         warn "Branch '$BRANCH' is not allowed. Falling back to main."
         BRANCH="main"
     elif ! git -C "$BUNDLE_DIR" ls-remote --exit-code --heads origin "$BRANCH" >/dev/null 2>&1; then
