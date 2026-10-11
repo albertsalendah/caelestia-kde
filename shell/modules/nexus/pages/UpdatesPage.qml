@@ -363,9 +363,11 @@ PageBase {
             first: true
             enabled: !root.branchDataLoading
             label: qsTr("Update channel")
-            subtext: UpdateChecker.currentBranch === "main"
-                ? qsTr("Stable releases")
-                : qsTr("Development builds - may be unstable")
+            subtext: UpdateChecker.forkSource !== ""
+                ? qsTr("Updates from %1").arg(UpdateChecker.sourceLabel)
+                : UpdateChecker.currentBranch === "main"
+                    ? qsTr("Stable releases")
+                    : qsTr("Development builds - may be unstable")
             menuItems: root.branchItems
             active: root.activeBranchItem
             fallbackText: UpdateChecker.currentBranch

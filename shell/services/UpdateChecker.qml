@@ -24,6 +24,11 @@ Singleton {
     property string previousVersion: "unknown"
     property string targetVersion: ""
     property string installedCommitHash: ""
+    // Set when the install was made from a fork: the repository and the branch it follows there.
+    // Both stay empty for an install made from upstream, which has its main and dev channels.
+    property string forkSource: ""
+    property string forkBranch: ""
+    readonly property string sourceLabel: forkSource.replace(/^https?:\/\/[^/]+\//, "").replace(/\.git$/, "")
 
     property string _localCommit: ""
     property bool loaded: false
@@ -49,6 +54,9 @@ Singleton {
     property string processLineBuffer: ""
 
     function clampBranch(branch: string): string {
+        // A fork has one channel: the branch the install was made from.
+        if (forkSource !== "")
+            return forkBranch;
         return (branch === "dev" || branch === "main") ? branch : "main";
     }
 
@@ -66,15 +74,43 @@ Singleton {
     CURRENT_BRANCH="$1"
     LOCAL_COMMIT="$(cat \"$HOME/.config/quickshell/caelestia/.current_commit\" 2>/dev/null || true)"
 
+UPSTREAM_REPO="https://github.com/ladybug-me/caelestia-kde.git"
+REPO_URL="$UPSTREAM_REPO"
+IS_FORK=0
+FORK_BRANCH=""
+RECORDED_SOURCE="$(head -n 1 "$HOME/.config/quickshell/caelestia/.update_source" 2>/dev/null | tr -d '[:space:]')"
+if [ -n "$RECORDED_SOURCE" ] && [ "$(printf '%s' "$RECORDED_SOURCE" | tr 'A-Z' 'a-z')" != "$(printf '%s' "$UPSTREAM_REPO" | tr 'A-Z' 'a-z')" ]; then
+    # An install made from a fork follows the branch it was made from, in that fork.
+    REPO_URL="$RECORDED_SOURCE"
+    IS_FORK=1
+    FORK_BRANCH="$(head -n 1 "$HOME/.config/quickshell/caelestia/.update_branch" 2>/dev/null | tr -d '[:space:]')"
+    if [ "$FORK_BRANCH" = "HEAD" ]; then
+        FORK_BRANCH=""
+    fi
+    CURRENT_BRANCH="$FORK_BRANCH"
+fi
+echo "SOURCE|$IS_FORK|$REPO_URL|$FORK_BRANCH"
+if [ "$IS_FORK" = 1 ] && [ -z "$FORK_BRANCH" ]; then
+    exit 0
+fi
+
 ALLOWED_BRANCHES="main dev"
+if [ "$IS_FORK" = 1 ]; then
+    ALLOWED_BRANCHES="$FORK_BRANCH"
+fi
 LIVE_ALLOWED_BRANCHES=""
 for b in $ALLOWED_BRANCHES; do
-    if git ls-remote --exit-code --heads https://github.com/ladybug-me/caelestia-kde.git "$b" >/dev/null 2>&1; then
+    if git ls-remote --exit-code --heads "$REPO_URL" "$b" >/dev/null 2>&1; then
         LIVE_ALLOWED_BRANCHES="$LIVE_ALLOWED_BRANCHES,$b"
     fi
 done
 LIVE_ALLOWED_BRANCHES="$(printf '%s' "$LIVE_ALLOWED_BRANCHES" | sed 's/^,//')"
 if [ -z "$LIVE_ALLOWED_BRANCHES" ]; then
+    if [ "$IS_FORK" = 1 ]; then
+        # A fork has no main to fall back to; its branch is gone, so there is nothing to check.
+        echo "BRANCHES|"
+        exit 0
+    fi
     LIVE_ALLOWED_BRANCHES="main"
 fi
 echo "BRANCHES|$LIVE_ALLOWED_BRANCHES"
@@ -83,15 +119,19 @@ if ! echo ",$LIVE_ALLOWED_BRANCHES," | grep -q ",$CURRENT_BRANCH,"; then
     CURRENT_BRANCH="main"
 fi
 
-if ! echo ",main,dev," | grep -q ",$CURRENT_BRANCH,"; then
+if [ "$IS_FORK" != 1 ] && ! echo ",main,dev," | grep -q ",$CURRENT_BRANCH,"; then
     CURRENT_BRANCH="main"
 fi
 
 mkdir -p "$HOME/.config/quickshell/caelestia"
 echo "$CURRENT_BRANCH" > "$HOME/.config/quickshell/caelestia/.update_branch"
 REPO="$HOME/.cache/caelestia-update-repo"
+# The cache has to be a clone of this install's repository; one made for another is dropped.
+if [ -d "$REPO" ] && [ "$(git -C "$REPO" remote get-url origin 2>/dev/null)" != "$REPO_URL" ]; then
+    rm -rf "$REPO"
+fi
 if [ ! -d "$REPO" ]; then
-    git clone --bare --filter=blob:none https://github.com/ladybug-me/caelestia-kde.git "$REPO" >/dev/null 2>&1
+    git clone --bare --filter=blob:none "$REPO_URL" "$REPO" >/dev/null 2>&1
 else
     git -C "$REPO" fetch --force origin "$CURRENT_BRANCH:$CURRENT_BRANCH" >/dev/null 2>&1
 fi
@@ -118,7 +158,7 @@ resolve_version() {
     printf '%s' "$ver"
 }
 
-if [ "$CURRENT_BRANCH" = "main" ]; then
+if [ "$CURRENT_BRANCH" = "main" ] && [ "$IS_FORK" != 1 ]; then
     git -C "$REPO" fetch --tags origin >/dev/null 2>&1 || true
 
     CURRENT_VERSION_FILE="$HOME/.config/quickshell/caelestia/.current_version"
@@ -331,7 +371,7 @@ fi
     }
 
     function loadMoreCommits(): void {
-        if (root.loadingMoreCommits || !root.hasMoreCommits || root.currentBranch !== "dev")
+        if (root.loadingMoreCommits || !root.hasMoreCommits || (root.currentBranch !== "dev" && root.forkSource === ""))
             return;
         root.loadingMoreCommits = true;
         const moreCmd = `
@@ -465,7 +505,7 @@ git -C "$REPO" log --format="COMMIT%x1f%H%x1f%h%x1f%s%x1f%an%x1f%cI%x1f%P" --ski
                     const parsedVersions = [];
                     let parsedPendingCount = 0;
                     let parsedHasUpdate = false;
-                    let parsedVersionSummaryMode = root.currentBranch === "main";
+                    let parsedVersionSummaryMode = root.currentBranch === "main" && root.forkSource === "";
                     let parsedLocalCommitFull = "";
                     let parsedCommitCount = 0;
                     let parsedHasMore = false;
@@ -474,11 +514,24 @@ git -C "$REPO" log --format="COMMIT%x1f%H%x1f%h%x1f%s%x1f%an%x1f%cI%x1f%P" --ski
                     for (let i = 0; i < lines.length; i++) {
                         const line = lines[i].trim();
                         if (line === "") continue;
+                        if (line.startsWith("SOURCE|")) {
+                            // First line of every check: where this install's updates come from.
+                            const parts = line.split("|");
+                            const isFork = parts[1] === "1";
+                            root.forkSource = isFork ? (parts[2] || "") : "";
+                            root.forkBranch = isFork ? (parts[3] || "") : "";
+                            if (root.forkSource !== "") {
+                                root.currentBranch = root.forkBranch;
+                                root.availableBranches = root.forkBranch !== "" ? [root.forkBranch] : [];
+                            }
+                            parsedVersionSummaryMode = root.currentBranch === "main" && root.forkSource === "";
+                            continue;
+                        }
                         if (line.startsWith("BRANCHES|")) {
-                            root.availableBranches = line.substring(9).split(",").filter(b => b === "main" || b === "dev");
+                            root.availableBranches = line.substring(9).split(",").filter(b => b === "main" || b === "dev" || (root.forkSource !== "" && b === root.forkBranch));
                             if (root.availableBranches.length === 0)
-                                root.availableBranches = ["main"];
-                            if (!root.availableBranches.includes(root.currentBranch)) {
+                                root.availableBranches = root.forkSource !== "" ? (root.forkBranch !== "" ? [root.forkBranch] : []) : ["main"];
+                            if (root.forkSource === "" && !root.availableBranches.includes(root.currentBranch)) {
                                 root.currentBranch = "main";
                             }
                             continue;
