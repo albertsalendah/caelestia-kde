@@ -9,6 +9,8 @@
 #   /usr/local/lib/systemd/user/caelestia-session.target   the session target
 #   /usr/local/share/wayland-sessions/caelestia.desktop    the login-screen entry
 #   /etc/sddm.conf.d/zz-wayland-greeter.conf               SDDM only: a Wayland greeter
+#   /usr/local/share/wayland-sessions/plasma.desktop       SDDM only, and only with no Plasma desktop
+#                                                          installed: hides plasma-workspace's Plasma entry
 #
 # The login manager decides the last two:
 #   Plasma Login (plasmalogin) active -> the entry only.
@@ -37,6 +39,7 @@ PROGRAM="$ROOT/usr/local/bin/caelestia-wm-session"
 UNIT_DIR="$ROOT/usr/local/lib/systemd/user"
 ENTRY="$ROOT/usr/local/share/wayland-sessions/caelestia.desktop"
 GREETER_DROPIN="$ROOT/etc/sddm.conf.d/zz-wayland-greeter.conf"
+PLASMA_ENTRY="$ROOT/usr/local/share/wayland-sessions/plasma.desktop"
 DISPLAY_MANAGER_LINK="$ROOT/etc/systemd/system/display-manager.service"
 PLASMALOGIN_CONF="$ROOT/etc/plasmalogin.conf"
 STATE_DIR="${XDG_STATE_HOME:-$HOME/.local/state}/caelestia"
@@ -56,7 +59,7 @@ if [[ "${BASE_DISTRO:-}" != "arch" ]]; then
 fi
 
 for file in caelestia-wm-session caelestia-kwin.service caelestia-session.target \
-            caelestia.desktop zz-wayland-greeter.conf; do
+            caelestia.desktop zz-wayland-greeter.conf plasma.desktop; do
     [[ -f "$SRC_DIR/$file" ]] || die "Missing $SRC_DIR/$file"
 done
 
@@ -139,6 +142,29 @@ case "$LOGIN_MANAGER" in
         warn "manager may not list /usr/local/share/wayland-sessions; check that it shows 'Caelestia'."
         ;;
 esac
+
+# --- the Plasma login entry ---------------------------------------------------------------
+# plasma-workspace, which the session needs, ships a login entry for a Plasma session. A machine
+# with no Plasma desktop (plasma-desktop is what makes one) gets an entry that starts plasmashell
+# with nothing to show, so it is hidden: SDDM reads /usr/local/share/wayland-sessions first, takes
+# the first file of a name, and skips one marked NoDisplay. Nothing the package owns is touched.
+# Only SDDM is handled; what other login managers do with the same file has not been tried.
+is_ours() { [[ -f "$1" ]] && grep -q '^X-Caelestia-Managed=true$' "$1"; }
+
+if package_present plasma-desktop; then
+    # A Plasma desktop is installed, so its entry is wanted; give back the one this step hid.
+    if is_ours "$PLASMA_ENTRY"; then
+        caelestia_sudo rm -f "$PLASMA_ENTRY"
+        ok "A Plasma desktop is installed; its login entry is shown again."
+    fi
+elif [[ "$LOGIN_MANAGER" == sddm || "$LOGIN_MANAGER" == none ]]; then
+    if [[ -e "$PLASMA_ENTRY" ]] && ! is_ours "$PLASMA_ENTRY"; then
+        info "$PLASMA_ENTRY is not ours; leaving it as it is."
+    else
+        install_file "$SRC_DIR/plasma.desktop" "$PLASMA_ENTRY" 0644
+        ok "No Plasma desktop is installed, so the Plasma login entry is hidden (plasma.desktop)."
+    fi
+fi
 
 # --- tell the user manager about the new units --------------------------------------------
 # A reload during a running Caelestia session is harmless with these units (no BusName=), but

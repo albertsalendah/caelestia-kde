@@ -75,14 +75,15 @@ they were, and you choose one at the login screen.
 | KWin unit and session target | `/usr/local/lib/systemd/user/caelestia-kwin.service` and `caelestia-session.target` |
 | Login-screen entry | `/usr/local/share/wayland-sessions/caelestia.desktop` |
 | Wayland greeter (SDDM only) | `/etc/sddm.conf.d/zz-wayland-greeter.conf` |
+| Hides the Plasma login entry (SDDM only, and only with no Plasma desktop installed) | `/usr/local/share/wayland-sessions/plasma.desktop` |
 
 The step looks at the login manager the machine uses:
 
 | Login manager | What the step does |
 | --- | --- |
 | Plasma Login | installs the entry only |
-| SDDM | installs the entry and a drop-in that switches SDDM to a Wayland greeter |
-| none enabled | installs SDDM, adds the drop-in and enables it |
+| SDDM | installs the entry and a drop-in that switches SDDM to a Wayland greeter, and hides the Plasma entry if no Plasma desktop is installed |
+| none enabled | installs SDDM, adds the drop-in and enables it, and hides the Plasma entry if no Plasma desktop is installed |
 | anything else | installs the entry and warns that the login manager may not list it |
 
 The Wayland greeter matters. With SDDM's default Xorg greeter, about 4 in 9 logins on the test
@@ -93,7 +94,10 @@ field (full variant), so you can pick Caelestia or Plasma.
 `layer-shell-qt`, `xdg-desktop-portal-kde`, `xorg-xwayland`, `polkit-kde-agent`, `powerdevil`,
 `kscreen`, `konsole`, `dolphin`, `ark` and `systemsettings`, because the shell calls their tools.
 `plasma-workspace` brings the `plasmashell` binary and a Plasma login entry with it, but nothing in
-the Caelestia session starts `plasmashell`. When foot is not installed and you have not chosen a
+the Caelestia session starts `plasmashell`. With SDDM and no Plasma desktop (`plasma-desktop` not
+installed) the installer hides that Plasma entry, so the login screen offers only Caelestia; it does
+this with a file in `/usr/local/share/wayland-sessions`, and touches nothing the package owns. Install
+`plasma-desktop` and run the installer again to show the entry. When foot is not installed and you have not chosen a
 terminal, the installer records Konsole as the shell's terminal.
 
 **Options.** Set these in the environment before you run `bash scripts/setup.sh`:

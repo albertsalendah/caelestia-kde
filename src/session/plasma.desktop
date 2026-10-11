@@ -1,0 +1,9 @@
+[Desktop Entry]
+# Written by the Caelestia installer (scripts/12-independent-session.sh). It hides the Plasma
+# login entry that plasma-workspace ships, on a machine that has no Plasma desktop installed.
+# SDDM reads /usr/local/share/wayland-sessions before /usr/share/wayland-sessions and skips an
+# entry marked NoDisplay, so this file stands in for the packaged one. The installer removes it
+# when plasma-desktop is installed and the installer is run again, and so does uninstall.sh.
+Name=Plasma (Wayland)
+NoDisplay=true
+X-Caelestia-Managed=true

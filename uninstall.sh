@@ -691,6 +691,13 @@ for session_file in "${SESSION_FILES[@]}"; do
         ok "Removed independent session file: $session_file"
     fi
 done
+# The file that hid the Plasma login entry, only if it is the one the installer wrote: a
+# plasma.desktop that someone else put there is theirs.
+PLASMA_ENTRY=/usr/local/share/wayland-sessions/plasma.desktop
+if [[ -f "$PLASMA_ENTRY" ]] && grep -q '^X-Caelestia-Managed=true$' "$PLASMA_ENTRY"; then
+    caelestia_sudo rm -f "$PLASMA_ENTRY"
+    ok "Removed the file that hid the Plasma login entry: $PLASMA_ENTRY"
+fi
 caelestia_sudo rmdir /usr/local/share/wayland-sessions /usr/local/lib/systemd/user 2>/dev/null || true
 
 SESSION_SDDM_FLAG="${XDG_STATE_HOME:-$HOME/.local/state}/caelestia/session-enabled-sddm"

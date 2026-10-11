@@ -63,6 +63,17 @@ test_the_greeter_drop_in_keeps_the_theme_variable_it_replaces() {
     assert_contains "$conf" 'GreeterEnvironment=QML_XHR_ALLOW_FILE_READ=1,QT_WAYLAND_SHELL_INTEGRATION=layer-shell' "and keep the variable the theme's own drop-in sets, which a later file would replace"
 }
 
+test_the_plasma_entry_file_hides_an_entry_and_says_it_is_ours() {
+    local entry
+    entry="$(cat "$SESSION_SRC/plasma.desktop")"
+
+    assert_contains "$entry" $'[Desktop Entry]\n' "it should be a desktop entry"
+    assert_contains "$entry" $'\nName=Plasma (Wayland)\n' "named like the one it stands in for"
+    assert_contains "$entry" $'\nNoDisplay=true\n' "and hidden, which SDDM skips"
+    assert_contains "$entry" $'\nX-Caelestia-Managed=true' "with the mark the installer and uninstall.sh look for before they remove it"
+    assert_not_contains "$entry" 'Exec=' "and nothing to run if a login manager lists it anyway"
+}
+
 # --- the install step -----------------------------------------------------------------------
 
 # Builds a scratch machine: a root to install under, a home, and stubs that record their calls.
@@ -86,6 +97,7 @@ esac"
     recording_stub "$MACHINE/bin" pacman "$LOG" 1
     # pacman -Q reports "not installed"; anything else is just recorded
     stub_bin "$MACHINE/bin" pacman "printf 'pacman %s\\n' \"\$*\" >> '$LOG'
+[ \"\$*\" = '-Qq plasma-desktop' ] && [ \"\${STUB_PLASMA_DESKTOP:-}\" = 1 ] && exit 0
 case \"\$1\" in -Q*) exit 1 ;; esac
 exit 0"
 }
@@ -96,6 +108,7 @@ run_step() {
         CAELESTIA_SESSION_ROOT="$MACHINE/root" CAELESTIA_INSTALL_KIND="${STUB_KIND:-source}" \
         CAELESTIA_SUDO_BIN="$MACHINE/bin/sudo" \
         STUB_LOGIN_MANAGER="${STUB_LOGIN_MANAGER:-}" STUB_SESSION_RUNNING="${STUB_SESSION_RUNNING:-}" \
+        STUB_PLASMA_DESKTOP="${STUB_PLASMA_DESKTOP:-}" \
         bash "$STEP" 2>&1
 }
 
@@ -206,6 +219,84 @@ test_a_leftover_per_user_copy_of_a_unit_is_called_out() {
 
     assert_contains "$out" 'overrides the system-wide caelestia-kwin.service' "a user copy wins over the system-wide unit, so say so"
     rm -rf "$MACHINE"
+}
+
+PLASMA_ENTRY_REL="root/usr/local/share/wayland-sessions/plasma.desktop"
+
+test_sddm_with_no_plasma_desktop_gets_the_plasma_entry_hidden() {
+    setup_machine
+    local out
+    out="$(STUB_LOGIN_MANAGER=sddm run_step)"
+
+    assert_file_exists "$MACHINE/$PLASMA_ENTRY_REL"
+    assert_contains "$(cat "$MACHINE/$PLASMA_ENTRY_REL")" 'NoDisplay=true' "the entry should be hidden"
+    assert_contains "$out" 'the Plasma login entry is hidden' "and the step should say so"
+    rm -rf "$MACHINE"
+}
+
+test_with_no_login_manager_the_plasma_entry_is_hidden_too() {
+    setup_machine
+    run_step > /dev/null
+
+    assert_file_exists "$MACHINE/$PLASMA_ENTRY_REL" "the SDDM the step installs lists sessions the same way"
+    rm -rf "$MACHINE"
+}
+
+test_a_plasma_desktop_keeps_its_entry_and_gets_back_the_one_we_hid() {
+    setup_machine
+    STUB_LOGIN_MANAGER=sddm run_step > /dev/null
+    assert_file_exists "$MACHINE/$PLASMA_ENTRY_REL" "the entry is hidden while there is no Plasma desktop"
+
+    local out
+    out="$(STUB_LOGIN_MANAGER=sddm STUB_PLASMA_DESKTOP=1 run_step)"
+
+    assert_file_missing "$MACHINE/$PLASMA_ENTRY_REL" "once plasma-desktop is installed, running the step again shows the entry"
+    assert_contains "$out" 'its login entry is shown again' "and says so"
+
+    rm -rf "$MACHINE"
+    setup_machine
+    STUB_LOGIN_MANAGER=sddm STUB_PLASMA_DESKTOP=1 run_step > /dev/null
+    assert_file_missing "$MACHINE/$PLASMA_ENTRY_REL" "a machine that has Plasma from the start never gets it hidden"
+    rm -rf "$MACHINE"
+}
+
+test_a_plasma_entry_somebody_else_wrote_is_left_alone() {
+    setup_machine
+    mkdir -p "$MACHINE/root/usr/local/share/wayland-sessions"
+    printf '[Desktop Entry]\nName=My own Plasma\nExec=/opt/mine\n' > "$MACHINE/$PLASMA_ENTRY_REL"
+    local out
+    out="$(STUB_LOGIN_MANAGER=sddm run_step)"
+
+    assert_contains "$(cat "$MACHINE/$PLASMA_ENTRY_REL")" 'My own Plasma' "a file we did not write must not be overwritten"
+    assert_contains "$out" 'is not ours' "and the step should say it left it"
+
+    out="$(STUB_LOGIN_MANAGER=sddm STUB_PLASMA_DESKTOP=1 run_step)"
+    assert_contains "$(cat "$MACHINE/$PLASMA_ENTRY_REL")" 'My own Plasma' "nor removed, even when a Plasma desktop is installed"
+    rm -rf "$MACHINE"
+}
+
+test_plasma_login_and_other_login_managers_keep_the_plasma_entry() {
+    setup_machine
+    STUB_LOGIN_MANAGER=plasmalogin run_step > /dev/null
+    assert_file_missing "$MACHINE/$PLASMA_ENTRY_REL" "what Plasma Login does with a hidden entry has not been tried"
+    rm -rf "$MACHINE"
+
+    setup_machine
+    : > "$MACHINE/lightdm.service"
+    mkdir -p "$MACHINE/root/etc/systemd/system"
+    ln -s "$MACHINE/lightdm.service" "$MACHINE/root/etc/systemd/system/display-manager.service"
+    run_step > /dev/null
+    assert_file_missing "$MACHINE/$PLASMA_ENTRY_REL" "nor has what another login manager does"
+    rm -rf "$MACHINE"
+}
+
+test_uninstall_removes_the_plasma_entry_file_only_when_it_is_ours() {
+    local uninstall
+    uninstall="$(cat "$REPO_ROOT/uninstall.sh")"
+
+    assert_contains "$uninstall" "grep -q '^X-Caelestia-Managed=true\$' \"\$PLASMA_ENTRY\"" "uninstall.sh should check the mark before it removes the file"
+    assert_contains "$uninstall" 'PLASMA_ENTRY=/usr/local/share/wayland-sessions/plasma.desktop' "and name the file the step writes"
+    assert_contains "$(cat "$STEP")" "grep -q '^X-Caelestia-Managed=true\$' \"\$1\"" "and so should the step"
 }
 
 run_tests
