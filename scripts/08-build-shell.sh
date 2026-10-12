@@ -91,6 +91,27 @@ caelestia_normalise_stamp() {
     sed -E -e 's/cmake version //' -e 's/([0-9]+\.[0-9]+)\.[0-9]+/\1/g'
 }
 
+# FetchContent remembers in the build tree that m3shapes was downloaded, and keeps the sources in the
+# installer cache, outside it. When the cache is wiped and the build tree is kept (the installer's
+# "Remove build cache after install" does that, and so does a cache cleaner), the next configure runs
+# only FetchContent's update step, in a directory that holds no checkout, and fails with "not a git
+# repository". Dropping the record, and the empty or broken directory, makes it download again.
+#   drop_stale_m3shapes_record BUILD_DIR CMAKELISTS CACHE_DIR
+drop_stale_m3shapes_record() {
+    local build_dir="$1" cmakelists="$2" cache_dir="$3" rev source
+
+    [[ -d "$build_dir/_deps/m3shapes_external-subbuild" ]] || return 0
+
+    rev="$(sed -nE 's/^[[:space:]]*set\(M3SHAPES_REV[[:space:]]+"?([0-9a-f]{7,40})"?\).*/\1/p' "$cmakelists" 2>/dev/null | head -n 1)"
+    [[ -n "$rev" ]] || return 0
+
+    source="$cache_dir/m3shapes-$rev"
+    [[ -e "$source/.git" ]] && return 0
+
+    info "The m3shapes sources are not in the installer cache; downloading them again."
+    rm -rf -- "$build_dir/_deps/m3shapes_external-subbuild" "$source"
+}
+
 prepare_build_dir() {
     local dir="$1"
     if [[ -f "$dir/CMakeCache.txt" && -f "$dir/.caelestia_toolchain_stamp" ]] \
@@ -449,6 +470,7 @@ else
 
     info "Configuring CMake..."
     prepare_build_dir build
+    drop_stale_m3shapes_record build CMakeLists.txt "${XDG_CACHE_HOME:-$HOME/.cache}/caelestia-kde"
     cmake -G "$CMAKE_GENERATOR" -B build -DCMAKE_BUILD_TYPE=Release -DCAELESTIA_CACHE_DEPS=ON -DCMAKE_INSTALL_PREFIX="$HOME/.local" -DINSTALL_QSCONFDIR="$HOME/.config/quickshell/caelestia" -DINSTALL_LIBDIR="lib/caelestia" -DINSTALL_QMLDIR="lib/qt6/qml" || {
         err "CMake configuration failed."
         exit 1
