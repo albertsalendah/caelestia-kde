@@ -214,6 +214,16 @@ test_the_service_reads_the_source_line_and_lets_the_forks_branch_through() {
     assert_contains "$qml" 'let parsedVersionSummaryMode = root.currentBranch === "main" && root.forkSource === "";' "a fork is never shown release versions"
 }
 
+test_a_fork_install_that_is_up_to_date_is_not_shown_as_an_unknown_version() {
+    local qml
+    qml="$(cat "$CHECKER_QML")"
+
+    # The page says "Installed version unknown" for as long as currentVersion is "unknown", and only the
+    # release channel ever sets it, so a fork's installed commit has to stand in for it.
+    assert_contains "$qml" 'root.currentVersion = parsedLocalCommitFull !== "" ? parsedLocalCommitFull.substring(0, 7) : "unknown";' "the installed commit should be the version of a fork install"
+    assert_contains "$qml" $'if (root.forkSource !== "")\n                        root.currentVersion' "and only for a fork: upstream's dev channel is left as it was"
+}
+
 test_the_updates_page_says_where_a_fork_install_updates_from() {
     assert_contains "$(cat "$UPDATES_PAGE")" 'qsTr("Updates from %1").arg(UpdateChecker.sourceLabel)' "the channel row should not call a fork's branch a development build"
 }

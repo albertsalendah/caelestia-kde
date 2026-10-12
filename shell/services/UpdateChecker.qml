@@ -641,6 +641,10 @@ git -C "$REPO" log --format="COMMIT%x1f%H%x1f%h%x1f%s%x1f%an%x1f%cI%x1f%P" --ski
                         parsedHasUpdate = false;
                     }
                     root.installedCommitHash = parsedVersionSummaryMode ? "" : parsedLocalCommitFull;
+                    // A fork has no release versions to show, so the installed commit stands in for one.
+                    // Without it the page says "Installed version unknown" even when the install is up to date.
+                    if (root.forkSource !== "")
+                        root.currentVersion = parsedLocalCommitFull !== "" ? parsedLocalCommitFull.substring(0, 7) : "unknown";
 
                     const dedupedCommits = [];
                     const seenKeys = new Set();
