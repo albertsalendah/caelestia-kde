@@ -357,6 +357,83 @@ PageBase {
             }
         }
 
+        SectionHeader {
+            visible: !root.branchDataLoading && (root.updateRunning || root.updateLogs !== "")
+            text: qsTr("Update Log")
+        }
+
+        ConnectedRect {
+            first: true
+            last: true
+            Layout.fillWidth: true
+            visible: !root.branchDataLoading && (root.updateRunning || root.updateLogs !== "")
+            implicitHeight: logContent.implicitHeight + Tokens.padding.medium * 2
+
+            ColumnLayout {
+                id: logContent
+                anchors {
+                    left: parent.left
+                    right: parent.right
+                    top: parent.top
+                    margins: Tokens.padding.medium
+                }
+
+                spacing: Tokens.spacing.small
+
+                RowLayout {
+                    Layout.fillWidth: true
+                    spacing: Tokens.spacing.medium
+
+                    StyledText {
+                        Layout.fillWidth: true
+                        text: root.updateStatus
+                        color: Colours.palette.m3onSurfaceVariant
+                        font: Tokens.font.body.medium
+                        wrapMode: Text.NoWrap
+                        elide: Text.ElideRight
+                        maximumLineCount: 1
+                    }
+
+                    IconButton {
+                        icon: UpdateChecker.logsExpanded ? "expand_less" : "expand_more"
+                        onClicked: UpdateChecker.logsExpanded = !UpdateChecker.logsExpanded
+                    }
+                }
+
+                StyledRect {
+                    Layout.fillWidth: true
+                    implicitHeight: 240
+                    visible: UpdateChecker.logsExpanded && (root.updateLogs !== "" || root.updateRunning)
+                    color: Colours.tPalette.m3surfaceContainerLowest
+                    radius: Tokens.rounding.small
+                    clip: true
+
+                    Flickable {
+                        id: logFlickable
+
+                        anchors.fill: parent
+                        anchors.margins: Tokens.padding.medium
+                        contentHeight: logText.implicitHeight
+                        contentWidth: width
+                        flickableDirection: Flickable.VerticalFlick
+                        onContentHeightChanged: {
+                            if (contentHeight > height) contentY = contentHeight - height;
+                        }
+
+                        StyledText {
+                            id: logText
+
+                            width: logFlickable.width
+                            text: root.updateLogs
+                            color: Colours.palette.m3onSurfaceVariant
+                            font: Tokens.font.body.small
+                            wrapMode: Text.Wrap
+                        }
+                    }
+                }
+            }
+        }
+
         SectionHeader { text: qsTr("General") }
 
         SelectRow {
@@ -588,83 +665,6 @@ PageBase {
             verticalPadding: Tokens.padding.medium
             disabled: UpdateChecker.loadingMoreCommits
             onClicked: UpdateChecker.loadMoreCommits()
-        }
-
-        SectionHeader {
-            visible: !root.branchDataLoading && (root.updateRunning || root.updateLogs !== "")
-            text: qsTr("Update Log")
-        }
-
-        ConnectedRect {
-            first: true
-            last: true
-            Layout.fillWidth: true
-            visible: !root.branchDataLoading && (root.updateRunning || root.updateLogs !== "")
-            implicitHeight: logContent.implicitHeight + Tokens.padding.medium * 2
-
-            ColumnLayout {
-                id: logContent
-                anchors {
-                    left: parent.left
-                    right: parent.right
-                    top: parent.top
-                    margins: Tokens.padding.medium
-                }
-
-                spacing: Tokens.spacing.small
-
-                RowLayout {
-                    Layout.fillWidth: true
-                    spacing: Tokens.spacing.medium
-
-                    StyledText {
-                        Layout.fillWidth: true
-                        text: root.updateStatus
-                        color: Colours.palette.m3onSurfaceVariant
-                        font: Tokens.font.body.medium
-                        wrapMode: Text.NoWrap
-                        elide: Text.ElideRight
-                        maximumLineCount: 1
-                    }
-
-                    IconButton {
-                        icon: UpdateChecker.logsExpanded ? "expand_less" : "expand_more"
-                        onClicked: UpdateChecker.logsExpanded = !UpdateChecker.logsExpanded
-                    }
-                }
-
-                StyledRect {
-                    Layout.fillWidth: true
-                    implicitHeight: 240
-                    visible: UpdateChecker.logsExpanded && (root.updateLogs !== "" || root.updateRunning)
-                    color: Colours.tPalette.m3surfaceContainerLowest
-                    radius: Tokens.rounding.small
-                    clip: true
-
-                    Flickable {
-                        id: logFlickable
-
-                        anchors.fill: parent
-                        anchors.margins: Tokens.padding.medium
-                        contentHeight: logText.implicitHeight
-                        contentWidth: width
-                        flickableDirection: Flickable.VerticalFlick
-                        onContentHeightChanged: {
-                            if (contentHeight > height) contentY = contentHeight - height;
-                        }
-
-                        StyledText {
-                            id: logText
-
-                            width: logFlickable.width
-                            text: root.updateLogs
-                            color: Colours.palette.m3onSurfaceVariant
-                            font: Tokens.font.body.small
-                            wrapMode: Text.Wrap
-                        }
-                    }
-                }
-            }
         }
 
         Process {
