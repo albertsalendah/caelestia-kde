@@ -33,6 +33,29 @@ resolve_update_source() {
     fi
 }
 
+# The system update is opt-in. An update of Caelestia must not replace the packages the running
+# session has loaded (KWin, Qt, plasma-workspace): that can end the session partway through, and
+# the steps after it never run. Nexus -> Updates sets CAELESTIA_UPDATE_SYSTEM=1 when its "Update
+# the System" switch is on; anything else, or nothing, leaves the system alone.
+system_update() {
+    if [[ "${CAELESTIA_UPDATE_SYSTEM:-0}" != "1" ]]; then
+        info "Not updating the system packages: this update only touches Caelestia."
+        info "To include them, turn on 'Update the System' on the Updates page, or set CAELESTIA_UPDATE_SYSTEM=1."
+        return 0
+    fi
+
+    if command -v pacman >/dev/null; then
+        info "Running system update via pacman..."
+        sudo pacman -Syu --noconfirm || warn "System update was canceled or failed. Continuing with non-sudo parts..."
+    elif command -v dnf >/dev/null; then
+        info "Running system update via dnf..."
+        sudo dnf upgrade --refresh -y || warn "System update was canceled or failed. Continuing with non-sudo parts..."
+    elif command -v apt-get >/dev/null; then
+        info "Running system update via apt..."
+        sudo apt-get update && sudo apt-get upgrade -y || warn "System update was canceled or failed. Continuing with non-sudo parts..."
+    fi
+}
+
 # A test sources this file for the function above; stop here so nothing below runs.
 if [[ "${BASH_SOURCE[0]}" != "$0" ]]; then
     return 0
@@ -300,22 +323,17 @@ fi
 
 [[ -f "$UPD_DIR/repo/src/dots/starship.toml" ]] || die "Missing src/dots content after update"
 
-# 2. System update via Polkit
-echo "PROGRESS: 2/5: Running system update..."
+# 2. System update via Polkit (only when asked for: see system_update above)
+if [[ "${CAELESTIA_UPDATE_SYSTEM:-0}" == "1" ]]; then
+    echo "PROGRESS: 2/5: Running system update..."
+else
+    echo "PROGRESS: 2/5: Skipping system update..."
+fi
 echo
 echo "---------------------------------------------"
 echo "  Step 1 - System Updates"
 echo "---------------------------------------------"
-if command -v pacman >/dev/null; then
-    info "Running system update via pacman..."
-    sudo pacman -Syu --noconfirm || warn "System update was canceled or failed. Continuing with non-sudo parts..."
-elif command -v dnf >/dev/null; then
-    info "Running system update via dnf..."
-    sudo dnf upgrade --refresh -y || warn "System update was canceled or failed. Continuing with non-sudo parts..."
-elif command -v apt-get >/dev/null; then
-    info "Running system update via apt..."
-    sudo apt-get update && sudo apt-get upgrade -y || warn "System update was canceled or failed. Continuing with non-sudo parts..."
-fi
+system_update
 
 # 3. 08-build-shell.sh handles GUI privilege escalation itself.
 info "Executing build scripts (GUI prompts will appear if required)..."

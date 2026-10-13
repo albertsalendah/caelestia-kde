@@ -50,6 +50,12 @@ curl -fsSL https://raw.githubusercontent.com/ladybug-me/caelestia-kde/main/insta
 
 Shell settings are preserved across updates.
 
+Nexus -> Updates and `caelestia-update` update Caelestia only. The full system upgrade (pacman, dnf
+or apt) is off by default: turn on *Update the System* under *Customize Installation*, or run
+`CAELESTIA_UPDATE_SYSTEM=1 caelestia-update`, to include it. An upgrade of KWin or Qt can end the
+running session partway through, so save your work first. An install that came from a package
+updates through its package manager instead.
+
 > [!NOTE]
 > An install made from a fork follows that fork. Nexus -> Updates, the update notification and
 > `caelestia-update` use the repository and branch recorded at install time (this fork's

@@ -477,11 +477,19 @@ PageBase {
 
         ToggleRow {
             visible: !root.branchDataLoading && root.installOptionsExpanded
-            last: true
             text: qsTr("Build Shell UI")
             subtext: qsTr("Compile and install Quickshell UI updates")
             checked: UpdateChecker.buildShell
             onToggled: UpdateChecker.buildShell = checked
+        }
+
+        ToggleRow {
+            visible: !root.branchDataLoading && root.installOptionsExpanded
+            last: true
+            text: qsTr("Update the System")
+            subtext: qsTr("Also upgrade all system packages first. A KWin or Qt upgrade can end your session")
+            checked: UpdateChecker.systemUpdate
+            onToggled: UpdateChecker.systemUpdate = checked
         }
 
         ConnectedRect {

@@ -757,11 +757,15 @@ git -C "$REPO" log --format="COMMIT%x1f%H%x1f%h%x1f%s%x1f%an%x1f%cI%x1f%P" --ski
         property bool deployConfigs: true
 
         property bool buildShell: true
+
+        property bool systemUpdate: false
     }
 
     property alias deployConfigs: updaterSettings.deployConfigs
 
     property alias buildShell: updaterSettings.buildShell
+
+    property alias systemUpdate: updaterSettings.systemUpdate
 
     property string claudeCodeVersion: ""
 
@@ -840,7 +844,8 @@ echo "$INSTALLED|$LATEST"
             .concat(root.targetVersion !== "" ? [root.targetVersion] : [])
         environment: ({
             CAELESTIA_SKIP_DEPLOY: updaterSettings.deployConfigs ? "0" : "1",
-            CAELESTIA_SKIP_BUILD: updaterSettings.buildShell ? "0" : "1"
+            CAELESTIA_SKIP_BUILD: updaterSettings.buildShell ? "0" : "1",
+            CAELESTIA_UPDATE_SYSTEM: updaterSettings.systemUpdate ? "1" : "0"
         })
         stdout: SplitParser {
             onRead: function(text) {
