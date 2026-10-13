@@ -33,10 +33,46 @@ resolve_update_source() {
     fi
 }
 
+# Packages the running session keeps loaded in memory. When an upgrade replaces one of them, the
+# plugin built next would link against the new libraries while the live KWin still runs the old
+# ones. scripts/00a-system-update.sh keeps the same list and the same stamp file.
+SESSION_PACKAGES=(kwin plasma-workspace libplasma qt6-base qt6-declarative)
+STALE_SESSION_STAMP="${XDG_STATE_HOME:-$HOME/.local/state}/caelestia/stale-session"
+
+session_package_versions() {
+    local pkg
+    for pkg in "${SESSION_PACKAGES[@]}"; do
+        pacman -Q "$pkg" 2>/dev/null || printf '%s not-installed\n' "$pkg"
+    done
+}
+
+# Process id and start time of the running KWin: it names this login session, so the stamp stops
+# meaning anything once the user has logged in again.
+kwin_session_identity() {
+    local pid
+    pid="$(pgrep -x kwin_wayland 2>/dev/null | head -n1 || true)"
+    [[ -n "$pid" ]] || pid="$(pgrep -x kwin_x11 2>/dev/null | head -n1 || true)"
+    [[ -n "$pid" ]] || return 1
+    printf '%s %s\n' "$pid" "$(awk '{print $22}' "/proc/$pid/stat" 2>/dev/null || echo '?')"
+}
+
+# Called before anything is deployed or built, whether or not the system update is on: a session
+# that predates an earlier upgrade must be restarted first. The stamp is written by system_update
+# below (and by the installer's 00a step) and is cleared by the next login.
+refuse_stale_session() {
+    [[ -f "$STALE_SESSION_STAMP" ]] || return 0
+    if [[ "$(cat "$STALE_SESSION_STAMP" 2>/dev/null)" == "$(kwin_session_identity 2>/dev/null)" ]]; then
+        die "This session still predates the last KWin/Qt upgrade. Log out and back in (or reboot), then run the update again."
+    fi
+    rm -f "$STALE_SESSION_STAMP"
+}
+
 # The system update is opt-in. An update of Caelestia must not replace the packages the running
 # session has loaded (KWin, Qt, plasma-workspace): that can end the session partway through, and
 # the steps after it never run. Nexus -> Updates sets CAELESTIA_UPDATE_SYSTEM=1 when its "Update
-# the System" switch is on; anything else, or nothing, leaves the system alone.
+# the System" switch is on; anything else, or nothing, leaves the system alone. When it is on and
+# the upgrade replaced one of SESSION_PACKAGES, the update stops before deploying or building and
+# asks for a new login; running it again then picks up the rest, because the upgrade is applied.
 system_update() {
     if [[ "${CAELESTIA_UPDATE_SYSTEM:-0}" != "1" ]]; then
         info "Not updating the system packages: this update only touches Caelestia."
@@ -45,8 +81,21 @@ system_update() {
     fi
 
     if command -v pacman >/dev/null; then
+        local versions_before identity
+        versions_before="$(session_package_versions)"
         info "Running system update via pacman..."
         sudo pacman -Syu --noconfirm || warn "System update was canceled or failed. Continuing with non-sudo parts..."
+
+        if [[ "$(session_package_versions)" != "$versions_before" ]]; then
+            warn "The upgrade replaced packages the running session still has loaded:"
+            diff <(printf '%s\n' "$versions_before") <(session_package_versions) \
+                | grep -E '^[<>]' | sed 's/^< /  had /; s/^> /  now /' >&2 || true
+            if identity="$(kwin_session_identity 2>/dev/null)" && [[ -n "$identity" ]]; then
+                mkdir -p "$(dirname "$STALE_SESSION_STAMP")"
+                printf '%s\n' "$identity" > "$STALE_SESSION_STAMP"
+            fi
+            die "Building now would link the Caelestia plugin against the new libraries while KWin still runs the old ones. Log out and back in (or reboot), then run the update again: the upgrade is already applied, so it goes straight to Caelestia."
+        fi
     elif command -v dnf >/dev/null; then
         info "Running system update via dnf..."
         sudo dnf upgrade --refresh -y || warn "System update was canceled or failed. Continuing with non-sudo parts..."
@@ -333,6 +382,7 @@ echo
 echo "---------------------------------------------"
 echo "  Step 1 - System Updates"
 echo "---------------------------------------------"
+refuse_stale_session
 system_update
 
 # 3. 08-build-shell.sh handles GUI privilege escalation itself.

@@ -53,8 +53,10 @@ Shell settings are preserved across updates.
 Nexus -> Updates and `caelestia-update` update Caelestia only. The full system upgrade (pacman, dnf
 or apt) is off by default: turn on *Update the System* under *Customize Installation*, or run
 `CAELESTIA_UPDATE_SYSTEM=1 caelestia-update`, to include it. An upgrade of KWin or Qt can end the
-running session partway through, so save your work first. An install that came from a package
-updates through its package manager instead.
+running session partway through, so save your work first. If an upgrade replaced `kwin`,
+`plasma-workspace`, `libplasma`, `qt6-base` or `qt6-declarative` and the session survived, the
+update stops before it builds anything and asks you to log out and back in; run it again after
+that. An install that came from a package updates through its package manager instead.
 
 > [!NOTE]
 > An install made from a fork follows that fork. Nexus -> Updates, the update notification and
