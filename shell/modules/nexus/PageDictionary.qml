@@ -210,6 +210,19 @@ QtObject {
             ]
         },
         {
+            label: qsTr("Display"),
+            key: "display",
+            icon: "monitor",
+            description: qsTr("Resolution, refresh rate, scale, monitors"),
+            category: "system",
+            settings: [
+                { label: qsTr("Resolution"), keywords: ["monitor", "screen", "size", "mode"] },
+                { label: qsTr("Refresh rate"), keywords: ["hz", "fps", "monitor", "screen", "mode"] },
+                { label: qsTr("Scale"), keywords: ["scaling", "dpi", "zoom", "monitor", "screen", "size"] },
+                { label: qsTr("Enable or disable a monitor"), keywords: ["external", "hdmi", "laptop panel", "screen", "turn off", "turn on"] }
+            ]
+        },
+        {
             label: qsTr("Updates"),
             key: "updates",
             icon: "update",

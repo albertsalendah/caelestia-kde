@@ -281,6 +281,13 @@ QtObject {
         Component {
             StackPage {
                 Component {
+                    DisplayPage {}
+                }
+            }
+        },
+        Component {
+            StackPage {
+                Component {
                     UpdatesPage {}
                 }
             }
