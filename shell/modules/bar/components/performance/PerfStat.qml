@@ -1,3 +1,4 @@
+
 import QtQuick
 import QtQuick.Layouts
 import Caelestia.Config
@@ -14,7 +15,7 @@ StyledRect {
     property real value: NaN
     property color textColor: Colours.palette.m3onSurface
     property color iconColor: accent
-    property real widthFactor: 2.35
+    property real widthFactor: 1.7
     property string maxText: "100"
     property bool showText: typeof Config.bar.performance !== "undefined" && Config.bar.performance.showText !== undefined ? Config.bar.performance.showText : true
 
@@ -24,10 +25,12 @@ StyledRect {
     readonly property int barThickness: Math.round(Tokens.sizes.bar.innerWidth * scaleFactor)
     readonly property int baseThickness: Tokens.sizes.bar.innerWidth
     readonly property int effectiveThickness: rawScale < 1.0 ? baseThickness : barThickness
-    readonly property int iconSize: Math.round(effectiveThickness * 0.42)
-    readonly property int textSize: Math.round(effectiveThickness * 0.32)
+    readonly property int iconSize: Math.round(effectiveThickness * 0.38)
+    readonly property int textSize: Math.round(effectiveThickness * 0.28)
     readonly property real progress: isNaN(value) ? 0 : Math.max(0, Math.min(1, value))
-    readonly property int hPadding: Tokens.padding.medium
+
+    // Reduced horizontal padding
+    readonly property int hPadding: Tokens.padding.extraSmall
     readonly property int vPadding: Tokens.padding.extraSmall
     readonly property int trackThickness: Math.max(4, Math.round(Tokens.padding.extraSmall * 0.8))
     readonly property int trackInset: Tokens.padding.medium
@@ -36,8 +39,13 @@ StyledRect {
     radius: Tokens.rounding.full
     clip: true
 
-    implicitWidth: isHorizontal ? Math.max(contentRow.implicitWidth + hPadding * 2, Math.round(barThickness * widthFactor)) : barThickness
-    implicitHeight: isHorizontal ? barThickness : Math.max(verticalCol.implicitHeight + vPadding * 2, Math.round(barThickness * widthFactor))
+    implicitWidth: isHorizontal
+    ? Math.max(contentRow.implicitWidth + hPadding * 2, Math.round(barThickness * widthFactor))
+    : barThickness
+
+    implicitHeight: isHorizontal
+    ? barThickness
+    : Math.max(verticalCol.implicitHeight + vPadding * 2, Math.round(barThickness * widthFactor))
 
     StyledText {
         id: dummyText
@@ -90,7 +98,7 @@ StyledRect {
         anchors.leftMargin: root.hPadding
         anchors.rightMargin: root.hPadding
         visible: root.isHorizontal
-        spacing: Tokens.spacing.small
+        spacing: Tokens.spacing.extraSmall
 
         Item {
             Layout.fillWidth: true
@@ -105,8 +113,15 @@ StyledRect {
         }
 
         StyledText {
+            id: valueLabel
+
             Layout.alignment: Qt.AlignVCenter
-            Layout.preferredWidth: root.showText ? dummyText.implicitWidth : 0
+
+            // Reserve enough width for both the template and actual text
+            Layout.preferredWidth: root.showText
+            ? Math.max(dummyText.implicitWidth, valueLabel.implicitWidth)
+            : 0
+
             horizontalAlignment: Text.AlignHCenter
             text: root.valueText
             color: root.textColor
