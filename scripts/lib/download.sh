@@ -6,6 +6,16 @@ file_sha256() {
     sha256sum "$1" | cut -d' ' -f1
 }
 
+# Where this project publishes its own release assets: the prebuilt installer and the prebuilt shell
+# archive. It is this fork's repository, never upstream's, so a checkout of the fork can only ever be
+# handed binaries the fork published. CAELESTIA_RELEASE_REPO overrides it.
+CAELESTIA_RELEASE_REPO="${CAELESTIA_RELEASE_REPO:-https://github.com/albertsalendah/caelestia-kde}"
+
+# release_asset_url <tag> <asset>
+release_asset_url() {
+    printf '%s/releases/download/%s/%s\n' "${CAELESTIA_RELEASE_REPO%/}" "$1" "$2"
+}
+
 fetch_asset() {
     local url="$1" dest="$2"
     shift 2

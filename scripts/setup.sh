@@ -146,7 +146,7 @@ try_download_prebuilt_installer() {
     tag="$(release_tag)"
     [[ -n "$version" && -n "$tag" ]] || return 1
     tmp_bin="$(mktemp)"
-    url="https://github.com/ladybug-me/caelestia-kde/releases/download/${tag}/caelestia-install-${arch}-v${version}"
+    url="$(release_asset_url "$tag" "caelestia-install-${arch}-v${version}")"
     if ! fetch_asset "$url" "$tmp_bin" --max-time 30 2>/dev/null; then
         rm -f "$tmp_bin"
         return 1
