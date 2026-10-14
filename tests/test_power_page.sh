@@ -181,11 +181,22 @@ test_the_service_writes_with_kwriteconfig6_then_reloads_powerdevil_and_rereads_t
     local svc
     svc="$(cat "$SERVICE_QML")"
     assert_contains "$svc" 'writeProcess.command = ["kwriteconfig6"].concat(root.queue[0]);' "one kwriteconfig6 call per change"
-    assert_contains "$svc" 'command: ["qdbus6", "org.kde.Solid.PowerManagement", "/org/kde/Solid/PowerManagement", "org.kde.Solid.PowerManagement.reparseConfiguration"]' \
-        "powerdevil is told to read the file again, with the call tested on the Asus"
+    assert_contains "$svc" 'command: ["qdbus6", "org.kde.Solid.PowerManagement", "/org/kde/Solid/PowerManagement", "org.kde.Solid.PowerManagement.refreshStatus"]' \
+        "powerdevil is told to read the file again and reload the profile, with the call tested on the Asus"
     assert_contains "$svc" 'watchChanges: true' "a change made in System Settings shows up"
     assert_contains "$svc" 'rcFile.reload();' "the file is read again after the reload"
     assert_contains "$svc" 'onLoadFailed: root.config = ({})' "no file yet is not an error"
+}
+
+# reparseConfiguration only reloads powerdevil's global settings. On the Asus a Power saver profile
+# was written to the file but powerprofilesctl kept saying balanced; refreshStatus (which also
+# loads the active profile again) switched it. So the profile row needs refreshStatus.
+test_powerdevil_is_told_to_reload_the_profile_not_only_the_global_settings() {
+    local svc
+    svc="$(cat "$SERVICE_QML")"
+    assert_contains "$svc" 'PowerManagement.refreshStatus"]' "the reload call that applies the power profile"
+    assert_eq "0" "$(grep -c 'command: .*reparseConfiguration' "$SERVICE_QML")" \
+        "reparseConfiguration must not be the command: it leaves a new power profile unapplied"
 }
 
 test_the_service_runs_all_queued_writes_before_it_reloads_powerdevil_once() {

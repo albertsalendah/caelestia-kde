@@ -132,7 +132,7 @@ PageBase {
                 SelectRow {
                     first: true
                     label: qsTr("Power profile")
-                    subtext: qsTr("Switched to when the power source changes")
+                    subtext: qsTr("Used while on this power source")
                     menuItems: section.profileItems
                     active: section.profileItems.find(i => i.value === section.current.powerProfile) ?? null
                     fallbackText: qsTr("Don't change")

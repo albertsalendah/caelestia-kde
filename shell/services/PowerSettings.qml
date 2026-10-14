@@ -7,8 +7,11 @@ import "../utils/scripts/power.js" as Logic
 
 // powerdevil's settings (dim, screen off, suspend, power profile) for the plugged-in and
 // on-battery profiles. They are read from ~/.config/powerdevilrc and changed with kwriteconfig6;
-// powerdevil is then told to read the file again. Nothing here can blank a screen or lose
-// work on its own, so a change applies at once with no keep-or-revert step.
+// powerdevil is then told to read the file again with refreshStatus, not reparseConfiguration:
+// the latter only reloads the global settings, so a new power profile would wait for the next
+// change of power source, while refreshStatus also reloads the active profile and applies it.
+// Nothing here can blank a screen or lose work on its own, so a change applies at once with no
+// keep-or-revert step.
 Singleton {
     id: root
 
@@ -64,7 +67,7 @@ Singleton {
     Process {
         id: reparseProcess
 
-        command: ["qdbus6", "org.kde.Solid.PowerManagement", "/org/kde/Solid/PowerManagement", "org.kde.Solid.PowerManagement.reparseConfiguration"]
+        command: ["qdbus6", "org.kde.Solid.PowerManagement", "/org/kde/Solid/PowerManagement", "org.kde.Solid.PowerManagement.refreshStatus"]
         onExited: code => {
             if (code !== 0)
                 root.error = "reload-failed";
