@@ -84,9 +84,9 @@ test_scale_presets_include_an_odd_current_scale() {
     out="$(js 'console.log(L.scalePresets(1).map(s => s.label).join(" "));
 console.log(L.scalePresets(1.1).map(s => s.label).join(" "));
 console.log(L.scalePresets(1.5000001).map(s => s.label).join(" "));')" || return 0
-    assert_eq "100% 125% 150% 175% 200% 250% 300%
-100% 110% 125% 150% 175% 200% 250% 300%
-100% 125% 150% 175% 200% 250% 300%" "$out" "an odd scale is added; a float-rounded preset is not added twice"
+    assert_eq "50% 75% 100% 125% 150% 175% 200% 250% 300%
+50% 75% 100% 110% 125% 150% 175% 200% 250% 300%
+50% 75% 100% 125% 150% 175% 200% 250% 300%" "$out" "an odd scale is added; a float-rounded preset is not added twice"
 }
 
 test_the_last_enabled_monitor_cannot_be_disabled() {

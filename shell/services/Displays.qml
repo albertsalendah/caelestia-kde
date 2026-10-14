@@ -17,6 +17,14 @@ Singleton {
     property var outputs: []
     property bool loaded: false
 
+    // Monitor names from their EDID: {"HDMI-A-1": {vendor, model}}. Read again when the list of
+    // monitors changes, not on every refresh.
+    property var edids: ({})
+    property bool edidAgain: false
+
+    // True while a change is being applied or undone; the page does not re-read the monitors then.
+    readonly property bool busy: applyProcess.running || revertProcess.running
+
     // "" or a code: unknown-output, unknown-mode, last-enabled, apply-failed
     property string error: ""
 
@@ -102,8 +110,34 @@ Singleton {
         command: ["kscreen-doctor", "--json"]
         stdout: StdioCollector {
             onStreamFinished: {
-                root.outputs = Logic.parseOutputs(text);
+                // Only replace the list when something changed: a new list rebuilds the rows of
+                // the page, which would close a menu that is open.
+                const parsed = Logic.parseOutputs(text);
+                if (!root.loaded || !Logic.sameOutputs(parsed, root.outputs)) {
+                    root.outputs = parsed;
+                    if (edidProcess.running)
+                        root.edidAgain = true;
+                    else
+                        edidProcess.running = true;
+                }
                 root.loaded = true;
+            }
+        }
+    }
+
+    Process {
+        id: edidProcess
+
+        command: ["bash", "-c", Logic.EDID_SCRIPT, "edid", "/sys/class/drm"]
+        stdout: StdioCollector {
+            onStreamFinished: {
+                const names = Logic.parseEdidList(text);
+                if (!Logic.sameOutputs(names, root.edids))
+                    root.edids = names;
+                if (root.edidAgain) {
+                    root.edidAgain = false;
+                    edidProcess.running = true;
+                }
             }
         }
     }

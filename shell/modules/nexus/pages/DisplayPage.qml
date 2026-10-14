@@ -49,6 +49,15 @@ PageBase {
             MenuItem {}
         }
 
+        // Plugging in or unplugging a monitor does not tell this page anything, so it looks again
+        // every two seconds while it is shown. Not while a change is being applied.
+        Timer {
+            interval: 2000
+            repeat: true
+            running: root.visible && !Displays.busy
+            onTriggered: Displays.refresh()
+        }
+
         ConnectedRect {
             first: true
             last: true
@@ -120,6 +129,8 @@ PageBase {
                 required property int index
 
                 readonly property string resKey: Logic.currentResolutionKey(modelData)
+                readonly property string modelName: Logic.modelName(modelData.name, Displays.edids)
+                readonly property string monitorTitle: Logic.isBuiltIn(modelData.name) ? qsTr("Built-in Screen") : (modelName !== "" ? modelName : modelData.name)
                 readonly property var resItems: root.makeItems(Logic.resolutionsOf(modelData).map(r => ({
                             text: r.label,
                             value: r.key
@@ -138,7 +149,19 @@ PageBase {
 
                 SectionHeader {
                     first: monitor.index === 0
+                    text: monitor.monitorTitle
+                }
+
+                // The connection, under the name, so that a monitor can be told from its port.
+                StyledText {
+                    visible: monitor.monitorTitle !== monitor.modelData.name
+                    Layout.fillWidth: true
+                    Layout.leftMargin: Tokens.padding.small
+                    Layout.bottomMargin: Tokens.spacing.extraSmall
                     text: monitor.modelData.name
+                    color: Colours.palette.m3onSurfaceVariant
+                    font: Tokens.font.body.small
+                    elide: Text.ElideRight
                 }
 
                 ToggleRow {
