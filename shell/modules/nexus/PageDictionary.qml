@@ -223,6 +223,19 @@ QtObject {
             ]
         },
         {
+            label: qsTr("Power"),
+            key: "power",
+            icon: "bolt",
+            description: qsTr("Power profile, screen dimming, screen off, suspend"),
+            category: "system",
+            settings: [
+                { label: qsTr("Power profile"), keywords: ["performance", "balanced", "power saver", "battery", "energy"] },
+                { label: qsTr("Dim screen after"), keywords: ["brightness", "idle", "inactivity", "battery", "screen"] },
+                { label: qsTr("Turn off screen after"), keywords: ["display", "idle", "inactivity", "blank", "sleep", "screen"] },
+                { label: qsTr("Suspend after"), keywords: ["sleep", "idle", "inactivity", "hibernate", "battery"] }
+            ]
+        },
+        {
             label: qsTr("Updates"),
             key: "updates",
             icon: "update",

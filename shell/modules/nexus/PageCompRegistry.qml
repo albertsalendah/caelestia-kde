@@ -288,6 +288,13 @@ QtObject {
         Component {
             StackPage {
                 Component {
+                    PowerPage {}
+                }
+            }
+        },
+        Component {
+            StackPage {
+                Component {
                     UpdatesPage {}
                 }
             }
