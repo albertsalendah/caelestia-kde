@@ -9,6 +9,7 @@ import Caelestia
 import Caelestia.Config
 import qs.services
 import qs.utils
+import "../utils/scripts/updateprogress.js" as Progress
 
 Singleton {
     id: root
@@ -52,6 +53,9 @@ Singleton {
     property double lastUpdateOutputMs: 0
     property bool stallNoticeShown: false
     property string processLineBuffer: ""
+    // Set when the compile starts, so the "[n/m]" counts of cmake's own downloads are ignored.
+    property bool buildStarted: false
+    readonly property int maxLogLines: 400
 
     function clampBranch(branch: string): string {
         // A fork has one channel: the branch the install was made from.
@@ -416,6 +420,21 @@ git -C "$REPO" log --format="COMMIT%x1f%H%x1f%h%x1f%s%x1f%an%x1f%cI%x1f%P" --ski
             return;
         }
 
+        if (Progress.isBuildStart(line)) {
+            root.buildStarted = true;
+            return;
+        }
+
+        // ninja's "[n/m]" lines: show how far the build is instead of one frozen status line.
+        if (root.buildStarted) {
+            const step = Progress.parseBuildStep(line);
+            if (step) {
+                root.updateProgress = Progress.nextProgress(root.updateProgress, step);
+                root.updateStatus = qsTr("Building the Caelestia shell UI... (%1/%2)").arg(step.current).arg(step.total);
+                return;
+            }
+        }
+
         // Fallback: mark deploy stage as finished when deploy script confirms completion.
         if (line.indexOf("Config deployment complete") !== -1 && root.updateProgress < 0.8) {
             root.updateProgress = 0.7;
@@ -432,7 +451,7 @@ git -C "$REPO" log --format="COMMIT%x1f%H%x1f%h%x1f%s%x1f%an%x1f%cI%x1f%P" --ski
             .replace(/\r/g, "\n");
 
         const chunk = cleaned.endsWith("\n") ? cleaned : (cleaned + "\n");
-        root.updateLogs += chunk;
+        root.updateLogs = Progress.capLog(root.updateLogs + chunk, root.maxLogLines);
 
         const combined = root.processLineBuffer + chunk;
         const lines = combined.split("\n");
@@ -455,6 +474,7 @@ git -C "$REPO" log --format="COMMIT%x1f%H%x1f%h%x1f%s%x1f%an%x1f%cI%x1f%P" --ski
         root.lastUpdateOutputMs = Date.now();
         root.stallNoticeShown = false;
         root.processLineBuffer = "";
+        root.buildStarted = false;
         root.logsExpanded = true;
         updateProcess.running = true;
     }

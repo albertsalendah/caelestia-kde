@@ -316,7 +316,9 @@ else
     if git rev-parse HEAD >/dev/null 2>&1; then
         git reset --hard -q HEAD || die "Failed to reset repository state"
     fi
-    git clean -fdx -q
+    # Keep the build folders: they are ignored files, so -x would delete them, and every update
+    # would then compile the whole shell again. ninja rebuilds only what changed.
+    git clean -fdx -q -e shell/build -e shell/kwin-effects/workspace-tracker/build
     git remote set-url origin "$REPO_URL"
 fi
 
