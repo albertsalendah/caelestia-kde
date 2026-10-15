@@ -121,7 +121,7 @@ output.HDMI-A-1.scale.1" "$out" "names and ids exactly as kscreen-doctor --help 
 test_revert_restores_what_was_on_and_only_switches_off_what_was_off() {
     local out
     out="$(js 'console.log(L.buildRevertArgs(L.snapshot(outs)).join(" "));')" || return 0
-    assert_eq "output.HDMI-A-1.enable output.HDMI-A-1.mode.6 output.HDMI-A-1.scale.1 output.HDMI-A-1.rotation.none output.eDP-1.disable" "$out" \
+    assert_eq "output.HDMI-A-1.enable output.HDMI-A-1.mode.6 output.HDMI-A-1.scale.1 output.HDMI-A-1.rotation.none output.HDMI-A-1.position.0,0 output.HDMI-A-1.mirror.none output.HDMI-A-1.primary output.eDP-1.disable" "$out" \
         "the snapshot is taken before the change, so this is how the monitors were"
 }
 
@@ -165,16 +165,16 @@ test_every_change_is_applied_through_one_kscreen_doctor_call_and_can_be_undone()
     local svc
     svc="$(cat "$SERVICE_QML")"
     assert_contains "$svc" 'confirmSeconds: 15' "the keep prompt counts down 15 seconds"
-    assert_contains "$svc" '["kscreen-doctor"].concat(Logic.buildApplyArgs(changes))' "one atomic call"
+    assert_contains "$svc" '["kscreen-doctor"].concat(Logic.buildApplyArgs(settled))' "one atomic call"
     assert_contains "$svc" 'Logic.buildRevertArgs(root.previous)' "the revert uses the snapshot"
-    assert_contains "$svc" 'Logic.validate(root.outputs, changes)' "the last enabled monitor is protected"
+    assert_contains "$svc" 'Logic.validate(root.outputs, settled)' "the last enabled monitor is protected"
     assert_contains "$svc" 'if (root.secondsLeft <= 0)' "the countdown ends in a revert"
 }
 
 test_a_second_change_while_waiting_keeps_the_first_snapshot() {
     local svc
     svc="$(cat "$SERVICE_QML")"
-    assert_contains "$svc" 'if (!root.confirming)
+    assert_contains "$svc" 'if (keepPrompt && !root.confirming)
             root.previous = Logic.snapshot(root.outputs);' "the snapshot is only taken when nothing is waiting"
 }
 
@@ -187,7 +187,6 @@ test_the_page_offers_keep_and_revert_and_the_four_settings() {
     assert_contains "$page" 'label: qsTr("Refresh rate")' "refresh rate"
     assert_contains "$page" 'label: qsTr("Scale")' "scale"
     assert_contains "$page" 'text: qsTr("Enabled")' "enable or disable"
-    assert_not_contains "$page" "primary" "primary monitor is left for the next patch"
 }
 
 run_tests

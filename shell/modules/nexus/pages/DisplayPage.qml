@@ -26,9 +26,28 @@ PageBase {
             return qsTr("That orientation is not available.");
         case "brightness-failed":
             return qsTr("The brightness could not be changed.");
+        case "invalid-position":
+            return qsTr("That position is not valid.");
+        case "invalid-mirror":
+            return qsTr("That monitor cannot copy the primary monitor.");
+        case "overlap":
+            return qsTr("The monitors would overlap.");
         default:
             return qsTr("The display settings could not be applied.");
         }
+    }
+
+    // The monitors that extend the desktop, as the canvas draws them.
+    readonly property var layoutRects: Logic.layoutRects(Displays.outputs)
+    readonly property bool showCanvas: layoutRects.length > 1
+    readonly property string primaryMonitor: Logic.primaryName(Displays.outputs)
+    readonly property int enabledCount: Displays.outputs.filter(o => o.enabled).length
+
+    function monitorTitle(name: string): string {
+        if (Logic.isBuiltIn(name))
+            return qsTr("Built-in Screen");
+        const model = Logic.modelName(name, Displays.edids);
+        return model !== "" ? model : name;
     }
 
     // Menu entries made at run time, because a monitor's modes are only known once it is read.
@@ -123,6 +142,36 @@ PageBase {
             font: Tokens.font.body.small
         }
 
+        SectionHeader {
+            visible: root.showCanvas
+            first: true
+            text: qsTr("Arrangement")
+        }
+
+        DisplayCanvas {
+            visible: root.showCanvas
+            Layout.fillWidth: true
+            Layout.preferredHeight: implicitHeight
+            rects: root.layoutRects
+            primary: root.primaryMonitor
+            titles: {
+                const t = {};
+                Displays.outputs.forEach(o => t[o.name] = root.monitorTitle(o.name));
+                return t;
+            }
+            onDropped: (name, x, y) => Displays.setPosition(name, x, y)
+        }
+
+        StyledText {
+            visible: root.showCanvas
+            Layout.fillWidth: true
+            Layout.leftMargin: Tokens.padding.small
+            text: qsTr("Drag a monitor to arrange it. It snaps to the edge of another monitor.")
+            color: Colours.palette.m3onSurfaceVariant
+            font: Tokens.font.label.small
+            wrapMode: Text.WordWrap
+        }
+
         Repeater {
             model: Displays.outputs
 
@@ -133,8 +182,8 @@ PageBase {
                 required property int index
 
                 readonly property string resKey: Logic.currentResolutionKey(modelData)
-                readonly property string modelName: Logic.modelName(modelData.name, Displays.edids)
-                readonly property string monitorTitle: Logic.isBuiltIn(modelData.name) ? qsTr("Built-in Screen") : (modelName !== "" ? modelName : modelData.name)
+                readonly property string monitorTitle: root.monitorTitle(modelData.name)
+                readonly property bool isPrimary: root.primaryMonitor === modelData.name
                 readonly property var resItems: root.makeItems(Logic.resolutionsOf(modelData).map(r => ({
                             text: r.label,
                             value: r.key
@@ -172,7 +221,7 @@ PageBase {
                 spacing: Tokens.spacing.extraSmall / 2
 
                 SectionHeader {
-                    first: monitor.index === 0
+                    first: monitor.index === 0 && !root.showCanvas
                     text: monitor.monitorTitle
                 }
 
@@ -197,6 +246,29 @@ PageBase {
                     onToggled: {
                         Displays.setEnabled(monitor.modelData.name, checked);
                         checked = Qt.binding(() => monitor.modelData.enabled);
+                    }
+                }
+
+                ToggleRow {
+                    visible: monitor.modelData.enabled && monitor.modelData.mirrorOf === "" && root.enabledCount > 1
+                    text: qsTr("Primary monitor")
+                    subtext: qsTr("The main display")
+                    checked: monitor.isPrimary
+                    enabled: !monitor.isPrimary
+                    onToggled: {
+                        Displays.setPrimary(monitor.modelData.name);
+                        checked = Qt.binding(() => monitor.isPrimary);
+                    }
+                }
+
+                ToggleRow {
+                    visible: monitor.modelData.enabled && !monitor.isPrimary && root.enabledCount > 1
+                    text: qsTr("Copy the primary monitor")
+                    subtext: qsTr("Show the same picture instead of extending the desktop")
+                    checked: monitor.modelData.mirrorOf !== ""
+                    onToggled: {
+                        Displays.setCopy(monitor.modelData.name, checked);
+                        checked = Qt.binding(() => monitor.modelData.mirrorOf !== "");
                     }
                 }
 

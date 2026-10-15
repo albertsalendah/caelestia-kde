@@ -100,7 +100,7 @@ outs[1].enabled = false;
 console.log(JSON.stringify(L.snapshot(outs).map(s => s.name + ":" + s.rotation)));
 console.log(L.buildRevertArgs(L.snapshot(outs)).join(" "));')" || return 0
     assert_eq '["HDMI-A-1:right","eDP-1:left"]
-output.HDMI-A-1.enable output.HDMI-A-1.mode.1 output.HDMI-A-1.scale.1 output.HDMI-A-1.rotation.right output.eDP-1.disable' "$out" \
+output.HDMI-A-1.enable output.HDMI-A-1.mode.1 output.HDMI-A-1.scale.1 output.HDMI-A-1.rotation.right output.HDMI-A-1.position.0,0 output.HDMI-A-1.mirror.none output.HDMI-A-1.primary output.eDP-1.disable' "$out" \
         "the snapshot has the orientation; a monitor that was off is only switched off again"
 }
 
@@ -119,7 +119,6 @@ test_the_page_has_an_orientation_row_and_a_brightness_slider_that_shows_its_valu
     assert_contains "$page" 'onMoved: value => Displays.setBrightness(monitor.modelData.name, value)' "moving it sets the brightness"
     assert_contains "$page" 'visible: monitor.modelData.enabled && monitor.hasBrightness' "only for a monitor that is on and reports a brightness"
     assert_contains "$page" 'last: !monitor.hasBrightness' "the orientation row closes the group when there is no slider"
-    assert_not_contains "$page" "primary" "primary monitor is left for the layout patch"
 }
 
 test_the_service_applies_brightness_after_a_pause_and_ignores_older_readings_meanwhile() {

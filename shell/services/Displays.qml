@@ -9,7 +9,10 @@ import "../utils/scripts/displays.js" as Logic
 // Nexus -> Display. Every change is applied at once and then has to be kept
 // within `confirmSeconds`, or the monitors go back to what they were: a bad mode
 // can blank a screen, and this session has no System Settings to undo it.
-// Brightness is the exception: it is applied as the slider moves and has nothing to keep.
+// Brightness is the exception: it is applied as the slider moves and has nothing to keep. So is
+// choosing the primary monitor, which cannot blank a screen.
+// A change that leaves a monitor on top of another, or cut off from the rest, also moves that
+// monitor to the nearest place where the layout is valid again (Logic.settleLayout).
 Singleton {
     id: root
 
@@ -34,9 +37,12 @@ Singleton {
     property bool adjusting: false
     property var pendingBrightness: ({})
 
-    // "" or a code: unknown-output, unknown-mode, unknown-rotation, last-enabled, apply-failed,
-    // brightness-failed
+    // "" or a code: unknown-output, unknown-mode, unknown-rotation, invalid-position,
+    // invalid-mirror, overlap, last-enabled, apply-failed, brightness-failed
     property string error: ""
+
+    // The change being applied is not to be kept or reverted (the primary monitor).
+    property bool quiet: false
 
     property bool confirming: false
     property int secondsLeft: 0
@@ -48,21 +54,31 @@ Singleton {
     }
 
     function apply(changes: var): void {
+        run(changes, true);
+    }
+
+    function applyQuietly(changes: var): void {
+        run(changes, false);
+    }
+
+    function run(changes: var, keepPrompt: bool): void {
         if (applyProcess.running || revertProcess.running)
             return;
 
-        const problem = Logic.validate(root.outputs, changes);
+        const settled = Logic.settleLayout(root.outputs, changes);
+        const problem = Logic.validate(root.outputs, settled);
         if (problem !== "") {
             root.error = problem;
             return;
         }
 
         root.error = "";
+        root.quiet = !keepPrompt;
         // A second change while the first is still waiting keeps the original state to go back to.
-        if (!root.confirming)
+        if (keepPrompt && !root.confirming)
             root.previous = Logic.snapshot(root.outputs);
 
-        applyProcess.command = ["kscreen-doctor"].concat(Logic.buildApplyArgs(changes));
+        applyProcess.command = ["kscreen-doctor"].concat(Logic.buildApplyArgs(settled));
         applyProcess.running = true;
     }
 
@@ -91,6 +107,28 @@ Singleton {
                 scale: scale
             }
         ]);
+    }
+
+    // Where the monitor goes in the layout, in logical pixels (see Logic.snapLayout).
+    function setPosition(name: string, x: real, y: real): void {
+        apply([
+            {
+                name: name,
+                pos: {
+                    x: Math.round(x),
+                    y: Math.round(y)
+                }
+            }
+        ]);
+    }
+
+    function setPrimary(name: string): void {
+        applyQuietly(Logic.primaryChanges(root.outputs, name));
+    }
+
+    // Show the same picture as the primary monitor, or go back to extending the desktop.
+    function setCopy(name: string, copy: bool): void {
+        apply(Logic.copyChanges(root.outputs, name, copy));
     }
 
     function setRotation(name: string, rotation: string): void {
@@ -182,8 +220,10 @@ Singleton {
 
         onExited: code => {
             if (code === 0) {
-                root.confirming = true;
-                root.secondsLeft = root.confirmSeconds;
+                if (!root.quiet) {
+                    root.confirming = true;
+                    root.secondsLeft = root.confirmSeconds;
+                }
             } else {
                 root.error = "apply-failed";
                 if (!root.confirming)

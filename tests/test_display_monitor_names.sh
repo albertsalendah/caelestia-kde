@@ -184,11 +184,12 @@ test_the_names_are_read_when_the_monitors_change_and_shown_under_the_page_titles
     assert_contains "$svc" 'command: ["bash", "-c", Logic.EDID_SCRIPT, "edid", "/sys/class/drm"]' "the script and the folder it reads"
     assert_contains "$svc" 'root.edids = names;' "the names are kept"
     assert_contains "$svc" 'root.edidAgain = true;' "a change while the names are being read starts another read"
-    assert_contains "$page" 'Logic.modelName(modelData.name, Displays.edids)' "the page asks for the model name"
-    assert_contains "$page" 'Logic.isBuiltIn(modelData.name) ? qsTr("Built-in Screen")' "the laptop panel is called Built-in Screen"
+    assert_contains "$page" 'const model = Logic.modelName(name, Displays.edids);' "the page asks for the model name"
+    assert_contains "$page" 'if (Logic.isBuiltIn(name))
+            return qsTr("Built-in Screen");' "the laptop panel is called Built-in Screen"
+    assert_contains "$page" 'readonly property string monitorTitle: root.monitorTitle(modelData.name)' "each monitor's rows use it"
     assert_contains "$page" 'text: monitor.monitorTitle' "the header shows the name"
     assert_contains "$page" 'visible: monitor.monitorTitle !== monitor.modelData.name' "the connection shows under it, unless it is the title"
-    assert_not_contains "$page" "primary" "primary monitor is left for the layout patch"
 }
 
 run_tests

@@ -5,6 +5,10 @@
 // building the `kscreen-doctor` arguments that apply or undo a change. It has no
 // service or config dependencies so that it can be tested on its own.
 //
+// The arrangement of the monitors (positions, which one is primary, which one copies another) is
+// kept to rules that make every layout a valid one: no two monitors overlap and the monitors
+// stay in one piece, so that the pointer can always cross from one to the next.
+//
 // Brightness is kept apart from the monitor list (parseBrightness): it changes while a slider is
 // dragged, and a changed list rebuilds the rows of the page, slider included.
 //
@@ -38,6 +42,8 @@ function resolutionKey(mode) {
 }
 
 // Connected monitors only; a disconnected one cannot be configured.
+// pos is where the monitor is in the layout (logical pixels), priority 1 is the primary monitor,
+// and mirrorOf is the name of the monitor this one copies ("" when it extends the desktop).
 function parseOutputs(text) {
     var data;
     try {
@@ -46,26 +52,48 @@ function parseOutputs(text) {
         return [];
     }
     var list = (data && data.outputs) || [];
-    return list.filter(function (o) {
+    var parsed = list.filter(function (o) {
         return o && o.connected && o.name;
     }).map(function (o) {
         return {
-            name: o.name,
-            enabled: !!o.enabled,
-            currentModeId: o.currentModeId !== undefined ? String(o.currentModeId) : "",
-            scale: typeof o.scale === "number" ? o.scale : 1,
-            rotation: rotationName(o.rotation),
-            modes: (o.modes || []).filter(function (m) {
-                return m && m.size;
-            }).map(function (m) {
-                return {
-                    id: String(m.id),
-                    width: m.size.width,
-                    height: m.size.height,
-                    refresh: m.refreshRate
-                };
-            })
+            id: o.id,
+            source: typeof o.replicationSource === "number" ? o.replicationSource : 0,
+            out: {
+                name: o.name,
+                enabled: !!o.enabled,
+                currentModeId: o.currentModeId !== undefined ? String(o.currentModeId) : "",
+                scale: typeof o.scale === "number" ? o.scale : 1,
+                rotation: rotationName(o.rotation),
+                priority: typeof o.priority === "number" ? o.priority : 0,
+                pos: {
+                    x: o.pos && typeof o.pos.x === "number" ? Math.round(o.pos.x) : 0,
+                    y: o.pos && typeof o.pos.y === "number" ? Math.round(o.pos.y) : 0
+                },
+                mirrorOf: "",
+                modes: (o.modes || []).filter(function (m) {
+                    return m && m.size;
+                }).map(function (m) {
+                    return {
+                        id: String(m.id),
+                        width: m.size.width,
+                        height: m.size.height,
+                        refresh: m.refreshRate
+                    };
+                })
+            }
         };
+    });
+    parsed.forEach(function (p) {
+        if (p.source === 0)
+            return;
+        var source = parsed.filter(function (q) {
+            return q.id === p.source && q !== p;
+        })[0];
+        if (source)
+            p.out.mirrorOf = source.out.name;
+    });
+    return parsed.map(function (p) {
+        return p.out;
     });
 }
 
@@ -106,6 +134,397 @@ function buildBrightnessArgs(table) {
     return Object.keys(table).map(function (n) {
         return "output." + n + ".brightness." + table[n];
     });
+}
+
+// ---- Arrangement ----
+
+// The enabled monitor with the lowest priority number, "" when none is enabled.
+function primaryName(outputs) {
+    var best = null;
+    outputs.forEach(function (o) {
+        if (o.enabled && (best === null || o.priority < best.priority))
+            best = o;
+    });
+    return best ? best.name : "";
+}
+
+// How big a monitor is in the layout: its mode divided by its scale, turned on its side when it
+// is rotated left or right. Rounded the way Qt (and so KWin) rounds it.
+function logicalSize(output) {
+    var mode = currentMode(output);
+    if (!mode)
+        return {
+            w: 0,
+            h: 0
+        };
+    var scale = output.scale > 0 ? output.scale : 1;
+    var w = Math.round(mode.width / scale);
+    var h = Math.round(mode.height / scale);
+    if (output.rotation === "left" || output.rotation === "right")
+        return {
+            w: h,
+            h: w
+        };
+    return {
+        w: w,
+        h: h
+    };
+}
+
+// What the arrangement is made of: the enabled monitors that extend the desktop. A monitor that
+// copies another has no place of its own, and one that is off has none either.
+function layoutRects(outputs) {
+    var rects = [];
+    outputs.forEach(function (o) {
+        if (!o.enabled || o.mirrorOf !== "")
+            return;
+        var size = logicalSize(o);
+        if (size.w > 0 && size.h > 0)
+            rects.push({
+                name: o.name,
+                x: o.pos.x,
+                y: o.pos.y,
+                w: size.w,
+                h: size.h
+            });
+    });
+    return rects;
+}
+
+function overlaps(a, b) {
+    return a.x < b.x + b.w && b.x < a.x + a.w && a.y < b.y + b.h && b.y < a.y + a.h;
+}
+
+// Whether two monitors share part of an edge (meeting only at a corner does not count).
+function touching(a, b) {
+    var sideBySide = (a.x + a.w === b.x || b.x + b.w === a.x) && Math.min(a.y + a.h, b.y + b.h) - Math.max(a.y, b.y) > 0;
+    var stacked = (a.y + a.h === b.y || b.y + b.h === a.y) && Math.min(a.x + a.w, b.x + b.w) - Math.max(a.x, b.x) > 0;
+    return sideBySide || stacked;
+}
+
+function overlapsAny(rect, rects) {
+    return rects.some(function (r) {
+        return r.name !== rect.name && overlaps(rect, r);
+    });
+}
+
+// Whether the monitors form one piece, each reaching the next through a shared edge.
+function isConnected(rects) {
+    if (rects.length < 2)
+        return true;
+    var seen = {};
+    seen[rects[0].name] = true;
+    var queue = [rects[0]];
+    while (queue.length > 0) {
+        var current = queue.shift();
+        rects.forEach(function (r) {
+            if (!seen[r.name] && touching(current, r)) {
+                seen[r.name] = true;
+                queue.push(r);
+            }
+        });
+    }
+    return Object.keys(seen).length === rects.length;
+}
+
+function layoutBounds(rects) {
+    var minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+    rects.forEach(function (r) {
+        minX = Math.min(minX, r.x);
+        minY = Math.min(minY, r.y);
+        maxX = Math.max(maxX, r.x + r.w);
+        maxY = Math.max(maxY, r.y + r.h);
+    });
+    return {
+        x: minX,
+        y: minY,
+        w: maxX - minX,
+        h: maxY - minY
+    };
+}
+
+// The area the canvas shows: the monitors with room around them to drag a monitor into.
+function canvasView(rects) {
+    if (rects.length === 0)
+        return {
+            x: 0,
+            y: 0,
+            w: 1,
+            h: 1
+        };
+    var b = layoutBounds(rects);
+    var biggest = 0;
+    rects.forEach(function (r) {
+        biggest = Math.max(biggest, r.w, r.h);
+    });
+    var margin = Math.round(biggest * 0.6);
+    return {
+        x: b.x - margin,
+        y: b.y - margin,
+        w: b.w + margin * 2,
+        h: b.h + margin * 2
+    };
+}
+
+// Canvas pixels per logical pixel, so that the whole view fits.
+function fitScale(view, width, height) {
+    return Math.min(width / view.w, height / view.h);
+}
+
+// Where a monitor that was dropped at (x, y) ends up: at the nearest place where it touches
+// another monitor, overlaps none and leaves the monitors in one piece. It sits at the top,
+// middle or bottom of the other's edge (left, middle or right of a top or bottom edge) when it
+// is dropped within `snap` of that, and anywhere along the edge otherwise.
+// `sides` ({otherName: "left"|"right"|"above"|"below"}, optional) keeps the monitor on the side
+// of another monitor that it is on now: used when a monitor changes size, so that it does not
+// jump to another side. Returns {x, y, changed}; a monitor that has no valid place stays where
+// it was.
+function snapLayout(rects, name, x, y, snap, sides) {
+    var self = rects.filter(function (r) {
+        return r.name === name;
+    })[0];
+    if (!self)
+        return {
+            x: x,
+            y: y,
+            changed: false
+        };
+    var others = rects.filter(function (r) {
+        return r.name !== name;
+    });
+    var unchanged = {
+        x: self.x,
+        y: self.y,
+        changed: false
+    };
+    if (others.length === 0)
+        return unchanged;
+
+    // A coordinate along an edge: held to the stretch where the two monitors still share the
+    // edge, and pulled to an aligned value that is within `snap`.
+    function along(free, low, high, aligned) {
+        var value = Math.min(high, Math.max(low, free));
+        var best = null;
+        aligned.forEach(function (a) {
+            if (Math.abs(a - value) <= snap && (best === null || Math.abs(a - value) < Math.abs(best - value)))
+                best = a;
+        });
+        return best === null ? value : best;
+    }
+
+    var candidates = [];
+    others.forEach(function (o) {
+        var overlapY = Math.min(64, self.h, o.h);
+        var overlapX = Math.min(64, self.w, o.w);
+        var cy = along(y, o.y - self.h + overlapY, o.y + o.h - overlapY, [o.y, o.y + o.h - self.h, o.y + Math.round((o.h - self.h) / 2)]);
+        var cx = along(x, o.x - self.w + overlapX, o.x + o.w - overlapX, [o.x, o.x + o.w - self.w, o.x + Math.round((o.w - self.w) / 2)]);
+        var only = sides ? sides[o.name] : undefined;
+        if (!only || only === "right")
+            candidates.push({
+                x: o.x + o.w,
+                y: cy
+            });
+        if (!only || only === "left")
+            candidates.push({
+                x: o.x - self.w,
+                y: cy
+            });
+        if (!only || only === "below")
+            candidates.push({
+                x: cx,
+                y: o.y + o.h
+            });
+        if (!only || only === "above")
+            candidates.push({
+                x: cx,
+                y: o.y - self.h
+            });
+    });
+
+    var best = null;
+    var bestDistance = Infinity;
+    candidates.forEach(function (c) {
+        var rect = {
+            name: name,
+            x: c.x,
+            y: c.y,
+            w: self.w,
+            h: self.h
+        };
+        if (overlapsAny(rect, others) || !isConnected(others.concat([rect])))
+            return;
+        var distance = (c.x - x) * (c.x - x) + (c.y - y) * (c.y - y);
+        if (distance < bestDistance) {
+            bestDistance = distance;
+            best = c;
+        }
+    });
+    if (best === null)
+        return unchanged;
+    return {
+        x: best.x,
+        y: best.y,
+        changed: best.x !== self.x || best.y !== self.y
+    };
+}
+
+// The monitors as they would be after the changes (a copy; the list is not touched).
+function applyToOutputs(outputs, changes) {
+    var after = JSON.parse(JSON.stringify(outputs));
+    changes.forEach(function (c) {
+        var o = after.filter(function (x) {
+            return x.name === c.name;
+        })[0];
+        if (!o)
+            return;
+        if (c.enabled !== undefined)
+            o.enabled = !!c.enabled;
+        if (c.modeId !== undefined && c.modeId !== "")
+            o.currentModeId = String(c.modeId);
+        if (c.scale !== undefined)
+            o.scale = c.scale;
+        if (c.rotation !== undefined)
+            o.rotation = c.rotation;
+        if (c.pos !== undefined)
+            o.pos = {
+                x: c.pos.x,
+                y: c.pos.y
+            };
+        if (c.mirror !== undefined)
+            o.mirrorOf = c.mirror === "none" ? "" : c.mirror;
+    });
+    return after;
+}
+
+// Which side of `other` the monitor `rect` is on: "left", "right", "above" or "below" ("" when
+// they overlap or sit diagonally).
+function sideOf(rect, other) {
+    if (rect.x + rect.w <= other.x)
+        return "left";
+    if (other.x + other.w <= rect.x)
+        return "right";
+    if (rect.y + rect.h <= other.y)
+        return "above";
+    if (other.y + other.h <= rect.y)
+        return "below";
+    return "";
+}
+
+// A place at the right end of the layout, level with the monitor that is furthest right: always
+// valid. Used for a monitor that comes back (turned on, or no longer copying).
+function placeAtEnd(rects, name) {
+    var others = rects.filter(function (r) {
+        return r.name !== name;
+    });
+    var self = rects.filter(function (r) {
+        return r.name === name;
+    })[0];
+    if (!self || others.length === 0)
+        return {
+            x: self ? self.x : 0,
+            y: self ? self.y : 0,
+            changed: false
+        };
+    var last = others[0];
+    others.forEach(function (r) {
+        if (r.x + r.w > last.x + last.w)
+            last = r;
+    });
+    return {
+        x: last.x + last.w,
+        y: last.y,
+        changed: true
+    };
+}
+
+// The changes, plus a new position for a monitor that the changes would leave on top of another
+// monitor or cut off from the rest, so that the layout stays valid without the user fixing it by
+// hand. A monitor whose size changed (mode, scale, orientation) stays on the same side of its
+// neighbours and moves just as far as it has to. A monitor that comes back (turned on, no longer
+// copying) goes to the right end of the layout.
+function settleLayout(outputs, changes) {
+    var before = layoutRects(outputs);
+    var after = applyToOutputs(outputs, changes);
+    var rects = layoutRects(after);
+    var result = changes.slice();
+    var settled = {};
+    changes.forEach(function (c) {
+        if (c.pos !== undefined || settled[c.name])
+            return;
+        var resized = c.modeId !== undefined || c.scale !== undefined || c.rotation !== undefined;
+        var returned = c.enabled === true || c.mirror === "none";
+        if (!resized && !returned)
+            return;
+        var rect = rects.filter(function (r) {
+            return r.name === c.name;
+        })[0];
+        if (!rect || (!overlapsAny(rect, rects) && isConnected(rects)))
+            return;
+
+        var snapped;
+        var old = before.filter(function (r) {
+            return r.name === c.name;
+        })[0];
+        if (resized && old) {
+            var sides = {};
+            rects.forEach(function (r) {
+                if (r.name !== c.name)
+                    sides[r.name] = sideOf(old, r);
+            });
+            snapped = snapLayout(rects, c.name, rect.x, rect.y, 0, sides);
+            if (!snapped.changed)
+                snapped = snapLayout(rects, c.name, rect.x, rect.y, 0);
+        } else {
+            snapped = placeAtEnd(rects, c.name);
+        }
+        if (!snapped.changed)
+            return;
+        settled[c.name] = true;
+        rect.x = snapped.x;
+        rect.y = snapped.y;
+        result.push({
+            name: c.name,
+            pos: {
+                x: snapped.x,
+                y: snapped.y
+            }
+        });
+    });
+    return result;
+}
+
+// Making a monitor primary. A monitor that copied the old primary copies the new one. A monitor
+// that is copying cannot be primary: it stops copying first.
+function primaryChanges(outputs, name) {
+    var current = primaryName(outputs);
+    var target = outputs.filter(function (o) {
+        return o.name === name;
+    })[0];
+    var first = {
+        name: name,
+        primary: true
+    };
+    if (target && target.mirrorOf !== "")
+        first.mirror = "none";
+    var changes = [first];
+    outputs.forEach(function (o) {
+        if (o.name !== name && o.enabled && o.mirrorOf !== "" && o.mirrorOf === current)
+            changes.push({
+                name: o.name,
+                mirror: name
+            });
+    });
+    return changes;
+}
+
+// Copy the primary monitor, or go back to extending the desktop.
+function copyChanges(outputs, name, copy) {
+    return [
+        {
+            name: name,
+            mirror: copy ? primaryName(outputs) : "none"
+        }
+    ];
 }
 
 // Whether two parsed monitor lists are the same, so that the page only rebuilds its rows when
@@ -348,28 +767,40 @@ function scalePresets(current) {
 
 // What each connected monitor looks like now, to put back if a change is not kept.
 function snapshot(outputs) {
+    var primary = primaryName(outputs);
     return outputs.map(function (o) {
         return {
             name: o.name,
             enabled: o.enabled,
             modeId: o.currentModeId,
             scale: o.scale,
-            rotation: o.rotation
+            rotation: o.rotation,
+            pos: {
+                x: o.pos.x,
+                y: o.pos.y
+            },
+            mirrorOf: o.mirrorOf,
+            primary: o.name === primary
         };
     });
 }
 
-// Returns "" when the change may be applied, otherwise a code:
-// "unknown-output", "unknown-mode", "unknown-rotation" or "last-enabled".
+// Returns "" when the change may be applied, otherwise a code: "unknown-output",
+// "unknown-mode", "unknown-rotation", "invalid-position", "invalid-mirror", "overlap" or
+// "last-enabled".
 function validate(outputs, changes) {
     var byName = {};
     outputs.forEach(function (o) {
         byName[o.name] = o;
     });
     var enabledAfter = {};
+    var mirrorAfter = {};
     outputs.forEach(function (o) {
         enabledAfter[o.name] = o.enabled;
+        mirrorAfter[o.name] = o.mirrorOf;
     });
+    var copiers = [];
+    var positioned = [];
     for (var i = 0; i < changes.length; i++) {
         var c = changes[i];
         var out = byName[c.name];
@@ -384,13 +815,54 @@ function validate(outputs, changes) {
         }
         if (c.rotation !== undefined && ROTATIONS.indexOf(c.rotation) === -1)
             return "unknown-rotation";
+        if (c.pos !== undefined) {
+            if (!c.pos || typeof c.pos.x !== "number" || typeof c.pos.y !== "number" || !isFinite(c.pos.x) || !isFinite(c.pos.y))
+                return "invalid-position";
+            positioned.push(c.name);
+        }
         if (c.enabled !== undefined)
             enabledAfter[c.name] = !!c.enabled;
+        if (c.mirror !== undefined) {
+            if (c.mirror !== "none" && (c.mirror === c.name || !byName[c.mirror]))
+                return "invalid-mirror";
+            mirrorAfter[c.name] = c.mirror === "none" ? "" : c.mirror;
+            if (c.mirror !== "none")
+                copiers.push(c.name);
+        }
     }
+
+    // A monitor copies one that is on and is not copying anything itself, and nothing copies a
+    // monitor that copies another (one step only).
+    var badCopy = copiers.some(function (name) {
+        var target = mirrorAfter[name];
+        if (!enabledAfter[target] || mirrorAfter[target] !== "")
+            return true;
+        return Object.keys(mirrorAfter).some(function (other) {
+            return enabledAfter[other] && mirrorAfter[other] === name;
+        });
+    });
+    if (badCopy)
+        return "invalid-mirror";
+
     var anyEnabled = Object.keys(enabledAfter).some(function (n) {
         return enabledAfter[n];
     });
-    return anyEnabled ? "" : "last-enabled";
+    if (!anyEnabled)
+        return "last-enabled";
+
+    // A position that was asked for must not put a monitor on top of another.
+    if (positioned.length > 0) {
+        var rects = layoutRects(applyToOutputs(outputs, changes));
+        var clash = positioned.some(function (name) {
+            var rect = rects.filter(function (r) {
+                return r.name === name;
+            })[0];
+            return rect && overlapsAny(rect, rects);
+        });
+        if (clash)
+            return "overlap";
+    }
+    return "";
 }
 
 // Arguments for one atomic `kscreen-doctor` call.
@@ -406,6 +878,12 @@ function buildApplyArgs(changes) {
             args.push(p + "scale." + formatScale(c.scale));
         if (c.rotation !== undefined)
             args.push(p + "rotation." + c.rotation);
+        if (c.pos !== undefined)
+            args.push(p + "position." + c.pos.x + "," + c.pos.y);
+        if (c.mirror !== undefined)
+            args.push(p + "mirror." + c.mirror);
+        if (c.primary === true)
+            args.push(p + "primary");
         if (c.enabled === false)
             args.push(p + "disable");
     });
@@ -413,7 +891,7 @@ function buildApplyArgs(changes) {
 }
 
 // Arguments that put a snapshot back. A monitor that was off is only switched
-// off again; its mode, scale and orientation are left alone.
+// off again; its mode, scale, orientation and place are left alone.
 function buildRevertArgs(previous) {
     return buildApplyArgs(previous.map(function (s) {
         return s.enabled ? {
@@ -421,7 +899,10 @@ function buildRevertArgs(previous) {
             enabled: true,
             modeId: s.modeId,
             scale: s.scale,
-            rotation: s.rotation
+            rotation: s.rotation,
+            pos: s.pos,
+            mirror: s.mirrorOf === "" ? "none" : s.mirrorOf,
+            primary: s.primary ? true : undefined
         } : {
             name: s.name,
             enabled: false
