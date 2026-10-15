@@ -5,11 +5,33 @@
 // building the `kscreen-doctor` arguments that apply or undo a change. It has no
 // service or config dependencies so that it can be tested on its own.
 //
+// Brightness is kept apart from the monitor list (parseBrightness): it changes while a slider is
+// dragged, and a changed list rebuilds the rows of the page, slider included.
+//
 // It also reads the name of a monitor from its EDID, which the kernel exposes under
 // /sys/class/drm: `kscreen-doctor --json` has no model field, System Settings gets its
 // "Acer XV242Y" from the same place.
 
 var SCALE_PRESETS = [0.5, 0.75, 1, 1.25, 1.5, 1.75, 2, 2.5, 3];
+
+// kscreen-doctor's names for the orientations, and the numbers kscreen-doctor --json gives them
+// (KScreen's Output::Rotation: None = 1, Left = 2, Inverted = 4, Right = 8).
+var ROTATIONS = ["none", "left", "inverted", "right"];
+var ROTATION_NUMBERS = {
+    1: "none",
+    2: "left",
+    4: "inverted",
+    8: "right"
+};
+
+// Dragging a slider to the end must not leave a screen black, so brightness does not go below this.
+var MIN_BRIGHTNESS = 5;
+
+function rotationName(value) {
+    if (typeof value === "string" && ROTATIONS.indexOf(value) !== -1)
+        return value;
+    return ROTATION_NUMBERS[value] || "none";
+}
 
 function resolutionKey(mode) {
     return mode.width + "x" + mode.height;
@@ -32,6 +54,7 @@ function parseOutputs(text) {
             enabled: !!o.enabled,
             currentModeId: o.currentModeId !== undefined ? String(o.currentModeId) : "",
             scale: typeof o.scale === "number" ? o.scale : 1,
+            rotation: rotationName(o.rotation),
             modes: (o.modes || []).filter(function (m) {
                 return m && m.size;
             }).map(function (m) {
@@ -43,6 +66,45 @@ function parseOutputs(text) {
                 };
             })
         };
+    });
+}
+
+// {"HDMI-A-1": 41}: the brightness of every connected monitor that reports one, in percent.
+function parseBrightness(text) {
+    var data;
+    try {
+        data = JSON.parse(text);
+    } catch (e) {
+        return {};
+    }
+    var result = {};
+    ((data && data.outputs) || []).forEach(function (o) {
+        if (o && o.connected && o.name && typeof o.brightness === "number")
+            result[o.name] = Math.round(Math.min(1, Math.max(0, o.brightness)) * 100);
+    });
+    return result;
+}
+
+// The slider's value (0 to 1) as a percentage kscreen-doctor accepts, never below MIN_BRIGHTNESS.
+function brightnessPercent(value) {
+    return Math.min(100, Math.max(MIN_BRIGHTNESS, Math.round(value * 100)));
+}
+
+// A copy of the brightness table with one monitor changed (a new object, so that bindings to it
+// notice).
+function withBrightness(table, name, percent) {
+    var copy = {};
+    Object.keys(table).forEach(function (n) {
+        copy[n] = table[n];
+    });
+    copy[name] = percent;
+    return copy;
+}
+
+// One kscreen-doctor argument per monitor: {"HDMI-A-1": 41} -> ["output.HDMI-A-1.brightness.41"].
+function buildBrightnessArgs(table) {
+    return Object.keys(table).map(function (n) {
+        return "output." + n + ".brightness." + table[n];
     });
 }
 
@@ -291,13 +353,14 @@ function snapshot(outputs) {
             name: o.name,
             enabled: o.enabled,
             modeId: o.currentModeId,
-            scale: o.scale
+            scale: o.scale,
+            rotation: o.rotation
         };
     });
 }
 
 // Returns "" when the change may be applied, otherwise a code:
-// "unknown-output", "unknown-mode" or "last-enabled".
+// "unknown-output", "unknown-mode", "unknown-rotation" or "last-enabled".
 function validate(outputs, changes) {
     var byName = {};
     outputs.forEach(function (o) {
@@ -319,6 +382,8 @@ function validate(outputs, changes) {
             if (!found)
                 return "unknown-mode";
         }
+        if (c.rotation !== undefined && ROTATIONS.indexOf(c.rotation) === -1)
+            return "unknown-rotation";
         if (c.enabled !== undefined)
             enabledAfter[c.name] = !!c.enabled;
     }
@@ -339,6 +404,8 @@ function buildApplyArgs(changes) {
             args.push(p + "mode." + c.modeId);
         if (c.scale !== undefined)
             args.push(p + "scale." + formatScale(c.scale));
+        if (c.rotation !== undefined)
+            args.push(p + "rotation." + c.rotation);
         if (c.enabled === false)
             args.push(p + "disable");
     });
@@ -346,14 +413,15 @@ function buildApplyArgs(changes) {
 }
 
 // Arguments that put a snapshot back. A monitor that was off is only switched
-// off again; its mode and scale are left alone.
+// off again; its mode, scale and orientation are left alone.
 function buildRevertArgs(previous) {
     return buildApplyArgs(previous.map(function (s) {
         return s.enabled ? {
             name: s.name,
             enabled: true,
             modeId: s.modeId,
-            scale: s.scale
+            scale: s.scale,
+            rotation: s.rotation
         } : {
             name: s.name,
             enabled: false

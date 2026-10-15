@@ -22,6 +22,10 @@ PageBase {
             return qsTr("That monitor is no longer connected.");
         case "unknown-mode":
             return qsTr("That mode is not available for this monitor.");
+        case "unknown-rotation":
+            return qsTr("That orientation is not available.");
+        case "brightness-failed":
+            return qsTr("The brightness could not be changed.");
         default:
             return qsTr("The display settings could not be applied.");
         }
@@ -139,6 +143,26 @@ PageBase {
                             text: r.label,
                             value: r.id
                         })))
+                readonly property var rotationItems: root.makeItems([
+                    {
+                        text: qsTr("Normal"),
+                        value: "none"
+                    },
+                    {
+                        text: qsTr("Rotated left"),
+                        value: "left"
+                    },
+                    {
+                        text: qsTr("Upside down"),
+                        value: "inverted"
+                    },
+                    {
+                        text: qsTr("Rotated right"),
+                        value: "right"
+                    }
+                ])
+                readonly property bool hasBrightness: Displays.brightness[modelData.name] !== undefined
+                readonly property int brightnessPercent: Displays.brightness[modelData.name] ?? 100
                 readonly property var scaleItems: root.makeItems(Logic.scalePresets(modelData.scale).map(s => ({
                             text: s.label,
                             value: s.value
@@ -196,13 +220,33 @@ PageBase {
 
                 SelectRow {
                     visible: monitor.modelData.enabled
-                    last: true
                     label: qsTr("Scale")
                     subtext: qsTr("Size of everything on this monitor")
                     menuItems: monitor.scaleItems
                     active: monitor.scaleItems.find(i => Logic.sameScale(i.value, monitor.modelData.scale)) ?? null
                     fallbackText: qsTr("Unknown")
                     onSelected: item => Displays.setScale(monitor.modelData.name, item.value)
+                }
+
+                SelectRow {
+                    visible: monitor.modelData.enabled
+                    last: !monitor.hasBrightness
+                    label: qsTr("Orientation")
+                    menuItems: monitor.rotationItems
+                    active: monitor.rotationItems.find(i => i.value === monitor.modelData.rotation) ?? null
+                    fallbackText: qsTr("Unknown")
+                    onSelected: item => Displays.setRotation(monitor.modelData.name, item.value)
+                }
+
+                // Applies as the slider moves, with nothing to keep; the number is the one that is set.
+                SliderRow {
+                    visible: monitor.modelData.enabled && monitor.hasBrightness
+                    last: true
+                    icon: "brightness_6"
+                    label: qsTr("Brightness")
+                    valueLabel: monitor.brightnessPercent + "%"
+                    value: monitor.brightnessPercent / 100
+                    onMoved: value => Displays.setBrightness(monitor.modelData.name, value)
                 }
             }
         }

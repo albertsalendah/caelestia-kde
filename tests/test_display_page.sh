@@ -121,7 +121,7 @@ output.HDMI-A-1.scale.1" "$out" "names and ids exactly as kscreen-doctor --help 
 test_revert_restores_what_was_on_and_only_switches_off_what_was_off() {
     local out
     out="$(js 'console.log(L.buildRevertArgs(L.snapshot(outs)).join(" "));')" || return 0
-    assert_eq "output.HDMI-A-1.enable output.HDMI-A-1.mode.6 output.HDMI-A-1.scale.1 output.eDP-1.disable" "$out" \
+    assert_eq "output.HDMI-A-1.enable output.HDMI-A-1.mode.6 output.HDMI-A-1.scale.1 output.HDMI-A-1.rotation.none output.eDP-1.disable" "$out" \
         "the snapshot is taken before the change, so this is how the monitors were"
 }
 

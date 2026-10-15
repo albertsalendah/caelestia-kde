@@ -9,6 +9,7 @@ import "../utils/scripts/displays.js" as Logic
 // Nexus -> Display. Every change is applied at once and then has to be kept
 // within `confirmSeconds`, or the monitors go back to what they were: a bad mode
 // can blank a screen, and this session has no System Settings to undo it.
+// Brightness is the exception: it is applied as the slider moves and has nothing to keep.
 Singleton {
     id: root
 
@@ -25,7 +26,16 @@ Singleton {
     // True while a change is being applied or undone; the page does not re-read the monitors then.
     readonly property bool busy: applyProcess.running || revertProcess.running
 
-    // "" or a code: unknown-output, unknown-mode, last-enabled, apply-failed
+    // Brightness of each monitor in percent: {"HDMI-A-1": 41}. Not part of `outputs`, so that a
+    // change does not rebuild the rows while a slider is being dragged.
+    property var brightness: ({})
+    // True from the first move of a slider until its last change has been applied; what
+    // kscreen-doctor reports in the meantime is older than the slider and is not shown.
+    property bool adjusting: false
+    property var pendingBrightness: ({})
+
+    // "" or a code: unknown-output, unknown-mode, unknown-rotation, last-enabled, apply-failed,
+    // brightness-failed
     property string error: ""
 
     property bool confirming: false
@@ -83,6 +93,27 @@ Singleton {
         ]);
     }
 
+    function setRotation(name: string, rotation: string): void {
+        apply([
+            {
+                name: name,
+                rotation: rotation
+            }
+        ]);
+    }
+
+    // The slider's value, 0 to 1. The percentage is shown at once; kscreen-doctor is called once
+    // the slider has been still for a moment, with the last value of every monitor moved.
+    function setBrightness(name: string, value: real): void {
+        const percent = Logic.brightnessPercent(value);
+        if (root.error === "brightness-failed")
+            root.error = "";
+        root.brightness = Logic.withBrightness(root.brightness, name, percent);
+        root.pendingBrightness = Logic.withBrightness(root.pendingBrightness, name, percent);
+        root.adjusting = true;
+        brightnessTimer.restart();
+    }
+
     function keep(): void {
         root.confirming = false;
         root.previous = [];
@@ -112,6 +143,10 @@ Singleton {
             onStreamFinished: {
                 // Only replace the list when something changed: a new list rebuilds the rows of
                 // the page, which would close a menu that is open.
+                const levels = Logic.parseBrightness(text);
+                if (!root.adjusting && !Logic.sameOutputs(levels, root.brightness))
+                    root.brightness = levels;
+
                 const parsed = Logic.parseOutputs(text);
                 if (!root.loaded || !Logic.sameOutputs(parsed, root.outputs)) {
                     root.outputs = parsed;
@@ -164,6 +199,39 @@ Singleton {
         onExited: {
             root.previous = [];
             root.refresh();
+        }
+    }
+
+    Process {
+        id: brightnessProcess
+
+        onExited: code => {
+            if (code !== 0)
+                root.error = "brightness-failed";
+            root.adjusting = Object.keys(root.pendingBrightness).length > 0 || brightnessTimer.running;
+            root.refresh();
+        }
+    }
+
+    Timer {
+        id: brightnessTimer
+
+        interval: 300
+        onTriggered: {
+            if (brightnessProcess.running) {
+                brightnessTimer.restart();
+                return;
+            }
+
+            const args = Logic.buildBrightnessArgs(root.pendingBrightness);
+            root.pendingBrightness = ({});
+            if (args.length === 0) {
+                root.adjusting = false;
+                return;
+            }
+
+            brightnessProcess.command = ["kscreen-doctor"].concat(args);
+            brightnessProcess.running = true;
         }
     }
 
