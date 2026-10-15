@@ -2,6 +2,7 @@ pragma ComponentBehavior: Bound
 
 import QtQuick
 import QtQuick.Layouts
+import Quickshell.Io
 import Caelestia.Config
 import qs.components
 import qs.components.controls
@@ -72,13 +73,39 @@ PageBase {
             MenuItem {}
         }
 
-        // Plugging in or unplugging a monitor does not tell this page anything, so it looks again
-        // every two seconds while it is shown. Not while a change is being applied.
+        // The kernel says when a monitor is plugged in or out; nothing is read on a timer. Only
+        // while the page is shown, and a change made in another program is seen when the page is
+        // opened again.
+        Process {
+            running: root.visible
+            command: ["udevadm", "monitor", "--kernel", "--subsystem-match=drm"]
+            stdout: SplitParser {
+                onRead: line => {
+                    if (Logic.isHotplugLine(line))
+                        Displays.hotplugged();
+                }
+            }
+        }
+
+        // A monitor that has just been dropped on the canvas stays where it was dropped until the
+        // new layout is read (or the change fails), instead of jumping back first.
         Timer {
-            interval: 2000
-            repeat: true
-            running: root.visible && !Displays.busy
-            onTriggered: Displays.refresh()
+            id: dropTimer
+
+            interval: 4000
+            onTriggered: canvas.drop = null
+        }
+
+        Connections {
+            target: Displays
+
+            function onOutputsChanged(): void {
+                canvas.drop = null;
+            }
+
+            function onErrorChanged(): void {
+                canvas.drop = null;
+            }
         }
 
         ConnectedRect {
@@ -149,6 +176,8 @@ PageBase {
         }
 
         DisplayCanvas {
+            id: canvas
+
             visible: root.showCanvas
             Layout.fillWidth: true
             Layout.preferredHeight: implicitHeight
@@ -159,7 +188,15 @@ PageBase {
                 Displays.outputs.forEach(o => t[o.name] = root.monitorTitle(o.name));
                 return t;
             }
-            onDropped: (name, x, y) => Displays.setPosition(name, x, y)
+            onDropped: (name, x, y) => {
+                canvas.drop = ({
+                        name: name,
+                        x: x,
+                        y: y
+                    });
+                dropTimer.restart();
+                Displays.setPosition(name, x, y);
+            }
         }
 
         StyledText {

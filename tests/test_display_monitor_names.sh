@@ -166,13 +166,9 @@ console.log(L.buildApplyArgs([{name: "HDMI-A-1", scale: 0.5}, {name: "eDP-1", sc
 output.HDMI-A-1.scale.0.5 output.eDP-1.scale.0.75" "$out" "50% and 75% are choices and reach kscreen-doctor as 0.5 and 0.75"
 }
 
-test_the_page_looks_again_while_it_is_shown_and_not_while_applying() {
-    local page svc
-    page="$(cat "$PAGE_QML")"
+test_the_list_is_only_replaced_when_it_changed() {
+    local svc
     svc="$(cat "$SERVICE_QML")"
-    assert_contains "$page" 'interval: 2000' "every two seconds"
-    assert_contains "$page" 'running: root.visible && !Displays.busy' "only while the page is shown and nothing is being applied"
-    assert_contains "$page" 'onTriggered: Displays.refresh()' "the timer reads the monitors again"
     assert_contains "$svc" 'readonly property bool busy: applyProcess.running || revertProcess.running' "busy covers apply and revert"
     assert_contains "$svc" 'if (!root.loaded || !Logic.sameOutputs(parsed, root.outputs)) {' "the list is replaced only when it changed (a new list rebuilds the rows and closes an open menu)"
 }

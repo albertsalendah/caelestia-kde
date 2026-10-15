@@ -41,6 +41,10 @@ Singleton {
     // invalid-mirror, overlap, last-enabled, apply-failed, brightness-failed
     property string error: ""
 
+    // Readings still to be made after a monitor was plugged in or out, and failed readings in a row.
+    property int recheck: 0
+    property int retries: 0
+
     // The change being applied is not to be kept or reverted (the primary monitor).
     property bool quiet: false
 
@@ -131,6 +135,13 @@ Singleton {
         apply(Logic.copyChanges(root.outputs, name, copy));
     }
 
+    // The kernel reported a change at a monitor port. KWin needs a moment to catch up, so the
+    // monitors are read again a little later and once more after that.
+    function hotplugged(): void {
+        root.recheck = 2;
+        hotplugTimer.restart();
+    }
+
     function setRotation(name: string, rotation: string): void {
         apply([
             {
@@ -179,6 +190,17 @@ Singleton {
         command: ["kscreen-doctor", "--json"]
         stdout: StdioCollector {
             onStreamFinished: {
+                // A reading that failed or was cut short is ignored: it would empty the page.
+                // Tried again a few times, then the page keeps what it has.
+                if (!Logic.isListing(text)) {
+                    if (root.retries < 3) {
+                        root.retries += 1;
+                        retryTimer.restart();
+                    }
+                    return;
+                }
+                root.retries = 0;
+
                 // Only replace the list when something changed: a new list rebuilds the rows of
                 // the page, which would close a menu that is open.
                 const levels = Logic.parseBrightness(text);
@@ -196,6 +218,26 @@ Singleton {
                 root.loaded = true;
             }
         }
+    }
+
+    Timer {
+        id: hotplugTimer
+
+        interval: 1500
+        repeat: true
+        onTriggered: {
+            root.refresh();
+            root.recheck -= 1;
+            if (root.recheck <= 0)
+                hotplugTimer.stop();
+        }
+    }
+
+    Timer {
+        id: retryTimer
+
+        interval: 1000
+        onTriggered: root.refresh()
     }
 
     Process {

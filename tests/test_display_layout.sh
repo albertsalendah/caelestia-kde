@@ -235,10 +235,10 @@ test_the_canvas_snaps_a_drop_and_the_page_applies_it() {
     assert_contains "$canvas" 'const snapped = Logic.snapLayout(root.rects, tile.modelData.name, x, y, root.snapDistance / root.fit);' "a drop is snapped in logical pixels"
     assert_contains "$canvas" 'if (snapped.changed)
                         root.dropped(tile.modelData.name, snapped.x, snapped.y);' "and reported only when it moved"
-    assert_contains "$canvas" 'x: root.px(modelData.x) + dragX' "the rectangle follows the pointer while it is dragged and the layout while it is not"
+    assert_contains "$canvas" 'x: root.px(root.drop && root.drop.name === modelData.name ? root.drop.x : modelData.x) + dragX' "the rectangle follows the pointer while it is dragged, then stays where it was dropped, and otherwise follows the layout"
     assert_contains "$canvas" 'const x = tile.modelData.x + tile.dragX / root.fit;' "the drop in logical pixels"
     assert_contains "$page" 'readonly property bool showCanvas: layoutRects.length > 1' "the canvas needs two monitors"
-    assert_contains "$page" 'onDropped: (name, x, y) => Displays.setPosition(name, x, y)' "a drop is a change like the others, with keep or revert"
+    assert_contains "$page" '                Displays.setPosition(name, x, y);' "a drop is a change like the others, with keep or revert"
     assert_contains "$page" 'first: monitor.index === 0 && !root.showCanvas' "the first monitor heading is not the first thing on the page when the canvas is"
     assert_contains "$svc" 'function setPosition(name: string, x: real, y: real): void {' "the service has it"
     assert_contains "$svc" 'const settled = Logic.settleLayout(root.outputs, changes);' "every change is settled first"

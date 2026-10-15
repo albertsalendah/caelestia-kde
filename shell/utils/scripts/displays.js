@@ -527,6 +527,23 @@ function copyChanges(outputs, name, copy) {
     ];
 }
 
+// Whether kscreen-doctor's output is a monitor listing at all. A reading that failed or was cut
+// short (the machine was busy) is not, and must not replace the monitors the page shows.
+function isListing(text) {
+    try {
+        var data = JSON.parse(text);
+        return !!data && Array.isArray(data.outputs);
+    } catch (e) {
+        return false;
+    }
+}
+
+// A line of `udevadm monitor --kernel --subsystem-match=drm` that says the graphics driver
+// reported something: a monitor plugged in or out. The two header lines are not events.
+function isHotplugLine(line) {
+    return /^KERNEL\[[0-9.]+\]\s+(change|add|remove)\s/.test(String(line));
+}
+
 // Whether two parsed monitor lists are the same, so that the page only rebuilds its rows when
 // something it shows has changed (plugging or unplugging a monitor, or a change made elsewhere).
 function sameOutputs(a, b) {

@@ -17,6 +17,8 @@ Item {
     // {name: heading shown on the rectangle}
     property var titles: ({})
     property string primary: ""
+    // {name, x, y}: a monitor that was just dropped, shown there until the layout is read again
+    property var drop: null
     // How close (in canvas pixels) a drop has to be to the top, middle or bottom of another
     // monitor's edge to line up with it.
     property real snapDistance: 14
@@ -60,8 +62,8 @@ Item {
             property real dragY: 0
             readonly property bool isPrimary: modelData.name === root.primary
 
-            x: root.px(modelData.x) + dragX
-            y: root.py(modelData.y) + dragY
+            x: root.px(root.drop && root.drop.name === modelData.name ? root.drop.x : modelData.x) + dragX
+            y: root.py(root.drop && root.drop.name === modelData.name ? root.drop.y : modelData.y) + dragY
             width: modelData.w * root.fit
             height: modelData.h * root.fit
             z: area.pressed ? 1 : 0
@@ -99,6 +101,9 @@ Item {
                 property real startY
 
                 anchors.fill: parent
+                // Not while a change is being applied: it would be ignored, and the monitor would
+                // look as if it had not snapped.
+                enabled: !Displays.busy
                 cursorShape: pressed ? Qt.ClosedHandCursor : Qt.OpenHandCursor
                 preventStealing: true
 
