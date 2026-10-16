@@ -118,6 +118,9 @@ ShellRoot {
         repeat: false
 
         onTriggered: {
+            // Tells the login splash (modules/splash) that the shell is up. The file is in the
+            // runtime directory, which the session program empties of it at every login.
+            Quickshell.execDetached(["sh", "-c", "echo ready > \"$XDG_RUNTIME_DIR/caelestia-shell-ready\""]);
             PluginLoader.loadPlugins();
             bbdxCheckProcess.running = true;
             root._arpcInit = DiscordRPC;

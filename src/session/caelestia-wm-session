@@ -24,9 +24,12 @@ say() {
 # Teardown, run once on any exit: KWin ending, a failed start, or a signal. SIGKILL cannot be
 # caught. Stopping the target stops KWin, the shell and the autostart apps (all PartOf it).
 cleaned=0
+splash_pid=""
 cleanup() {
     [ "$cleaned" = 1 ] && return
     cleaned=1
+    # The login splash is a child of this program; timeout passes the signal on to Quickshell.
+    [ -n "$splash_pid" ] && kill "$splash_pid" 2>/dev/null
     systemctl --user stop caelestia-session.target 2>/dev/null || true
     systemctl --user unset-environment WAYLAND_DISPLAY DISPLAY 2>/dev/null || true
 }
@@ -40,6 +43,9 @@ trap 'exit 130' INT
 #    up), KWin starts as a nested Wayland client and never drives the screen.
 unset WAYLAND_DISPLAY DISPLAY
 systemctl --user unset-environment WAYLAND_DISPLAY DISPLAY 2>/dev/null || true
+# The shell writes this file when it is up (shell.qml), and the login splash waits for it. One
+# left over from an earlier login would end the splash at once.
+rm -f "$XDG_RUNTIME_DIR/caelestia-shell-ready"
 
 # 0b. Source the Plasma environment scripts, as Plasma's startup does: system directories
 #     first, then the user's, so the user wins. The installer's caelestia.sh lives here (PATH,
@@ -81,6 +87,34 @@ if ! systemctl --user show-environment | grep -q '^WAYLAND_DISPLAY='; then
 else
     say "WAYLAND_DISPLAY was exported to the user manager by KWin"
 fi
+
+# 3a. The login splash (Nexus -> Splash), off unless the user turned it on. A second, small
+#     Quickshell instance covers the screen until the shell is ready or 20 s have passed, then
+#     closes itself; timeout is a last guard. Its output goes to the runtime directory, which is
+#     where to look when it does not show. Nothing here may keep the session from starting.
+start_splash() {
+    command -v kreadconfig6 >/dev/null 2>&1 || return 0
+    local rc=caelestia-splashrc
+    [ "$(kreadconfig6 --file "$rc" --group Login --key Enabled --default false)" = true ] || return 0
+    local qs shell_config qml display min logo=1
+    qs="$(command -v quickshell || command -v qs)" || return 0
+    shell_config="${CAELESTIA_SHELL_CONFIG:-$HOME/.config/quickshell/caelestia/shell.qml}"
+    qml="$(dirname "$shell_config")/modules/splash/shell.qml"
+    if [ ! -r "$qml" ]; then
+        say "the login splash is on but $qml is missing; skipped"
+        return 0
+    fi
+    display="$(systemctl --user show-environment | sed -n 's/^WAYLAND_DISPLAY=//p')"
+    [ -n "$display" ] || return 0
+    min="$(kreadconfig6 --file "$rc" --group Login --key MinSeconds --default 2)"
+    [ "$(kreadconfig6 --file "$rc" --group Login --key ShowLogo --default true)" = false ] && logo=0
+    WAYLAND_DISPLAY="$display" CAELESTIA_SPLASH_MIN="$min" CAELESTIA_SPLASH_LOGO="$logo" \
+        QS_NO_RELOAD_POPUP=1 \
+        timeout --kill-after=3 30 "$qs" -n -p "$qml" >"$XDG_RUNTIME_DIR/caelestia-splash.log" 2>&1 &
+    splash_pid=$!
+    say "login splash started"
+}
+start_splash || true
 
 # 3b. Start the Plasma helpers this session needs: the polkit agent (password prompts) and
 #     powerdevil (idle actions, screen brightness). Both are PartOf=graphical-session.target,

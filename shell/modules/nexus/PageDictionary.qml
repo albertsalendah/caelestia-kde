@@ -232,7 +232,22 @@ QtObject {
                 { label: qsTr("Power profile"), keywords: ["performance", "balanced", "power saver", "battery", "energy"] },
                 { label: qsTr("Dim screen after"), keywords: ["brightness", "idle", "inactivity", "battery", "screen"] },
                 { label: qsTr("Turn off screen after"), keywords: ["display", "idle", "inactivity", "blank", "sleep", "screen"] },
-                { label: qsTr("Suspend after"), keywords: ["sleep", "idle", "inactivity", "hibernate", "battery"] }
+                { label: qsTr("Suspend after"), keywords: ["sleep", "idle", "inactivity", "hibernate", "battery"] },
+                { label: qsTr("When the lid is closed"), keywords: ["laptop", "close", "lid", "sleep", "suspend", "lock"] },
+                { label: qsTr("When the power button is pressed"), keywords: ["shut down", "power off", "button", "sleep", "logout"] },
+                { label: qsTr("Low battery"), keywords: ["battery", "critical", "power saver", "low"] }
+            ]
+        },
+        {
+            label: qsTr("Splash"),
+            key: "splash",
+            icon: "hourglass_top",
+            description: qsTr("Login splash screen and boot splash theme"),
+            category: "system",
+            settings: [
+                { label: qsTr("Show a splash while logging in"), keywords: ["login", "startup", "loading", "logo", "splash screen"] },
+                { label: qsTr("Preview the splash"), keywords: ["login", "startup", "test"] },
+                { label: qsTr("Boot splash theme"), keywords: ["plymouth", "boot", "startup", "animation", "theme"] }
             ]
         },
         {

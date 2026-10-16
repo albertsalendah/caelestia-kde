@@ -295,6 +295,13 @@ QtObject {
         Component {
             StackPage {
                 Component {
+                    SplashPage {}
+                }
+            }
+        },
+        Component {
+            StackPage {
+                Component {
                     UpdatesPage {}
                 }
             }
