@@ -30,6 +30,8 @@ Singleton {
 
     // Boot splash.
     property var themes: []
+    // What the splash can draw of each Plymouth theme ({name: spec}, see Logic.buildSpec).
+    property var specs: ({})
     property string currentTheme: ""
     // "idle", "applying", "done", "cancelled" or "failed".
     property string bootState: "idle"
@@ -43,13 +45,24 @@ Singleton {
         write("ShowLogo", show);
     }
 
+    // Chooses what the login splash draws: "" is the Caelestia design, else a Plymouth theme.
+    function setLoginTheme(name: string): void {
+        if (name !== "" && !Logic.validTheme(name))
+            return;
+        Logic.themeWrites(name, root.specs[name]).forEach(args => root.enqueue(args));
+    }
+
     function setMinSeconds(seconds: int): void {
         write("MinSeconds", seconds);
     }
 
     function write(key: string, value: var): void {
+        enqueue(Logic.writeArgs(key, value));
+    }
+
+    function enqueue(args: var): void {
         root.error = "";
-        root.queue = root.queue.concat([Logic.writeArgs(key, value)]);
+        root.queue = root.queue.concat([args]);
         if (!writeProcess.running)
             next();
     }
@@ -68,9 +81,16 @@ Singleton {
         Quickshell.execDetached(Logic.previewCommand(root.splashQml, root.settings));
     }
 
+    // Shows a Plymouth theme now, the way the login splash would draw it. The boot itself is
+    // drawn by Plymouth, so this is only close to it (a theme made of a program is not drawn).
+    function previewTheme(name: string): void {
+        Quickshell.execDetached(Logic.previewCommand(root.splashQml, root.settings, root.specs[name] ?? null));
+    }
+
     function refreshThemes(): void {
         themesProcess.running = true;
         currentProcess.running = true;
+        surveyProcess.running = true;
     }
 
     function applyTheme(theme: string): void {
@@ -100,6 +120,15 @@ Singleton {
         command: ["plymouth-set-default-theme", "--list"]
         stdout: StdioCollector {
             onStreamFinished: root.themes = Logic.parseThemes(text)
+        }
+    }
+
+    Process {
+        id: surveyProcess
+
+        command: Logic.surveyCommand()
+        stdout: StdioCollector {
+            onStreamFinished: root.specs = Logic.specsFrom(text)
         }
     }
 

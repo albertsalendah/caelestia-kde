@@ -50,6 +50,10 @@ PageBase {
                 text: c.label,
                 value: c.value
             })))
+    readonly property var loginItems: root.makeItems(Logic.loginChoices(SplashSettings.themes, SplashSettings.specs).map(c => ({
+                text: c.label,
+                value: c.value
+            })))
     readonly property var themeItems: root.makeItems(SplashSettings.themes.map(t => ({
                 text: t,
                 value: t
@@ -91,7 +95,17 @@ PageBase {
             onToggled: SplashSettings.setEnabled(checked)
         }
 
+        SelectRow {
+            label: qsTr("Style")
+            subtext: qsTr("Caelestia, or a boot splash theme drawn from its own images")
+            menuItems: root.loginItems
+            active: root.loginItems.find(i => i.value === SplashSettings.settings.theme) ?? null
+            fallbackText: qsTr("Caelestia")
+            onSelected: item => SplashSettings.setLoginTheme(item.value)
+        }
+
         ToggleRow {
+            visible: SplashSettings.settings.theme === ""
             text: qsTr("Show the logo")
             checked: SplashSettings.settings.showLogo
             onToggled: SplashSettings.setShowLogo(checked)
@@ -133,6 +147,15 @@ PageBase {
             active: root.themeItems.find(i => i.value === root.chosenTheme) ?? null
             fallbackText: SplashSettings.currentTheme
             onSelected: item => root.pendingTheme = item.value
+        }
+
+        RowButton {
+            visible: SplashSettings.plymouthAvailable
+            icon: "play_arrow"
+            text: qsTr("Preview this theme")
+            subtext: qsTr("Close to the real boot, not the same: a theme made of a program is shown as the Caelestia design")
+            disabled: !SplashSettings.splashInstalled || root.chosenTheme === ""
+            onClicked: SplashSettings.previewTheme(root.chosenTheme)
         }
 
         RowButton {

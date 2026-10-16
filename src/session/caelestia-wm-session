@@ -96,7 +96,7 @@ start_splash() {
     command -v kreadconfig6 >/dev/null 2>&1 || return 0
     local rc=caelestia-splashrc
     [ "$(kreadconfig6 --file "$rc" --group Login --key Enabled --default false)" = true ] || return 0
-    local qs shell_config qml display min logo=1
+    local qs shell_config qml display min theme logo=1
     qs="$(command -v quickshell || command -v qs)" || return 0
     shell_config="${CAELESTIA_SHELL_CONFIG:-$HOME/.config/quickshell/caelestia/shell.qml}"
     qml="$(dirname "$shell_config")/modules/splash/shell.qml"
@@ -108,7 +108,10 @@ start_splash() {
     [ -n "$display" ] || return 0
     min="$(kreadconfig6 --file "$rc" --group Login --key MinSeconds --default 2)"
     [ "$(kreadconfig6 --file "$rc" --group Login --key ShowLogo --default true)" = false ] && logo=0
+    # The Plymouth theme to draw, as the description Nexus stored (empty: the Caelestia design).
+    theme="$(kreadconfig6 --file "$rc" --group Login --key ThemeSpec --default "")"
     WAYLAND_DISPLAY="$display" CAELESTIA_SPLASH_MIN="$min" CAELESTIA_SPLASH_LOGO="$logo" \
+        CAELESTIA_SPLASH_THEME="$theme" \
         QS_NO_RELOAD_POPUP=1 \
         timeout --kill-after=3 30 "$qs" -n -p "$qml" >"$XDG_RUNTIME_DIR/caelestia-splash.log" 2>&1 &
     splash_pid=$!
