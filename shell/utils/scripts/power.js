@@ -18,11 +18,37 @@ var DEFAULTS = {
         dimSec: 120,
         offSec: 300,
         suspendSec: 600
+    },
+    LowBattery: {
+        dimSec: 60,
+        offSec: 120,
+        suspendSec: 300
     }
 };
 
+// What powerdevil does when the lid is closed or the power button is pressed (its
+// PowerButtonAction enum; the same values are stored for AutoSuspendAction).
 var ACTION_NONE = 0;
 var ACTION_SLEEP = 1;
+var ACTION_HIBERNATE = 2;
+var ACTION_SHUTDOWN = 8;
+var ACTION_LOGOUT_DIALOG = 16;
+var ACTION_LOCK = 32;
+var ACTION_SCREEN_OFF = 64;
+var ACTION_TOGGLE_SCREEN = 128;
+
+// Names for the values the page does not offer itself but must show when System Settings
+// has stored one.
+var ACTION_NAMES = {
+    0: "Do nothing",
+    1: "Sleep",
+    2: "Hibernate",
+    8: "Shut down",
+    16: "Show logout dialog",
+    32: "Lock screen",
+    64: "Turn off screen",
+    128: "Toggle screen on and off"
+};
 
 // Seconds; 0 stands for "Never". The screen cannot be switched off sooner than 30 s.
 var DELAYS = [30, 60, 120, 300, 600, 900, 1800, 3600];
@@ -66,7 +92,8 @@ function intOr(v, fallback) {
     return isNaN(n) ? fallback : n;
 }
 
-// What powerdevil does for one profile ("AC" or "Battery"), with its defaults filled in.
+// What powerdevil does for one profile ("AC", "Battery" or "LowBattery"), with its defaults
+// filled in.
 function settingsFor(config, profile) {
     var d = DEFAULTS[profile] || DEFAULTS.AC;
     return {
@@ -82,6 +109,8 @@ function settingsFor(config, profile) {
             action: intOr(value(config, profile, "SuspendAndShutdown", "AutoSuspendAction"), ACTION_SLEEP),
             seconds: intOr(value(config, profile, "SuspendAndShutdown", "AutoSuspendIdleTimeoutSec"), d.suspendSec)
         },
+        lid: intOr(value(config, profile, "SuspendAndShutdown", "LidAction"), ACTION_SLEEP),
+        powerButton: intOr(value(config, profile, "SuspendAndShutdown", "PowerButtonAction"), ACTION_LOGOUT_DIALOG),
         powerProfile: value(config, profile, "Performance", "PowerProfile") || ""
     };
 }
@@ -157,6 +186,55 @@ function profileChoices(hasPerformance, stored) {
             label: stored
         });
     return list;
+}
+
+function actionChoice(value) {
+    return {
+        value: value,
+        label: ACTION_NAMES[value] !== undefined ? ACTION_NAMES[value] : String(value)
+    };
+}
+
+// The choices of a lid or power-button row, plus the stored one when it is not among them
+// (hibernate set in System Settings, say) so that the row is not blank.
+function actionChoices(offered, stored) {
+    var list = offered.map(actionChoice);
+    if (!list.some(function (c) {
+        return c.value === stored;
+    }))
+        list.push(actionChoice(stored));
+    return list;
+}
+
+// Closing the lid. "Do nothing" is offered here and not for the power button: powerdevil only
+// loads its button handling when the lid, power button and power-down actions are all set
+// (handlebuttonevents.cpp, loadAction), so a 0 may switch the handling off altogether.
+function lidChoices(stored) {
+    return actionChoices([ACTION_SLEEP, ACTION_LOCK, ACTION_SCREEN_OFF, ACTION_NONE], stored);
+}
+
+function powerButtonChoices(stored) {
+    return actionChoices([ACTION_LOGOUT_DIALOG, ACTION_SLEEP, ACTION_SHUTDOWN, ACTION_LOCK, ACTION_SCREEN_OFF], stored);
+}
+
+function changesForLid(action) {
+    return [
+        {
+            group: "SuspendAndShutdown",
+            key: "LidAction",
+            value: String(action)
+        }
+    ];
+}
+
+function changesForPowerButton(action) {
+    return [
+        {
+            group: "SuspendAndShutdown",
+            key: "PowerButtonAction",
+            value: String(action)
+        }
+    ];
 }
 
 // Each change is {group, key, value} or {group, key, remove: true}.

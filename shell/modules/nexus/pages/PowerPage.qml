@@ -15,22 +15,26 @@ PageBase {
 
     title: qsTr("Power")
 
-    // The on-battery settings only matter when there is a battery.
-    readonly property var sections: UPower.displayDevice.isLaptopBattery ? [
-        {
-            id: "AC",
-            title: qsTr("Plugged in")
-        },
-        {
-            id: "Battery",
-            title: qsTr("On battery")
-        }
-    ] : [
-        {
-            id: "AC",
-            title: qsTr("Plugged in")
-        }
-    ]
+    // The on-battery and low-battery settings only matter when there is a battery. powerdevil
+    // uses the low-battery profile once the charge is at or below its low-battery level.
+    readonly property var sections: {
+        const list = [
+            {
+                id: "AC",
+                title: qsTr("Plugged in")
+            }
+        ];
+        if (UPower.displayDevice.isLaptopBattery)
+            list.push({
+                id: "Battery",
+                title: qsTr("On battery")
+            }, {
+                id: "LowBattery",
+                title: qsTr("Low battery"),
+                hint: qsTr("Used when the charge is at or below the low-battery level (10% by default)")
+            });
+        return list;
+    }
 
     function errorText(code: string): string {
         switch (code) {
@@ -55,6 +59,29 @@ PageBase {
             return qsTr("Balanced");
         case "performance":
             return qsTr("Performance");
+        default:
+            return choice.label;
+        }
+    }
+
+    function actionText(choice: var): string {
+        switch (choice.value) {
+        case 0:
+            return qsTr("Do nothing");
+        case 1:
+            return qsTr("Sleep");
+        case 2:
+            return qsTr("Hibernate");
+        case 8:
+            return qsTr("Shut down");
+        case 16:
+            return qsTr("Show logout dialog");
+        case 32:
+            return qsTr("Lock screen");
+        case 64:
+            return qsTr("Turn off screen");
+        case 128:
+            return qsTr("Toggle screen on and off");
         default:
             return choice.label;
         }
@@ -108,6 +135,14 @@ PageBase {
                             text: root.profileText(c),
                             value: c.value
                         })))
+                readonly property var lidItems: root.makeItems(Logic.lidChoices(current.lid).map(c => ({
+                            text: root.actionText(c),
+                            value: c.value
+                        })))
+                readonly property var buttonItems: root.makeItems(Logic.powerButtonChoices(current.powerButton).map(c => ({
+                            text: root.actionText(c),
+                            value: c.value
+                        })))
                 readonly property var dimItems: root.makeItems(Logic.delayChoices(dimNow).map(c => ({
                             text: root.delayText(c),
                             value: c.value
@@ -132,7 +167,7 @@ PageBase {
                 SelectRow {
                     first: true
                     label: qsTr("Power profile")
-                    subtext: qsTr("Used while on this power source")
+                    subtext: section.modelData.hint ?? qsTr("Used while on this power source")
                     menuItems: section.profileItems
                     active: section.profileItems.find(i => i.value === section.current.powerProfile) ?? null
                     fallbackText: qsTr("Don't change")
@@ -156,12 +191,30 @@ PageBase {
                 }
 
                 SelectRow {
-                    last: true
                     label: qsTr("Suspend after")
                     menuItems: section.suspendItems
                     active: section.suspendItems.find(i => i.value === section.suspendNow) ?? null
                     fallbackText: qsTr("Never")
                     onSelected: item => PowerSettings.setDelay(section.modelData.id, "suspend", item.value)
+                }
+
+                SelectRow {
+                    visible: UPower.displayDevice.isLaptopBattery
+                    label: qsTr("When the lid is closed")
+                    subtext: qsTr("Ignored while an external monitor is connected")
+                    menuItems: section.lidItems
+                    active: section.lidItems.find(i => i.value === section.current.lid) ?? null
+                    fallbackText: qsTr("Sleep")
+                    onSelected: item => PowerSettings.setLidAction(section.modelData.id, item.value)
+                }
+
+                SelectRow {
+                    last: true
+                    label: qsTr("When the power button is pressed")
+                    menuItems: section.buttonItems
+                    active: section.buttonItems.find(i => i.value === section.current.powerButton) ?? null
+                    fallbackText: qsTr("Show logout dialog")
+                    onSelected: item => PowerSettings.setPowerButtonAction(section.modelData.id, item.value)
                 }
             }
         }

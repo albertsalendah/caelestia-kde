@@ -5,8 +5,8 @@ import Quickshell
 import Quickshell.Io
 import "../utils/scripts/power.js" as Logic
 
-// powerdevil's settings (dim, screen off, suspend, power profile) for the plugged-in and
-// on-battery profiles. They are read from ~/.config/powerdevilrc and changed with kwriteconfig6;
+// powerdevil's settings (dim, screen off, suspend, power profile, lid and power button) for the
+// plugged-in, on-battery and low-battery profiles. They are read from ~/.config/powerdevilrc and changed with kwriteconfig6;
 // powerdevil is then told to read the file again with refreshStatus, not reparseConfiguration:
 // the latter only reloads the global settings, so a new power profile would wait for the next
 // change of power source, while refreshStatus also reloads the active profile and applies it.
@@ -35,6 +35,14 @@ Singleton {
 
     function setPowerProfile(profile: string, name: string): void {
         enqueue(profile, Logic.changesForProfile(name));
+    }
+
+    function setLidAction(profile: string, action: int): void {
+        enqueue(profile, Logic.changesForLid(action));
+    }
+
+    function setPowerButtonAction(profile: string, action: int): void {
+        enqueue(profile, Logic.changesForPowerButton(action));
     }
 
     function enqueue(profile: string, changes: var): void {

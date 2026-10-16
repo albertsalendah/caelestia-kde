@@ -20,7 +20,7 @@ js() {
     node -e '
 const fs = require("fs");
 const src = fs.readFileSync(process.argv[1], "utf8").replace(/^\.pragma library\n/, "");
-const L = new Function(src + "; return {parseIni, settingsFor, currentDelay, delayChoices, profileChoices, changesForDelay, changesForProfile, buildWriteArgs, formatDelay};")();
+const L = new Function(src + "; return {parseIni, settingsFor, currentDelay, delayChoices, profileChoices, changesForDelay, changesForProfile, buildWriteArgs, formatDelay, lidChoices, powerButtonChoices, changesForLid, changesForPowerButton};")();
 const ini = "[AC]\nbrightnessosd=false\n\n[AC][Display]\nDimDisplayIdleTimeoutSec=45\nTurnOffDisplayIdleTimeoutSec=-1\nTurnOffDisplayWhenIdle=false\n\n[AC][SuspendAndShutdown]\nAutoSuspendAction=0\n\n[BrightnessControl]\nshowOSD=false\n";
 const cfg = L.parseIni(ini);
 const ac = L.settingsFor(cfg, "AC");
@@ -52,8 +52,8 @@ const s = L.settingsFor(c, "AC"); console.log(["dim","off","suspend"].map(k => L
 test_a_value_in_the_file_wins_and_a_missing_one_is_powerdevils_default() {
     local out
     out="$(js 'console.log(JSON.stringify(ac)); console.log(JSON.stringify(bat));')" || return 0
-    assert_eq '{"dim":{"enabled":true,"seconds":45},"off":{"enabled":false,"seconds":-1},"suspend":{"action":0,"seconds":900},"powerProfile":""}
-{"dim":{"enabled":true,"seconds":120},"off":{"enabled":true,"seconds":300},"suspend":{"action":1,"seconds":600},"powerProfile":""}' "$out" \
+    assert_eq '{"dim":{"enabled":true,"seconds":45},"off":{"enabled":false,"seconds":-1},"suspend":{"action":0,"seconds":900},"lid":1,"powerButton":16,"powerProfile":""}
+{"dim":{"enabled":true,"seconds":120},"off":{"enabled":true,"seconds":300},"suspend":{"action":1,"seconds":600},"lid":1,"powerButton":16,"powerProfile":""}' "$out" \
         "plugged in reads the file (suspend delay 900 is the default); on battery has no section at all, so all defaults"
 }
 
@@ -61,8 +61,8 @@ test_no_file_at_all_means_all_defaults() {
     local out
     out="$(js 'console.log(JSON.stringify(L.settingsFor(L.parseIni(""), "AC")));
 console.log(JSON.stringify(L.settingsFor({}, "Nope")));')" || return 0
-    assert_eq '{"dim":{"enabled":true,"seconds":300},"off":{"enabled":true,"seconds":600},"suspend":{"action":1,"seconds":900},"powerProfile":""}
-{"dim":{"enabled":true,"seconds":300},"off":{"enabled":true,"seconds":600},"suspend":{"action":1,"seconds":900},"powerProfile":""}' "$out" \
+    assert_eq '{"dim":{"enabled":true,"seconds":300},"off":{"enabled":true,"seconds":600},"suspend":{"action":1,"seconds":900},"lid":1,"powerButton":16,"powerProfile":""}
+{"dim":{"enabled":true,"seconds":300},"off":{"enabled":true,"seconds":600},"suspend":{"action":1,"seconds":900},"lid":1,"powerButton":16,"powerProfile":""}' "$out" \
         "powerdevil has not written a file yet on a fresh install"
 }
 
@@ -147,6 +147,62 @@ console.log(names(false, "weird"));')" || return 0
 -,power-saver,balanced,weird" "$out" "Performance is hidden when the machine has none, unless it is what is stored"
 }
 
+test_low_battery_has_its_own_defaults_and_reads_its_own_section() {
+    local out
+    out="$(js 'const c = L.parseIni("[LowBattery][Display]\nDimDisplayIdleTimeoutSec=20\n[LowBattery][Performance]\nPowerProfile=power-saver\n[LowBattery][SuspendAndShutdown]\nLidAction=64\n");
+console.log(JSON.stringify(L.settingsFor({}, "LowBattery")));
+console.log(JSON.stringify(L.settingsFor(c, "LowBattery")));
+console.log(JSON.stringify(L.settingsFor(c, "Battery")));')" || return 0
+    assert_eq '{"dim":{"enabled":true,"seconds":60},"off":{"enabled":true,"seconds":120},"suspend":{"action":1,"seconds":300},"lid":1,"powerButton":16,"powerProfile":""}
+{"dim":{"enabled":true,"seconds":20},"off":{"enabled":true,"seconds":120},"suspend":{"action":1,"seconds":300},"lid":64,"powerButton":16,"powerProfile":"power-saver"}
+{"dim":{"enabled":true,"seconds":120},"off":{"enabled":true,"seconds":300},"suspend":{"action":1,"seconds":600},"lid":1,"powerButton":16,"powerProfile":""}' "$out" \
+        "low battery: dim 60 s, screen off 120 s, suspend 300 s unless the file says otherwise; its keys do not leak into On battery"
+}
+
+test_lid_and_power_button_are_read_and_default_to_sleep_and_the_logout_dialog() {
+    local out
+    out="$(js 'const c = L.parseIni("[Battery][SuspendAndShutdown]\nLidAction=32\nPowerButtonAction=8\n[AC][SuspendAndShutdown]\nLidAction=junk\n");
+const b = L.settingsFor(c, "Battery"), a = L.settingsFor(c, "AC");
+console.log(b.lid, b.powerButton, a.lid, a.powerButton);')" || return 0
+    assert_eq "32 8 1 16" "$out" "stored values win; a missing or unreadable one is powerdevil's default (sleep, logout dialog)"
+}
+
+test_the_lid_row_offers_sleep_lock_screen_off_and_do_nothing_only() {
+    local out
+    out="$(js 'const names = s => L.lidChoices(s).map(c => c.value + ":" + c.label).join("|");
+console.log(names(1));
+console.log(names(2));
+console.log(names(128));')" || return 0
+    assert_eq "1:Sleep|32:Lock screen|64:Turn off screen|0:Do nothing
+1:Sleep|32:Lock screen|64:Turn off screen|0:Do nothing|2:Hibernate
+1:Sleep|32:Lock screen|64:Turn off screen|0:Do nothing|128:Toggle screen on and off" "$out" \
+        "a value set in System Settings (hibernate, toggle screen) stays in the list so the row is not blank"
+}
+
+test_the_power_button_row_has_no_do_nothing_unless_that_is_stored() {
+    local out
+    out="$(js 'const names = s => L.powerButtonChoices(s).map(c => c.value + ":" + c.label).join("|");
+console.log(names(16));
+console.log(names(0));')" || return 0
+    assert_eq "16:Show logout dialog|1:Sleep|8:Shut down|32:Lock screen|64:Turn off screen
+16:Show logout dialog|1:Sleep|8:Shut down|32:Lock screen|64:Turn off screen|0:Do nothing" "$out" \
+        "Do nothing may disable powerdevil's button handling, so it is not offered; a stored 0 is still shown"
+}
+
+test_lid_and_power_button_changes_write_one_key_in_the_suspend_group() {
+    local out
+    out="$(js 'const show = c => c.map(x => x.group + "." + x.key + "=" + x.value).join(" ");
+console.log(show(L.changesForLid(64)));
+console.log(show(L.changesForPowerButton(1)));
+console.log(L.changesForLid(0)[0].remove === undefined);
+console.log(L.buildWriteArgs("LowBattery", L.changesForLid(32)[0]).join(" "));')" || return 0
+    assert_eq "SuspendAndShutdown.LidAction=64
+SuspendAndShutdown.PowerButtonAction=1
+true
+--file powerdevilrc --group LowBattery --group SuspendAndShutdown --key LidAction 32" "$out" \
+        "an explicit value is always written (Do nothing is 0, not a removed key)"
+}
+
 # --- the QML side, which has no runtime here: checked as text -------------------------------------
 
 test_the_page_is_registered_at_the_same_place_in_both_lists() {
@@ -217,18 +273,34 @@ test_the_page_has_the_four_rows_and_hides_the_battery_section_without_a_battery(
     assert_contains "$page" 'label: qsTr("Dim screen after")' "dim"
     assert_contains "$page" 'label: qsTr("Turn off screen after")' "screen off"
     assert_contains "$page" 'label: qsTr("Suspend after")' "suspend"
-    assert_contains "$page" 'UPower.displayDevice.isLaptopBattery ?' "the battery section depends on a battery"
+    assert_contains "$page" 'if (UPower.displayDevice.isLaptopBattery)' "the battery sections depend on a battery"
     assert_contains "$page" 'title: qsTr("On battery")' "the battery section exists"
     assert_contains "$page" 'PowerProfiles.hasPerformanceProfile' "Performance is offered only when the system has it"
 }
 
-test_the_first_version_leaves_out_lid_and_power_button_actions() {
+test_the_page_has_the_lid_and_power_button_rows_and_a_low_battery_section() {
     local page svc
     page="$(cat "$PAGE_QML")"
     svc="$(cat "$SERVICE_QML")"
-    assert_not_contains "$page$svc" "LidAction" "no lid setting yet"
-    assert_not_contains "$page$svc" "PowerButtonAction" "no power button setting yet"
-    assert_not_contains "$page$svc" "LowBattery" "no low-battery profile yet"
+    assert_contains "$page" 'label: qsTr("When the lid is closed")' "lid row"
+    assert_contains "$page" 'label: qsTr("When the power button is pressed")' "power button row"
+    assert_contains "$page" 'title: qsTr("Low battery")' "the low-battery section"
+    assert_contains "$page" 'id: "LowBattery"' "its profile name is powerdevil's"
+    assert_contains "$page" 'visible: UPower.displayDevice.isLaptopBattery' "a machine without a battery has no lid row"
+    assert_contains "$page" 'Logic.lidChoices(current.lid)' "the lid menu"
+    assert_contains "$page" 'Logic.powerButtonChoices(current.powerButton)' "the power button menu"
+    assert_contains "$page" 'PowerSettings.setLidAction(section.modelData.id, item.value)' "choosing a lid action"
+    assert_contains "$page" 'PowerSettings.setPowerButtonAction(section.modelData.id, item.value)' "choosing a power button action"
+    assert_contains "$svc" 'Logic.changesForLid(action)' "the service writes the lid key"
+    assert_contains "$svc" 'Logic.changesForPowerButton(action)' "the service writes the power button key"
+}
+
+test_the_power_button_row_closes_the_group_and_the_suspend_row_no_longer_does() {
+    local page
+    page="$(cat "$PAGE_QML")"
+    assert_eq "1" "$(grep -c '^ *last: true$' "$PAGE_QML")" "exactly one row closes a section"
+    assert_contains "$page" 'last: true
+                    label: qsTr("When the power button is pressed")' "it is the power button row"
 }
 
 run_tests
