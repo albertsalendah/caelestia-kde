@@ -39,7 +39,7 @@ Item {
         return offsetY + (y - view.y) * fit;
     }
 
-    implicitHeight: 220
+    implicitHeight: 260
     clip: true
 
     StyledRect {

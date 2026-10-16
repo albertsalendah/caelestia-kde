@@ -73,15 +73,16 @@ PageBase {
             MenuItem {}
         }
 
-        // The kernel says when a monitor is plugged in or out; nothing is read on a timer. Only
-        // while the page is shown, and a change made in another program is seen when the page is
-        // opened again.
+        // Plugging a monitor in or out is noticed by looking at the status of the ports every two
+        // seconds (files only, nothing is asked of KWin); the monitors are read again only when
+        // one of them changed. Only while the page is shown. A change made in another program is
+        // seen when the page is opened again.
         Process {
             running: root.visible
-            command: ["udevadm", "monitor", "--kernel", "--subsystem-match=drm"]
+            command: ["bash", "-c", Logic.HOTPLUG_SCRIPT, "hotplug", "/sys/class/drm", "2"]
             stdout: SplitParser {
                 onRead: line => {
-                    if (Logic.isHotplugLine(line))
+                    if (line === "changed")
                         Displays.hotplugged();
                 }
             }

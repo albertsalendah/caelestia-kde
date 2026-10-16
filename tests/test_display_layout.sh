@@ -19,7 +19,7 @@ js() {
     node -e '
 const fs = require("fs");
 const src = fs.readFileSync(process.argv[1], "utf8").replace(/^\.pragma library\n/, "");
-const L = new Function(src + "; return {parseOutputs, primaryName, logicalSize, layoutRects, overlaps, touching, isConnected, layoutBounds, canvasView, fitScale, snapLayout, settleLayout, sideOf, placeAtEnd, primaryChanges, copyChanges, validate, buildApplyArgs, snapshot, buildRevertArgs};")();
+const L = new Function(src + "; return {parseOutputs, primaryName, logicalSize, layoutRects, overlaps, touching, isConnected, layoutBounds, canvasView, fitScale, snapLayout, settleLayout, normalizeLayout, applyToOutputs, sideOf, placeAtEnd, primaryChanges, copyChanges, validate, buildApplyArgs, snapshot, buildRevertArgs};")();
 const rect = (name, x, y, w, h) => ({name: name, x: x, y: y, w: w, h: h});
 const modes = [{id: "1", width: 1920, height: 1080, refresh: 60}, {id: "2", width: 1366, height: 768, refresh: 60}];
 const out = (name, props) => Object.assign({name: name, enabled: true, currentModeId: "1", scale: 1, rotation: "none", priority: 0, pos: {x: 0, y: 0}, mirrorOf: "", modes: modes}, props || {});
@@ -93,8 +93,8 @@ console.log(J(L.layoutBounds(rs)));
 console.log(J(L.canvasView(rs)), J(L.canvasView([])));
 console.log(L.fitScale({x: 0, y: 0, w: 5590, h: 3384}, 600, 220).toFixed(4), L.fitScale({x: 0, y: 0, w: 100, h: 1000}, 600, 220).toFixed(4), L.fitScale({x: 0, y: 0, w: 1000, h: 10}, 600, 220).toFixed(4));')" || return 0
     assert_eq '{"x":-1366,"y":0,"w":3286,"h":1080}
-{"x":-2518,"y":-1152,"w":5590,"h":3384} {"x":0,"y":0,"w":1,"h":1}
-0.0650 0.2200 0.6000' "$out" "the margin is 60% of the biggest side; the view fits the width or the height, whichever is tighter"
+{"x":-2326,"y":-540,"w":5206,"h":2160} {"x":0,"y":0,"w":1,"h":1}
+0.0650 0.2200 0.6000' "$out" "half the widest monitor of room left and right, half the tallest above and below; the view fits the width or the height, whichever is tighter"
 }
 
 test_a_dropped_monitor_goes_to_the_nearest_valid_place() {
@@ -140,21 +140,22 @@ false true' "$out" "dropped where C is, B goes to the nearest free edge (above C
 
 test_a_change_that_breaks_the_layout_moves_the_monitor_to_a_valid_place() {
     local out
-    out="$(js 'const eDP = (props) => out("eDP-1", Object.assign({currentModeId: "2", pos: {x: -1366, y: 0}, priority: 2}, props));
-const hdmi = out("HDMI-A-1", {priority: 1});
+    out="$(js 'const eDP = (props) => out("eDP-1", Object.assign({currentModeId: "2", pos: {x: 0, y: 0}, priority: 2}, props));
+const hdmi = out("HDMI-A-1", {priority: 1, pos: {x: 1366, y: 0}});
+const hdmi0 = out("HDMI-A-1", {priority: 1});
 const pos = (changes, list) => J(L.settleLayout(list, changes).filter(c => c.pos).map(c => c.name + "@" + c.pos.x + "," + c.pos.y));
 console.log(pos([{name: "eDP-1", scale: 0.5}], [eDP(), hdmi]));
 console.log(pos([{name: "eDP-1", scale: 2}], [eDP(), hdmi]));
-console.log(pos([{name: "eDP-1", enabled: true}], [eDP({enabled: false, pos: {x: -100, y: 0}}), hdmi]));
-console.log(pos([{name: "DP-1", mirror: "none"}], [out("DP-1", {mirrorOf: "HDMI-A-1"}), hdmi]));
+console.log(pos([{name: "eDP-1", enabled: true}], [eDP({enabled: false, pos: {x: 100, y: 0}}), hdmi0]));
+console.log(pos([{name: "DP-1", mirror: "none"}], [out("DP-1", {mirrorOf: "HDMI-A-1"}), hdmi0]));
 console.log(L.settleLayout([eDP(), hdmi], [{name: "HDMI-A-1", scale: 1}]).length, L.settleLayout([eDP(), hdmi], [{name: "HDMI-A-1", rotation: "left"}]).length);
 console.log(pos([{name: "eDP-1", enabled: false}], [eDP(), hdmi]), L.settleLayout([eDP(), hdmi], [{name: "eDP-1", scale: 0.5, pos: {x: 7, y: 8}}]).length);')" || return 0
-    assert_eq '["eDP-1@-2732,0"]
-["eDP-1@-683,0"]
+    assert_eq '["HDMI-A-1@2732,0"]
+["eDP-1@683,0"]
 ["eDP-1@1920,0"]
 ["DP-1@1920,0"]
 1 1
-[] 1' "$out" "a bigger monitor moves out of the way and a smaller one closes the gap, both on the side they were on; a monitor turned on or no longer copying goes to the right end if it does not fit; a change that leaves the layout valid, a monitor turned off or a position that was asked for are not touched"
+[] 1' "$out" "a bigger monitor makes room (the monitor that was to its right moves along it) and a smaller one closes the gap, both on the side they were on; a monitor turned on or no longer copying goes to the right end if it does not fit; a change that leaves the layout valid, a monitor turned off or a position that was asked for are not touched"
 }
 
 test_a_monitor_that_grows_over_a_neighbour_moves_even_when_the_rest_stays_in_one_piece() {
@@ -163,7 +164,7 @@ test_a_monitor_that_grows_over_a_neighbour_moves_even_when_the_rest_stays_in_one
 const grid = [out("A", {modes: wide, pos: {x: 0, y: 0}, priority: 1}), out("B", {modes: wide, pos: {x: 1000, y: 0}}), out("D", {modes: wide, pos: {x: 0, y: 1000}}), out("E", {modes: wide, pos: {x: 1000, y: 1000}})];
 const r = L.settleLayout(grid, [{name: "A", modeId: "3"}]);
 console.log(J(r.filter(c => c.pos).map(c => c.name + "@" + c.pos.x + "," + c.pos.y)));')" || return 0
-    assert_eq '["A@-500,0"]' "$out" "A gets wider and would sit on B, though A, B, D and E still touch in a ring; it moves to the other side of B and stays on its side"
+    assert_eq '["B@1500,0","D@500,1000","E@1500,1000"]' "$out" "A gets wider and would sit on B, though A, B, D and E still touch in a ring; it stays on its side of B, and the others move 500 to the right so that nothing is negative"
 }
 
 test_making_a_monitor_primary_moves_the_copies_with_it() {
@@ -208,6 +209,27 @@ console.log(J(L.snapshot(list).map(s => [s.name, s.primary, s.mirrorOf, s.pos.x]
     assert_eq 'output.P.enable output.P.mode.1 output.P.scale.1 output.P.rotation.none output.P.position.0,0 output.P.mirror.none output.P.primary output.X.enable output.X.mode.1 output.X.scale.1.5 output.X.rotation.none output.X.position.40,50 output.X.mirror.P output.D.disable
 [["P",true,"",0],["X",false,"P",40],["D",false,"",-1366]]' "$out" \
         "the primary is set again, a copy copies again, an extender stops copying, and a monitor that was off is only switched off"
+}
+
+test_a_monitor_never_gets_a_negative_position_because_kwin_refuses_it() {
+    local out
+    out="$(js 'const hdmi = out("HDMI-A-1", {priority: 1});
+const eDP = (props) => out("eDP-1", Object.assign({currentModeId: "2", pos: {x: 1920, y: 0}, priority: 2}, props));
+const final = (outputs, changes) => { const settled = L.settleLayout(outputs, changes); return J(L.applyToOutputs(outputs, settled).map(o => o.name + "@" + o.pos.x + "," + o.pos.y)); };
+console.log(final([hdmi, eDP()], [{name: "eDP-1", pos: {x: -1366, y: 0}}]));
+console.log(final([hdmi, eDP()], [{name: "eDP-1", pos: {x: 0, y: -768}}]));
+console.log(final([hdmi, eDP()], [{name: "eDP-1", pos: {x: -1366, y: -300}}]));
+console.log(final([hdmi, eDP()], [{name: "eDP-1", pos: {x: 1920, y: 300}}]));
+console.log(J(L.settleLayout([hdmi, eDP()], [{name: "eDP-1", pos: {x: -1366, y: 0}}]).map(c => c.name + ":" + c.pos.x + "," + c.pos.y)));
+console.log(final([hdmi, eDP({enabled: false, pos: {x: -1366, y: 0}})], [{name: "HDMI-A-1", scale: 1}]));
+console.log(final([hdmi, eDP()], [{name: "eDP-1", pos: {x: -1366, y: 0}}, {name: "HDMI-A-1", enabled: false}]));')" || return 0
+    assert_eq '["HDMI-A-1@1366,0","eDP-1@0,0"]
+["HDMI-A-1@0,768","eDP-1@0,0"]
+["HDMI-A-1@1366,300","eDP-1@0,0"]
+["HDMI-A-1@0,0","eDP-1@1920,300"]
+["HDMI-A-1:1366,0","eDP-1:0,0"]
+["HDMI-A-1@0,0","eDP-1@-1366,0"]
+["HDMI-A-1@0,0","eDP-1@0,0"]' "$out"         "a drop to the left or above shifts every monitor that is on so that the top left is 0,0 (the arrangement is the same); a layout that is fine, and a monitor that is off, are left alone; a monitor turned off in the same change does not count; the position asked for is replaced, not sent twice"
 }
 
 test_the_side_of_a_monitor_and_the_right_end_of_the_layout() {

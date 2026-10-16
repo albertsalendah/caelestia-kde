@@ -253,16 +253,21 @@ function canvasView(rects) {
             h: 1
         };
     var b = layoutBounds(rects);
-    var biggest = 0;
+    var widest = 0;
+    var tallest = 0;
     rects.forEach(function (r) {
-        biggest = Math.max(biggest, r.w, r.h);
+        widest = Math.max(widest, r.w);
+        tallest = Math.max(tallest, r.h);
     });
-    var margin = Math.round(biggest * 0.6);
+    // Half a monitor of room on each side: enough to drop one next to the others, and the
+    // rectangles stay as big as the canvas allows.
+    var marginX = Math.round(widest * 0.5);
+    var marginY = Math.round(tallest * 0.5);
     return {
-        x: b.x - margin,
-        y: b.y - margin,
-        w: b.w + margin * 2,
-        h: b.h + margin * 2
+        x: b.x - marginX,
+        y: b.y - marginY,
+        w: b.w + marginX * 2,
+        h: b.h + marginY * 2
     };
 }
 
@@ -490,6 +495,51 @@ function settleLayout(outputs, changes) {
             }
         });
     });
+    return normalizeLayout(outputs, result);
+}
+
+// KWin refuses a negative position for a monitor that is on, so a layout with a monitor to the
+// left of or above the one at 0,0 cannot be sent as it is. Like KScreen does, every monitor that
+// is on is moved by the same amount so that the top left of the layout is 0,0: the arrangement
+// is the same, only the numbers are different.
+function normalizeLayout(outputs, changes) {
+    var after = applyToOutputs(outputs, changes);
+    var on = after.filter(function (o) {
+        return o.enabled;
+    });
+    if (on.length === 0)
+        return changes;
+    var minX = Math.min.apply(null, on.map(function (o) {
+        return o.pos.x;
+    }));
+    var minY = Math.min.apply(null, on.map(function (o) {
+        return o.pos.y;
+    }));
+    if (minX >= 0 && minY >= 0)
+        return changes;
+    var shiftX = Math.min(0, minX);
+    var shiftY = Math.min(0, minY);
+    var names = {};
+    on.forEach(function (o) {
+        names[o.name] = true;
+    });
+    var result = changes.filter(function (c) {
+        return !(c.pos !== undefined && names[c.name]);
+    });
+    on.forEach(function (o) {
+        var place = {
+            x: o.pos.x - shiftX,
+            y: o.pos.y - shiftY
+        };
+        var before = outputs.filter(function (q) {
+            return q.name === o.name;
+        })[0];
+        if (!before || before.pos.x !== place.x || before.pos.y !== place.y)
+            result.push({
+                name: o.name,
+                pos: place
+            });
+    });
     return result;
 }
 
@@ -538,11 +588,29 @@ function isListing(text) {
     }
 }
 
-// A line of `udevadm monitor --kernel --subsystem-match=drm` that says the graphics driver
-// reported something: a monitor plugged in or out. The two header lines are not events.
-function isHotplugLine(line) {
-    return /^KERNEL\[[0-9.]+\]\s+(change|add|remove)\s/.test(String(line));
-}
+// Prints "changed" whenever a monitor port is plugged or unplugged: it looks at the status of
+// every connector (connected or not, from /sys/class/drm) every few seconds, reading files only,
+// and says something only when that is different from the last time. Run as
+// `bash -c <script> hotplug /sys/class/drm 2`; the folder and the pause are arguments so that a
+// test can use a copy and a short pause.
+var HOTPLUG_SCRIPT = [
+    'dir="$1"; every="$2"',
+    'state() {',
+    '    for f in "$dir"/card*-*/status; do',
+    '        [ -r "$f" ] || continue',
+    '        read -r s < "$f"',
+    '        printf "%s=%s " "${f%/status}" "$s"',
+    '    done',
+    '}',
+    'last="$(state)"',
+    'while sleep "$every"; do',
+    '    now="$(state)"',
+    '    if [ "$now" != "$last" ]; then',
+    '        last="$now"',
+    '        echo changed',
+    '    fi',
+    'done'
+].join("\n");
 
 // Whether two parsed monitor lists are the same, so that the page only rebuilds its rows when
 // something it shows has changed (plugging or unplugging a monitor, or a change made elsewhere).
