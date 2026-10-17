@@ -826,6 +826,25 @@ function sameScale(a, b) {
     return Math.abs(a - b) < 0.005;
 }
 
+// A scale below 100% is expensive on weak graphics (kwin_wayland used half a CPU on the test
+// laptop with it), so the Scale row says so.
+function belowFullScale(scale) {
+    return scale < 0.995;
+}
+
+// What kscreen-doctor said when KWin refused a change, cut down to a line or two for the page:
+// colour codes and empty lines removed, the last three lines kept (the reason is at the end),
+// at most 240 characters.
+function errorDetail(text) {
+    var lines = String(text || "").replace(/\u001b\[[0-9;]*m/g, "").split("\n").map(function (line) {
+        return line.trim();
+    }).filter(function (line) {
+        return line !== "";
+    });
+    var detail = lines.slice(-3).join(" ");
+    return detail.length > 240 ? detail.slice(0, 239) + "\u2026" : detail;
+}
+
 function formatScale(scale) {
     return String(Math.round(scale * 100) / 100);
 }

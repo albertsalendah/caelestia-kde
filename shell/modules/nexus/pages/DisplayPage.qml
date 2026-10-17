@@ -2,9 +2,12 @@ pragma ComponentBehavior: Bound
 
 import QtQuick
 import QtQuick.Layouts
+import Quickshell
 import Quickshell.Io
+import Quickshell.Wayland
 import Caelestia.Config
 import qs.components
+import qs.components.containers
 import qs.components.controls
 import qs.services
 import qs.modules.nexus.common
@@ -59,6 +62,9 @@ PageBase {
             }));
     }
 
+    // "Identify screens": the name of each monitor on its own screen for a few seconds.
+    property bool identifying: false
+
     Component.onCompleted: Displays.refresh()
 
     ColumnLayout {
@@ -84,6 +90,67 @@ PageBase {
                 onRead: line => {
                     if (line === "changed")
                         Displays.hotplugged();
+                }
+            }
+        }
+
+        Timer {
+            id: identifyTimer
+
+            interval: 4000
+            onTriggered: root.identifying = false
+        }
+
+        Variants {
+            model: root.identifying ? Quickshell.screens : []
+
+            StyledWindow {
+                id: tag
+
+                required property ShellScreen modelData
+
+                screen: modelData
+                name: "display-identify"
+                WlrLayershell.exclusionMode: ExclusionMode.Ignore
+                WlrLayershell.layer: WlrLayer.Overlay
+                WlrLayershell.keyboardFocus: WlrKeyboardFocus.None
+                // Clicks go through it.
+                mask: Region {}
+                implicitWidth: card.implicitWidth
+                implicitHeight: card.implicitHeight
+
+                Rectangle {
+                    id: card
+
+                    readonly property string title: root.monitorTitle(tag.modelData.name)
+
+                    implicitWidth: cardColumn.implicitWidth + Tokens.padding.large * 4
+                    implicitHeight: cardColumn.implicitHeight + Tokens.padding.large * 2
+                    radius: Tokens.rounding.large
+                    color: Colours.palette.m3surfaceContainerHigh
+
+                    Column {
+                        id: cardColumn
+
+                        anchors.centerIn: parent
+                        spacing: Tokens.spacing.small
+
+                        StyledText {
+                            anchors.horizontalCenter: parent.horizontalCenter
+                            text: tag.modelData.name
+                            color: Colours.palette.m3primary
+                            font.pointSize: 36
+                            font.bold: true
+                        }
+
+                        StyledText {
+                            visible: card.title !== tag.modelData.name
+                            anchors.horizontalCenter: parent.horizontalCenter
+                            text: card.title
+                            color: Colours.palette.m3onSurface
+                            font: Tokens.font.body.small
+                        }
+                    }
                 }
             }
         }
@@ -162,6 +229,17 @@ PageBase {
         }
 
         StyledText {
+            visible: Displays.errorDetail !== ""
+            Layout.fillWidth: true
+            Layout.leftMargin: Tokens.padding.small
+            Layout.bottomMargin: Tokens.spacing.extraSmall
+            text: qsTr("KWin said: %1").arg(Displays.errorDetail)
+            color: Colours.palette.m3onSurfaceVariant
+            font: Tokens.font.label.small
+            wrapMode: Text.WordWrap
+        }
+
+        StyledText {
             visible: Displays.loaded && Displays.outputs.length === 0
             Layout.fillWidth: true
             Layout.leftMargin: Tokens.padding.small
@@ -208,6 +286,21 @@ PageBase {
             color: Colours.palette.m3onSurfaceVariant
             font: Tokens.font.label.small
             wrapMode: Text.WordWrap
+        }
+
+        RowButton {
+            visible: Displays.outputs.length > 1
+            first: true
+            last: true
+            Layout.topMargin: Tokens.spacing.extraSmall
+            Layout.bottomMargin: Tokens.spacing.largeIncreased
+            icon: "monitor"
+            text: qsTr("Identify screens")
+            subtext: qsTr("Shows each monitor's name on its own screen for a few seconds")
+            onClicked: {
+                root.identifying = true;
+                identifyTimer.restart();
+            }
         }
 
         Repeater {
@@ -331,7 +424,7 @@ PageBase {
                 SelectRow {
                     visible: monitor.modelData.enabled
                     label: qsTr("Scale")
-                    subtext: qsTr("Size of everything on this monitor")
+                    subtext: Logic.belowFullScale(monitor.modelData.scale) ? qsTr("Below 100% is heavy on some graphics hardware: if the machine slows down, go back to 100%") : qsTr("Size of everything on this monitor")
                     menuItems: monitor.scaleItems
                     active: monitor.scaleItems.find(i => Logic.sameScale(i.value, monitor.modelData.scale)) ?? null
                     fallbackText: qsTr("Unknown")

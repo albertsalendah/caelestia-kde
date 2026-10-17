@@ -40,6 +40,11 @@ Singleton {
     // "" or a code: unknown-output, unknown-mode, unknown-rotation, invalid-position,
     // invalid-mirror, overlap, last-enabled, apply-failed, brightness-failed
     property string error: ""
+    // What kscreen-doctor printed on the last apply (both streams), for the page to show when
+    // KWin refused a change. The streams end at their own pace, so the page follows these.
+    property string applyOut: ""
+    property string applyErr: ""
+    readonly property string errorDetail: root.error === "apply-failed" ? Logic.errorDetail(root.applyErr + "\n" + root.applyOut) : ""
 
     // Readings still to be made after a monitor was plugged in or out, and failed readings in a row.
     property int recheck: 0
@@ -82,6 +87,8 @@ Singleton {
         if (keepPrompt && !root.confirming)
             root.previous = Logic.snapshot(root.outputs);
 
+        root.applyOut = "";
+        root.applyErr = "";
         applyProcess.command = ["kscreen-doctor"].concat(Logic.buildApplyArgs(settled));
         applyProcess.running = true;
     }
@@ -260,6 +267,12 @@ Singleton {
     Process {
         id: applyProcess
 
+        stdout: StdioCollector {
+            onStreamFinished: root.applyOut = text
+        }
+        stderr: StdioCollector {
+            onStreamFinished: root.applyErr = text
+        }
         onExited: code => {
             if (code === 0) {
                 if (!root.quiet) {
