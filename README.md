@@ -121,6 +121,7 @@ terminal, the installer records Konsole as the shell's terminal.
 | `INSTALL_PIPEWIRE` | `true` | `false` skips `pipewire`, `pipewire-pulse` and `pipewire-alsa` (Arch) |
 | `INSTALL_BLUEDEVIL` | `true` | `false` skips `bluedevil` and `bluez`, and does not enable `bluetooth.service` (Arch) |
 | `INSTALL_WALLPAPER_PACK` | `false` | `true` downloads the dharmx wallpaper pack (about 100 MB); otherwise the shell's bundled wallpaper is used |
+| `INSTALL_GWENVIEW`, `INSTALL_KATE`, `INSTALL_KDECONNECT`, `INSTALL_KWRITE`, `INSTALL_PARTITIONMANAGER`, `INSTALL_FILELIGHT` | `false` | `true` installs that KDE application (Gwenview, Kate, KDE Connect, KWrite, KDE Partition Manager, Filelight). The installer's Applications menu has a switch for each |
 
 For example: `INSTALL_WALLPAPER_PACK=true bash scripts/setup.sh`.
 

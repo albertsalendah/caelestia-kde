@@ -115,6 +115,13 @@
           ]
         },
         {
+          "id": "INSTALL_WALLPAPER_PACK",
+          "type": "boolean",
+          "title": "Wallpaper pack",
+          "help": "Download the dharmx wallpaper pack, about 100 MB. Without it the shell's own wallpaper is used.",
+          "default": false
+        },
+        {
           "id": "action_back",
           "type": "action",
           "title": "Back"
@@ -150,6 +157,61 @@
       "id": "menu_apps",
       "type": "submenu",
       "title": "Applications",
+      "help": "KDE applications to install. Nothing here is installed unless you turn it on.",
+      "items": [
+        {
+          "id": "INSTALL_GWENVIEW",
+          "type": "boolean",
+          "title": "Gwenview",
+          "help": "The KDE image viewer.",
+          "default": false
+        },
+        {
+          "id": "INSTALL_KATE",
+          "type": "boolean",
+          "title": "Kate",
+          "help": "The KDE text editor with tabs, sessions and plugins.",
+          "default": false
+        },
+        {
+          "id": "INSTALL_KDECONNECT",
+          "type": "boolean",
+          "title": "KDE Connect",
+          "help": "Connect your phone: notifications, files, clipboard and remote input.",
+          "default": false
+        },
+        {
+          "id": "INSTALL_KWRITE",
+          "type": "boolean",
+          "title": "KWrite",
+          "help": "The simple KDE text editor.",
+          "default": false
+        },
+        {
+          "id": "INSTALL_PARTITIONMANAGER",
+          "type": "boolean",
+          "title": "KDE Partition Manager",
+          "help": "Create, resize and format disk partitions.",
+          "default": false
+        },
+        {
+          "id": "INSTALL_FILELIGHT",
+          "type": "boolean",
+          "title": "Filelight",
+          "help": "Shows what takes up the space on a disk.",
+          "default": false
+        },
+        {
+          "id": "action_back",
+          "type": "action",
+          "title": "Back"
+        }
+      ]
+    },
+    {
+      "id": "menu_theming",
+      "type": "submenu",
+      "title": "Theming for other apps",
       "help": "Theming for third-party apps. Only applies to the ones you turn on.",
       "items": [
         {
