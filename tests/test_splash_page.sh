@@ -21,7 +21,7 @@ js() {
     node -e '
 const fs = require("fs");
 const src = fs.readFileSync(process.argv[1], "utf8").replace(/^\.pragma library\n/, "");
-const L = new Function(src + "; return {parseGroup, settingsFrom, minChoices, writeArgs, previewCommand, parseThemes, validTheme, applyCommand, applyResult, surveyCommand, parseSurvey, specsFrom, buildSpec, loginChoices, themeWrites};")();
+const L = new Function(src + "; return {parseGroup, settingsFrom, minChoices, writeArgs, previewCommand, parseThemes, validTheme, applyCommand, applyResult, surveyCommand, parseSurvey, specsFrom, buildSpec, loginChoices, lnfCommand, parseLnf, plasmaPreviewCommand, loginPreviewCommand};")();
 '"$1" -- "$LOGIC_JS"
 }
 
@@ -30,8 +30,8 @@ const L = new Function(src + "; return {parseGroup, settingsFrom, minChoices, wr
 test_a_missing_file_means_the_splash_is_off_with_two_seconds_and_the_logo() {
     local out
     out="$(js 'console.log(JSON.stringify(L.settingsFrom(""))); console.log(JSON.stringify(L.settingsFrom(undefined)));')" || return 0
-    assert_eq '{"enabled":false,"minSeconds":2,"showLogo":true,"theme":"","themeSpec":null}
-{"enabled":false,"minSeconds":2,"showLogo":true,"theme":"","themeSpec":null}' "$out" "the splash is opt-in; the defaults must match the session program's kreadconfig6 defaults"
+    assert_eq '{"enabled":false,"minSeconds":2,"showLogo":true,"plasmaTheme":""}
+{"enabled":false,"minSeconds":2,"showLogo":true,"plasmaTheme":""}' "$out" "the splash is opt-in; the defaults must match the session program's kreadconfig6 defaults"
 }
 
 test_the_login_group_is_read_and_other_groups_are_ignored() {
@@ -39,8 +39,8 @@ test_the_login_group_is_read_and_other_groups_are_ignored() {
     out="$(js 'const t = "[General]\nEnabled=true\nMinSeconds=9\n\n[Login]\nEnabled=true\nMinSeconds=5\nShowLogo=false\n\n[Other]\nShowLogo=true\n";
 console.log(JSON.stringify(L.settingsFrom(t)));
 console.log(JSON.stringify(L.settingsFrom("[General]\nEnabled=true\n")));')" || return 0
-    assert_eq '{"enabled":true,"minSeconds":5,"showLogo":false,"theme":"","themeSpec":null}
-{"enabled":false,"minSeconds":2,"showLogo":true,"theme":"","themeSpec":null}' "$out" "only [Login] counts; the same key in another group must not leak in"
+    assert_eq '{"enabled":true,"minSeconds":5,"showLogo":false,"plasmaTheme":""}
+{"enabled":false,"minSeconds":2,"showLogo":true,"plasmaTheme":""}' "$out" "only [Login] counts; the same key in another group must not leak in"
 }
 
 test_the_minimum_time_is_clamped_and_junk_falls_back() {
@@ -94,16 +94,24 @@ test_pkexec_exit_codes_map_to_done_cancelled_or_failed() {
 
 # --- the session program's start_splash, run for real against stub commands --------------------------
 
-# Runs start_splash out of the program with a fake kreadconfig6 (reading $RC), systemctl and
-# quickshell. The fake quickshell writes what it was given to $OUT. $1 is the settings file text,
-# $2 is whether the splash's QML exists (yes or no), $3 the display KWin exported (default
-# wayland-9, or none).
+# Runs the program's login splash code (start_splash and what it calls) with a fake kreadconfig6
+# (reading $RC), systemctl, quickshell, ksplashqml, gdbus and a sleep that does not sleep. The fake
+# quickshell and ksplashqml write what they were given to $OUT, the fake gdbus appends the stages it
+# was sent to $STAGES. Arguments: 1 the settings file text; 2 whether the splash's QML exists (yes or
+# no); 3 the display KWin exported (default wayland-9, or none); 4 whether the Plasma splash theme
+# org.test.splash exists (default no); 5 whether a ksplashqml exists (default no); 6 the shell's ready
+# file: yes (there from the start, the default), later (written a second in) or no.
 run_start_splash() {
-    local rcText="$1" qmlExists="$2" display="${3:-wayland-9}" tmp stubs func
+    local rcText="$1" qmlExists="$2" display="${3:-wayland-9}" plasmaExists="${4:-no}" ksplash="${5:-no}" ready="${6:-yes}" tmp stubs region hp
     tmp="$(new_tmpdir)"
     stubs="$tmp/stubs"
-    mkdir -p "$tmp/config/modules/splash" "$tmp/run"
+    mkdir -p "$tmp/config/modules/splash" "$tmp/run" "$tmp/data" "$tmp/nodata"
     [[ "$qmlExists" == yes ]] && : > "$tmp/config/modules/splash/shell.qml"
+    if [[ "$plasmaExists" == yes ]]; then
+        mkdir -p "$tmp/data/plasma/look-and-feel/org.test.splash/contents/splash"
+        : > "$tmp/data/plasma/look-and-feel/org.test.splash/contents/splash/Splash.qml"
+    fi
+    [[ "$ready" == yes ]] && : > "$tmp/run/caelestia-shell-ready"
     printf '%s' "$rcText" > "$tmp/rc"
     stub_bin "$stubs" kreadconfig6 'key=""; def=""
 while [ $# -gt 0 ]; do case "$1" in --key) key="$2"; shift;; --default) def="$2"; shift;; esac; shift; done
@@ -114,23 +122,36 @@ printf "%s\n" "${v:-$def}"'
     else
         stub_bin "$stubs" systemctl "echo \"WAYLAND_DISPLAY=$display\"; echo \"OTHER=1\""
     fi
-    stub_bin "$stubs" quickshell 'echo "wd=$WAYLAND_DISPLAY min=$CAELESTIA_SPLASH_MIN logo=$CAELESTIA_SPLASH_LOGO nr=$QS_NO_RELOAD_POPUP theme=$CAELESTIA_SPLASH_THEME args=$*" > "$OUT"'
-    func="$(awk '/^start_splash\(\) \{$/ { on = 1 } on { print } on && /^\}$/ { exit }' "$PROGRAM")"
+    stub_bin "$stubs" quickshell 'echo "wd=$WAYLAND_DISPLAY min=$CAELESTIA_SPLASH_MIN logo=$CAELESTIA_SPLASH_LOGO nr=$QS_NO_RELOAD_POPUP args=$*" > "$OUT"'
+    [[ "$ksplash" == yes ]] && stub_bin "$stubs" ksplashqml 'echo "ks wd=$WAYLAND_DISPLAY dbus=$DBUS_SESSION_BUS_ADDRESS args=$*" > "$OUT"'
+    stub_bin "$stubs" gdbus 'for last; do :; done
+echo "stage $last ready=$([ -e "$XDG_RUNTIME_DIR/caelestia-shell-ready" ] && echo yes || echo no)" >> "$STAGES"'
+    stub_bin "$stubs" sleep 'exit 0'
+    region="$(awk '/^# 3a\. The login splash/ { on = 1 } /^start_splash \|\| true$/ { on = 0 } on { print }' "$PROGRAM")"
     cat > "$tmp/harness.sh" <<HARNESS
 #!/bin/bash
 set -u
-export PATH="$stubs:\$PATH" RC="$tmp/rc" OUT="$tmp/out" XDG_RUNTIME_DIR="$tmp/run" HOME="$tmp/home"
-export CAELESTIA_SHELL_CONFIG="$tmp/config/shell.qml"
+export PATH="$stubs:\$PATH" RC="$tmp/rc" OUT="$tmp/out" STAGES="$tmp/stages" XDG_RUNTIME_DIR="$tmp/run" HOME="$tmp/home"
+export XDG_DATA_HOME="$tmp/data" XDG_DATA_DIRS="$tmp/nodata" CAELESTIA_SHELL_CONFIG="$tmp/config/shell.qml"
+# The program exports the session bus address near its top; ksplashqml needs it for the stages.
+export DBUS_SESSION_BUS_ADDRESS="unix:path=$tmp/run/bus"
 say() { :; }
 splash_pid=""
-$func
+splash_watch_pid=""
+$region
 start_splash
 wait
-printf 'pid=%s\n' "\$splash_pid" > "$tmp/pid"
 HARNESS
-    bash "$tmp/harness.sh" >/dev/null 2>&1
+    if [[ "$ready" == later ]]; then
+        bash "$tmp/harness.sh" >/dev/null 2>&1 &
+        hp=$!
+        command sleep 1
+        : > "$tmp/run/caelestia-shell-ready"
+        wait "$hp"
+    else
+        bash "$tmp/harness.sh" >/dev/null 2>&1
+    fi
     RESULT_OUT="$(cat "$tmp/out" 2>/dev/null || echo NOT-STARTED)"
-    RESULT_PID="$(cat "$tmp/pid" 2>/dev/null)"
     RESULT_TMP="$tmp"
 }
 
@@ -145,7 +166,7 @@ test_the_session_program_starts_no_splash_unless_it_is_turned_on() {
 
 test_the_session_program_passes_the_settings_and_the_display_to_the_splash() {
     run_start_splash $'[Login]\nEnabled=true\nMinSeconds=5\nShowLogo=false\n' yes
-    assert_eq "wd=wayland-9 min=5 logo=0 nr=1 theme= args=-n -p $RESULT_TMP/config/modules/splash/shell.qml" "$RESULT_OUT" \
+    assert_eq "wd=wayland-9 min=5 logo=0 nr=1 args=-n -p $RESULT_TMP/config/modules/splash/shell.qml" "$RESULT_OUT" \
         "KWin's display, the minimum time, no logo, no reload popup, and the splash's own QML next to the shell's"
     run_start_splash $'[Login]\nEnabled=true\n' yes
     assert_contains "$RESULT_OUT" "min=2 logo=1" "the defaults are two seconds and the logo, as in splash.js"
@@ -159,16 +180,6 @@ test_a_missing_splash_file_skips_it_without_failing_the_session() {
 test_without_a_display_the_splash_is_not_started() {
     run_start_splash $'[Login]\nEnabled=true\n' yes none
     assert_eq "NOT-STARTED" "$RESULT_OUT" "no WAYLAND_DISPLAY in the user manager: there is nothing to draw on"
-}
-
-test_the_session_program_hands_the_stored_theme_to_the_splash() {
-    local spec='{"kind":"frames","dir":"/usr/share/plymouth/themes/cachyos","prefix":"throbber-","first":1,"count":30,"pad":4}'
-    run_start_splash "[Login]
-Enabled=true
-Theme=cachyos
-ThemeSpec=$spec
-" yes
-    assert_contains "$RESULT_OUT" "theme=$spec args=" "the description Nexus stored reaches the splash unchanged"
 }
 
 # --- Plymouth themes: surveyed for real, then turned into what the splash draws ----------------------
@@ -283,47 +294,138 @@ star plain
 3 7 3" "$out" "one frame is no animation; Plymouth's defaults centre the throbber and put the watermark on the right; animation- is the fallback; no star.png, no star"
 }
 
-test_the_login_list_starts_with_caelestia_and_marks_themes_it_cannot_draw() {
-    local out
-    out="$(js 'const specs = {cachyos: {kind: "frames"}, script: {kind: "plain"}};
-console.log(L.loginChoices(["cachyos", "script", "unknown"], specs).map(c => c.value + ":" + c.label).join("|"));')" || return 0
-    assert_eq ":Caelestia|cachyos:cachyos|script:script (simple)|unknown:unknown" "$out" "a theme that has not been surveyed is listed as it is"
-}
-
-test_the_stored_theme_is_one_line_and_comes_back_from_the_settings_file() {
-    local out
-    out="$(js 'const spec = {kind: "frames", dir: "/d", prefix: "throbber-", first: 1, count: 3, pad: 4, bg: ["#000000", "#000000"], x: 0.5, y: 0.7};
-const w = L.themeWrites("cachyos", spec);
-console.log(w[0].join(" "));
-console.log(w[1].slice(0, 6).join(" "));
-const stored = w[1][6];
-console.log(stored.includes("\n"));
-const back = L.settingsFrom("[Login]\nTheme=cachyos\nThemeSpec=" + stored + "\n");
-console.log(back.theme, JSON.stringify(back.themeSpec) === JSON.stringify(spec));
-console.log(JSON.stringify(L.themeWrites("", spec).map(a => a[6])), JSON.stringify(L.themeWrites("script", {kind: "plain"}).map(a => a[6])));
-console.log(L.settingsFrom("[Login]\nThemeSpec=not json\n").themeSpec, L.settingsFrom("[Login]\nThemeSpec={}\n").themeSpec, L.settingsFrom("[Login]\nThemeSpec=5\n").themeSpec);')" || return 0
-    assert_eq "--file caelestia-splashrc --group Login --key Theme cachyos
---file caelestia-splashrc --group Login --key ThemeSpec
-false
-cachyos true
-[\"\",\"\"] [\"script\",\"\"]
-null null null" "$out" "the spec survives a round trip through the file; no theme, or one that is plain, stores no spec; junk is ignored"
-}
-
-test_a_theme_preview_carries_its_description_to_the_splash() {
+test_a_boot_preview_carries_the_theme_description_to_the_splash() {
     local out star='{"kind":"star","dir":"/d","file":"star.png","bg":["#000000","#000000"]}'
     out="$(js 'const spec = {kind: "star", dir: "/d", file: "star.png", bg: ["#000000", "#000000"]};
-const st = {minSeconds: 2, showLogo: true, theme: "", themeSpec: null};
+const st = {minSeconds: 2, showLogo: true, plasmaTheme: ""};
 console.log(L.previewCommand("/q/shell.qml", st, spec).join(" "));
 console.log(L.previewCommand("/q/shell.qml", st, {kind: "plain"}).join(" "));
 console.log(L.previewCommand("/q/shell.qml", st, null).join(" "));
-console.log(L.previewCommand("/q/shell.qml", {minSeconds: 2, showLogo: true, theme: "t", themeSpec: spec}).join(" "));')" || return 0
+console.log(L.previewCommand("/q/shell.qml", st).join(" "));')" || return 0
     local base="env CAELESTIA_SPLASH_PREVIEW=1 CAELESTIA_SPLASH_MIN=2 CAELESTIA_SPLASH_LOGO=1"
     assert_eq "$base CAELESTIA_SPLASH_THEME=$star quickshell -n -p /q/shell.qml
 $base quickshell -n -p /q/shell.qml
 $base quickshell -n -p /q/shell.qml
-$base CAELESTIA_SPLASH_THEME=$star quickshell -n -p /q/shell.qml" "$out" \
-        "an explicit theme wins; none or plain adds nothing; with no theme given the stored one is used"
+$base quickshell -n -p /q/shell.qml" "$out" "a Plymouth theme that can be drawn is passed on; none, plain or nothing adds nothing"
+}
+
+test_the_login_theme_is_read_from_the_settings_file() {
+    local out
+    out="$(js 'console.log(JSON.stringify(L.settingsFrom("[Login]\nPlasmaTheme=org.kde.breeze.desktop\n")));
+console.log(JSON.stringify(L.settingsFrom("[Login]\nTheme=cachyos\nThemeSpec={}\n")));')" || return 0
+    assert_eq '{"enabled":false,"minSeconds":2,"showLogo":true,"plasmaTheme":"org.kde.breeze.desktop"}
+{"enabled":false,"minSeconds":2,"showLogo":true,"plasmaTheme":""}' "$out" "PlasmaTheme is the key; the Plymouth keys of the first version are ignored"
+}
+
+# --- the login splash's Plasma themes: surveyed for real ---------------------------------------------
+
+# Two look-and-feel folders: the person's own and the system's. org.kde.breeze.desktop is in the
+# system one, as in Plasma's own metadata.json (an author's "Name" comes before the theme's);
+# org.user.mine is the person's; org.both.theme is in both (the person's must win); org.no.splash has
+# no splash and must be left out.
+make_lnf() {
+    local user="$1" system="$2"
+    mkdir -p "$user/org.user.mine/contents/splash" "$user/org.both.theme/contents/splash" "$system/org.kde.breeze.desktop/contents/splash" "$system/org.both.theme/contents/splash" "$system/org.no.splash/contents/defaults"
+    : > "$user/org.user.mine/contents/splash/Splash.qml"
+    : > "$user/org.both.theme/contents/splash/Splash.qml"
+    : > "$system/org.kde.breeze.desktop/contents/splash/Splash.qml"
+    : > "$system/org.both.theme/contents/splash/Splash.qml"
+    cat > "$system/org.kde.breeze.desktop/metadata.json" <<JSON
+{
+    "KPlugin": {
+        "Authors": [
+            {
+                "Name": "KDE Visual Design Group"
+            }
+        ],
+        "Id": "org.kde.breeze.desktop",
+        "Name": "Breeze",
+        "Name[de]": "Breeze (de)"
+    }
+}
+JSON
+    printf '{"KPlugin": {\n "Name": "Both (mine)"\n}}\n' > "$user/org.both.theme/metadata.json"
+    printf '{"KPlugin": {\n "Name": "Both (system)"\n}}\n' > "$system/org.both.theme/metadata.json"
+}
+
+# The survey as the page runs it, for fake folders; $3 is whether a ksplashqml exists on the PATH.
+lnf_output() {
+    local user="$1" system="$2" withKsplash="$3" script stubs
+    script="$(js 'console.log(L.lnfCommand("x", "y")[2]);' 2>/dev/null)" || return 1
+    stubs="$(new_tmpdir)/stubs"
+    mkdir -p "$stubs"
+    [[ "$withKsplash" == yes ]] && stub_bin "$stubs" ksplashqml 'exit 0'
+    # Only the stubs and the system tools: a real ksplashqml on this machine must not leak in.
+    PATH="$stubs:/usr/bin:/bin" sh -c "$script" sh "$user" "$system"
+}
+
+test_the_survey_lists_themes_with_a_splash_once_the_persons_own_first() {
+    local base out
+    base="$(new_tmpdir)"
+    make_lnf "$base/user" "$base/system"
+    lnf_output "$base/user" "$base/system" yes > "$base/lnf.txt" || return 0
+    out="$(LNF_FILE="$base/lnf.txt" js 'const r = L.parseLnf(fs.readFileSync(process.env.LNF_FILE, "utf8")); console.log(r.ksplash, r.themes.map(t => t.id + "=" + t.name).join("|"));')" || return 0
+    assert_eq "true org.both.theme=Both (mine)|org.kde.breeze.desktop=Breeze|org.user.mine=" "$out" \
+        "the theme's own name (not the author's, not a translation) in the order of the names; the id when there is no name; one entry for a theme in both folders; the one without a splash left out"
+}
+
+test_the_survey_says_when_ksplashqml_is_missing() {
+    local base out
+    base="$(new_tmpdir)"
+    make_lnf "$base/user" "$base/system"
+    lnf_output "$base/user" "$base/system" no > "$base/lnf.txt" || return 0
+    out="$(LNF_FILE="$base/lnf.txt" js 'const r = L.parseLnf(fs.readFileSync(process.env.LNF_FILE, "utf8")); console.log(r.ksplash, r.themes.length);')" || return 0
+    assert_eq "false 3" "$out" "the themes are still listed; the page says what is missing"
+}
+
+test_the_login_list_starts_with_caelestia_then_the_plasma_themes() {
+    local out
+    out="$(js 'console.log(L.loginChoices([{id: "org.kde.breeze.desktop", name: "Breeze"}, {id: "org.user.mine", name: ""}]).map(c => c.value + ":" + c.label).join("|"));
+console.log(L.loginChoices([]).map(c => c.value + ":" + c.label).join("|"));')" || return 0
+    assert_eq ":Caelestia|org.kde.breeze.desktop:Breeze|org.user.mine:org.user.mine
+:Caelestia" "$out" "a theme without a name is listed by its id"
+}
+
+test_the_login_preview_is_plasmas_own_test_mode_or_the_caelestia_splash() {
+    local out
+    out="$(js 'const st = p => ({minSeconds: 2, showLogo: true, plasmaTheme: p});
+console.log(L.loginPreviewCommand("/q/shell.qml", st("org.kde.breeze.desktop")).join(" "));
+console.log(L.loginPreviewCommand("/q/shell.qml", st("")).join(" "));
+console.log(JSON.stringify(L.loginPreviewCommand("/q/shell.qml", st("a;b"))), JSON.stringify(L.plasmaPreviewCommand("-x")));')" || return 0
+    assert_eq "ksplashqml --test org.kde.breeze.desktop
+env CAELESTIA_SPLASH_PREVIEW=1 CAELESTIA_SPLASH_MIN=2 CAELESTIA_SPLASH_LOGO=1 quickshell -n -p /q/shell.qml
+[] []" "$out" "an id that is not a plain name (a;b, a leading dash) gives no command"
+}
+
+test_a_plasma_theme_is_shown_with_ksplashqml_and_ended_after_the_shell_is_ready() {
+    run_start_splash $'[Login]\nEnabled=true\nPlasmaTheme=org.test.splash\nMinSeconds=0\n' yes wayland-9 yes yes yes
+    assert_eq "ks wd=wayland-9 dbus=unix:path=$RESULT_TMP/run/bus args=org.test.splash" "$RESULT_OUT" \
+        "ksplashqml gets the theme id, KWin's display and the session bus it inherits; the Caelestia splash is not started"
+    assert_eq "stage startPlasma ready=yes
+stage kcminit ready=yes
+stage ksmserver ready=yes
+stage desktop ready=yes" "$(cat "$RESULT_TMP/stages")" "the stages ksplashqml still lacks, in order, the sixth last and only after the shell's signal"
+}
+
+test_the_minimum_time_is_kept_before_the_stages_are_sent() {
+    local before=$SECONDS
+    run_start_splash $'[Login]\nEnabled=true\nPlasmaTheme=org.test.splash\nMinSeconds=2\n' yes wayland-9 yes yes yes
+    local elapsed=$((SECONDS - before))
+    [[ "$elapsed" -ge 2 ]] || fail "the shell was ready at once but the stages came after only $elapsed s; the minimum is 2 s"
+    assert_eq "4" "$(grep -c '^stage ' "$RESULT_TMP/stages")" "and they were all sent"
+}
+
+test_the_stages_wait_for_the_shell() {
+    run_start_splash $'[Login]\nEnabled=true\nPlasmaTheme=org.test.splash\nMinSeconds=0\n' yes wayland-9 yes yes later
+    assert_eq "4" "$(grep -c 'ready=yes' "$RESULT_TMP/stages")" "none of the four stages was sent before the shell wrote its file"
+}
+
+test_a_missing_plasma_theme_or_ksplashqml_falls_back_to_the_caelestia_splash() {
+    run_start_splash $'[Login]\nEnabled=true\nPlasmaTheme=org.test.splash\nMinSeconds=0\n' yes wayland-9 no yes yes
+    assert_contains "$RESULT_OUT" "args=-n -p $RESULT_TMP/config/modules/splash/shell.qml" "no such splash theme: the Caelestia design"
+    assert_eq "" "$(cat "$RESULT_TMP/stages" 2>/dev/null)" "and no stage is sent to a ksplashqml that is not there"
+    run_start_splash $'[Login]\nEnabled=true\nPlasmaTheme=org.test.splash\nMinSeconds=0\n' yes wayland-9 yes no yes
+    assert_contains "$RESULT_OUT" "args=-n -p $RESULT_TMP/config/modules/splash/shell.qml" "no ksplashqml: the Caelestia design"
 }
 
 # --- the program, the shell and the splash agree on one signal file ------------------------------------
@@ -347,6 +449,7 @@ test_the_splash_starts_after_kwin_is_up_and_before_the_helpers_and_stops_with_th
     helpers="$(grep -n '^# 3b\.' "$PROGRAM" | head -1 | cut -d: -f1)"
     [[ -n "$target" && -n "$splash" && -n "$helpers" && "$target" -lt "$splash" && "$splash" -lt "$helpers" ]] || fail "order: session target, splash, helpers"
     assert_contains "$program" '[ -n "$splash_pid" ] && kill "$splash_pid" 2>/dev/null' "the exit trap stops the splash"
+    assert_contains "$program" '[ -n "$splash_watch_pid" ] && kill "$splash_watch_pid" 2>/dev/null' "and what would close it"
     assert_contains "$program" 'timeout --kill-after=3 30' "a splash that hangs is ended by timeout"
     assert_contains "$program" 'start_splash || true' "a failing splash must not end the session (the program does not use set -e, and this makes it explicit)"
 }
@@ -421,20 +524,23 @@ test_the_page_has_the_login_and_boot_rows_and_asks_before_rebuilding() {
     assert_contains "$page" 'text: qsTr("Preview the splash")' "the preview button"
     assert_contains "$page" 'label: qsTr("Theme")' "the boot theme"
     assert_contains "$page" 'label: qsTr("Style")' "the login splash's list"
-    assert_contains "$page" 'Logic.loginChoices(SplashSettings.themes, SplashSettings.specs)' "the login list is the Plymouth themes plus Caelestia"
-    assert_contains "$page" 'onSelected: item => SplashSettings.setLoginTheme(item.value)' "choosing a login style"
+    assert_contains "$page" 'Logic.loginChoices(SplashSettings.plasmaThemes)' "the login list is Caelestia plus the Plasma splash themes"
+    assert_contains "$page" 'onSelected: item => SplashSettings.setPlasmaTheme(item.value)' "choosing a login style"
     assert_contains "$page" 'text: qsTr("Preview this theme")' "the boot preview"
     assert_contains "$page" 'onClicked: SplashSettings.previewTheme(root.chosenTheme)' "it previews the chosen theme, applied or not"
-    assert_contains "$page" 'visible: SplashSettings.settings.theme === ""' "the logo switch is for the Caelestia design only"
+    assert_contains "$page" 'visible: SplashSettings.settings.plasmaTheme === ""' "the logo switch is for the Caelestia design only"
     assert_contains "$svc" 'command: Logic.surveyCommand()' "the service surveys the themes"
     assert_contains "$svc" 'root.specs = Logic.specsFrom(text)' "and keeps what it can draw of each"
-    assert_contains "$svc" 'Logic.themeWrites(name, root.specs[name]).forEach(args => root.enqueue(args));' "a login style is stored with its description"
+    assert_contains "$svc" 'command: Logic.lnfCommand(' "the service looks for the Plasma splash themes"
+    assert_contains "$svc" 'root.plasmaThemes = found.themes;' "and keeps them"
+    assert_contains "$svc" 'write("PlasmaTheme", id);' "a login style is one id in the settings file"
     assert_contains "$page" 'SplashSettings.applyTheme(root.chosenTheme)' "applying is a separate button, not the act of choosing"
     assert_contains "$page" 'onSelected: item => root.pendingTheme = item.value' "choosing only remembers the theme"
     assert_contains "$page" 'root.chosenTheme === SplashSettings.currentTheme' "nothing to apply when the theme is already the current one"
     assert_contains "$svc" 'command: ["plymouth-set-default-theme", "--list"]' "the themes the system has"
     assert_contains "$svc" 'writeProcess.command = ["kwriteconfig6"].concat(root.queue[0]);' "settings are written with kwriteconfig6"
-    assert_contains "$svc" 'Quickshell.execDetached(Logic.previewCommand(root.splashQml, root.settings));' "the preview"
+    assert_contains "$svc" 'Quickshell.execDetached(command);' "the preview runs the command the logic chose"
+    assert_contains "$svc" 'Logic.loginPreviewCommand(root.splashQml, root.settings)' "Plasma's test mode for a Plasma theme, the Caelestia splash otherwise"
     assert_contains "$svc" 'if (command.length === 0 || root.bootState === "applying")' "no apply with an unsafe name or while one runs"
 }
 

@@ -18,6 +18,8 @@ PageBase {
     // choosing alone changes nothing on the machine.
     property string pendingTheme: ""
     readonly property string chosenTheme: root.pendingTheme !== "" ? root.pendingTheme : SplashSettings.currentTheme
+    // The Caelestia design needs its own QML; a Plasma theme needs ksplashqml.
+    readonly property bool loginPreviewReady: SplashSettings.settings.plasmaTheme === "" ? SplashSettings.splashInstalled : SplashSettings.ksplashAvailable
     readonly property bool busy: SplashSettings.bootState === "applying"
 
     function errorText(code: string): string {
@@ -50,7 +52,7 @@ PageBase {
                 text: c.label,
                 value: c.value
             })))
-    readonly property var loginItems: root.makeItems(Logic.loginChoices(SplashSettings.themes, SplashSettings.specs).map(c => ({
+    readonly property var loginItems: root.makeItems(Logic.loginChoices(SplashSettings.plasmaThemes).map(c => ({
                 text: c.label,
                 value: c.value
             })))
@@ -97,15 +99,15 @@ PageBase {
 
         SelectRow {
             label: qsTr("Style")
-            subtext: qsTr("Caelestia, or a boot splash theme drawn from its own images")
+            subtext: SplashSettings.ksplashAvailable ? qsTr("Caelestia, or one of the Plasma splash screens") : qsTr("Plasma splash screens need ksplashqml, which comes with plasma-workspace")
             menuItems: root.loginItems
-            active: root.loginItems.find(i => i.value === SplashSettings.settings.theme) ?? null
+            active: root.loginItems.find(i => i.value === SplashSettings.settings.plasmaTheme) ?? null
             fallbackText: qsTr("Caelestia")
-            onSelected: item => SplashSettings.setLoginTheme(item.value)
+            onSelected: item => SplashSettings.setPlasmaTheme(item.value)
         }
 
         ToggleRow {
-            visible: SplashSettings.settings.theme === ""
+            visible: SplashSettings.settings.plasmaTheme === ""
             text: qsTr("Show the logo")
             checked: SplashSettings.settings.showLogo
             onToggled: SplashSettings.setShowLogo(checked)
@@ -123,8 +125,8 @@ PageBase {
             last: true
             icon: "play_arrow"
             text: qsTr("Preview the splash")
-            subtext: SplashSettings.splashInstalled ? qsTr("Shows it now for a few seconds") : qsTr("Not in this install: run Install Updates first")
-            disabled: !SplashSettings.splashInstalled
+            subtext: root.loginPreviewReady ? qsTr("Shows it now for a few seconds") : qsTr("Not available: run Install Updates, or install plasma-workspace for a Plasma splash")
+            disabled: !root.loginPreviewReady
             onClicked: SplashSettings.preview()
         }
 

@@ -38,19 +38,12 @@ function parseGroup(text, group) {
 function settingsFrom(text) {
     var login = parseGroup(text, GROUP);
     var seconds = parseInt(login.MinSeconds, 10);
-    var spec = null;
-    try {
-        spec = login.ThemeSpec ? JSON.parse(login.ThemeSpec) : null;
-    } catch (e) {
-        spec = null;
-    }
     return {
         enabled: login.Enabled === "true",
         minSeconds: isNaN(seconds) ? DEFAULT_MIN_SECONDS : Math.min(MAX_MIN_SECONDS, Math.max(0, seconds)),
         showLogo: login.ShowLogo === undefined ? true : login.ShowLogo === "true",
-        // The Plymouth theme the login splash draws ("" is the Caelestia design) and what to draw.
-        theme: login.Theme || "",
-        themeSpec: spec && spec.kind ? spec : null
+        // The Plasma splash theme the login shows (its look-and-feel id); "" is the Caelestia design.
+        plasmaTheme: login.PlasmaTheme || ""
     };
 }
 
@@ -80,15 +73,14 @@ function writeArgs(key, value) {
     return ["--file", SETTINGS_FILE, "--group", GROUP, "--key", key, String(value)];
 }
 
-// Runs the splash now, as the session program does at login but with the preview flag, which
-// shows it for at least 3 s and needs no signal from the shell. -n keeps a second click from
-// starting a second copy. spec is the theme to draw (the one in the settings when left out);
-// nothing is passed for the Caelestia design or a theme that cannot be drawn.
+// Runs the Caelestia splash now, as the session program does at login but with the preview flag,
+// which shows it for at least 3 s and needs no signal from the shell. -n keeps a second click from
+// starting a second copy. spec is a Plymouth theme to draw instead of the Caelestia design (the
+// boot preview); nothing is passed for none, or for a theme that cannot be drawn.
 function previewCommand(qmlPath, settings, spec) {
-    var s = spec !== undefined ? spec : settings.themeSpec;
     var env = ["CAELESTIA_SPLASH_PREVIEW=1", "CAELESTIA_SPLASH_MIN=" + settings.minSeconds, "CAELESTIA_SPLASH_LOGO=" + (settings.showLogo ? "1" : "0")];
-    if (s && s.kind && s.kind !== "plain")
-        env.push("CAELESTIA_SPLASH_THEME=" + JSON.stringify(s));
+    if (spec && spec.kind && spec.kind !== "plain")
+        env.push("CAELESTIA_SPLASH_THEME=" + JSON.stringify(spec));
     return ["env"].concat(env, ["quickshell", "-n", "-p", qmlPath]);
 }
 
@@ -125,14 +117,14 @@ function applyResult(code) {
     return "failed";
 }
 
-// --- drawing the Plymouth themes ----------------------------------------------------------------
+// --- drawing the Plymouth themes (the boot preview) ------------------------------------------------
 //
 // A Plymouth theme is drawn by Plymouth itself, so the splash can only show what a theme keeps in
 // plain files. The two-step themes (cachyos, spinner, glow ...) are a background colour, a ring of
 // numbered frames and an optional watermark; fade-throbber (fade-in) is one star that fades. The
 // script, space-flares, text, details and tribar modules are programs or text, and are shown as
 // the Caelestia design ("plain"). What the splash gets is a small description (a "spec"), built
-// here once and stored in the settings file, so that the session program only has to hand it on.
+// here once, for the boot preview in Nexus.
 
 // Lists every theme: its .plymouth file, then the directory its images are in (ImageDir, or the
 // theme's own folder) and the files in that directory. $1 is the themes folder.
@@ -254,27 +246,85 @@ function specsFrom(text) {
     return specs;
 }
 
-// The login splash's list: the Caelestia design, then every Plymouth theme. A theme that cannot
-// be drawn is marked, because it would show the Caelestia design.
-function loginChoices(names, specs) {
+// --- the login splash's themes: Plasma's own splash screens ---------------------------------------
+//
+// A Plasma look-and-feel theme keeps its splash in contents/splash/Splash.qml, under
+// ~/.local/share/plasma/look-and-feel/<id>/ or /usr/share/plasma/look-and-feel/<id>/. Plasma runs
+// it with ksplashqml (part of plasma-workspace), which draws it over the screen and closes when
+// it is told the sixth stage has come. The session program does that, so the login splash can use
+// any such theme as it is; no description of it is needed.
+
+var LNF_SYSTEM_DIR = "/usr/share/plasma/look-and-feel";
+
+// Prints whether ksplashqml is installed, then for every theme that has a splash its id and its
+// name. $1 and $2 are the folders to look in (the person's own first, so that it wins).
+var LNF_SCRIPT = 'if command -v ksplashqml >/dev/null 2>&1; then echo "@@KSPLASH yes"; else echo "@@KSPLASH no"; fi; for base in "$1" "$2"; do for d in "$base"/*/; do [ -r "${d}contents/splash/Splash.qml" ] || continue; echo "@@LNF $(basename "$d")"; echo "@@NAME $(grep -o "\\"Name\\": *\\"[^\\"]*\\"" "${d}metadata.json" 2>/dev/null | tail -n 1 | sed "s/^\\"Name\\": *\\"//; s/\\"$//")"; done; done';
+
+function lnfCommand(userDir, systemDir) {
+    return ["sh", "-c", LNF_SCRIPT, "sh", userDir, systemDir || LNF_SYSTEM_DIR];
+}
+
+// {ksplash: bool, themes: [{id, name}]} from that output. A theme in both folders is listed once
+// (the first, the person's own); the list is in the order of the names.
+function parseLnf(text) {
+    var themes = [];
+    var seen = {};
+    var ksplash = false;
+    var current = null;
+    String(text || "").split("\n").forEach(function (line) {
+        var k = line.match(/^@@KSPLASH (yes|no)$/);
+        var t = line.match(/^@@LNF (.+)$/);
+        var n = line.match(/^@@NAME (.*)$/);
+        if (k) {
+            ksplash = k[1] === "yes";
+        } else if (t) {
+            current = seen[t[1]] ? null : {
+                id: t[1].trim(),
+                name: ""
+            };
+            if (current) {
+                seen[t[1]] = true;
+                themes.push(current);
+            }
+        } else if (n && current) {
+            current.name = n[1].trim();
+        }
+    });
+    themes.sort(function (a, b) {
+        return (a.name || a.id).localeCompare(b.name || b.id);
+    });
+    return {
+        ksplash: ksplash,
+        themes: themes
+    };
+}
+
+// The login splash's list: the Caelestia design, then every Plasma splash theme.
+function loginChoices(themes) {
     var list = [
         {
             value: "",
             label: "Caelestia"
         }
     ];
-    names.forEach(function (name) {
-        var spec = specs[name];
+    themes.forEach(function (theme) {
         list.push({
-            value: name,
-            label: spec && spec.kind === "plain" ? name + " (simple)" : name
+            value: theme.id,
+            label: theme.name || theme.id
         });
     });
     return list;
 }
 
-// What to store for a login theme: the name and its spec as one line of JSON ("" for none).
-function themeWrites(name, spec) {
-    var drawable = name !== "" && spec && spec.kind && spec.kind !== "plain";
-    return [writeArgs("Theme", name), writeArgs("ThemeSpec", drawable ? JSON.stringify(spec) : "")];
+// Plasma's own preview: the splash goes through its stages itself, one every two seconds, and a
+// click or Escape closes it. Only an id that is safe to hand to a command is accepted.
+function plasmaPreviewCommand(id) {
+    return validTheme(id) ? ["ksplashqml", "--test", id] : [];
+}
+
+// What the Preview button on the login splash runs: the chosen Plasma theme, or the Caelestia design.
+function loginPreviewCommand(qmlPath, settings) {
+    if (settings.plasmaTheme !== "")
+        return plasmaPreviewCommand(settings.plasmaTheme);
+    return previewCommand(qmlPath, settings, null);
 }

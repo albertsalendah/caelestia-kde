@@ -25,11 +25,14 @@ say() {
 # caught. Stopping the target stops KWin, the shell and the autostart apps (all PartOf it).
 cleaned=0
 splash_pid=""
+splash_watch_pid=""
 cleanup() {
     [ "$cleaned" = 1 ] && return
     cleaned=1
-    # The login splash is a child of this program; timeout passes the signal on to Quickshell.
+    # The login splash and what closes it are children of this program; timeout passes the
+    # signal on to the splash itself.
     [ -n "$splash_pid" ] && kill "$splash_pid" 2>/dev/null
+    [ -n "$splash_watch_pid" ] && kill "$splash_watch_pid" 2>/dev/null
     systemctl --user stop caelestia-session.target 2>/dev/null || true
     systemctl --user unset-environment WAYLAND_DISPLAY DISPLAY 2>/dev/null || true
 }
@@ -88,15 +91,77 @@ else
     say "WAYLAND_DISPLAY was exported to the user manager by KWin"
 fi
 
-# 3a. The login splash (Nexus -> Splash), off unless the user turned it on. A second, small
-#     Quickshell instance covers the screen until the shell is ready or 20 s have passed, then
-#     closes itself; timeout is a last guard. Its output goes to the runtime directory, which is
-#     where to look when it does not show. Nothing here may keep the session from starting.
+# 3a. The login splash (Nexus -> Splash), off unless the user turned it on. Two kinds:
+#     - a Plasma splash theme (PlasmaTheme in caelestia-splashrc): ksplashqml, Plasma's own
+#       splash runner, draws the theme's Splash.qml. It closes when it is told the sixth stage
+#       has come, which finish_plasma_splash does once the shell is ready.
+#     - otherwise (or when that cannot start) the Caelestia design: a small Quickshell instance
+#       that covers the screen until the shell is ready, then closes itself.
+#     Both end after about 20 s whatever happens (timeout is a last guard), their output goes to
+#     $XDG_RUNTIME_DIR/caelestia-splash.log, and nothing here may keep the session from starting.
+splash_dirs() {
+    printf '%s\n' "${XDG_DATA_HOME:-$HOME/.local/share}"
+    local IFS=:
+    for d in ${XDG_DATA_DIRS:-/usr/local/share:/usr/share}; do printf '%s\n' "$d"; done
+}
+
+plasma_splash_exists() {
+    local base
+    while IFS= read -r base; do
+        [ -r "$base/plasma/look-and-feel/$1/contents/splash/Splash.qml" ] && return 0
+    done < <(splash_dirs)
+    return 1
+}
+
+# $1 theme id, $2 display KWin exported, $3 minimum seconds
+start_plasma_splash() {
+    local ksplash
+    ksplash="$(command -v ksplashqml)" || return 1
+    plasma_splash_exists "$1" || return 1
+    WAYLAND_DISPLAY="$2" timeout --kill-after=3 35 "$ksplash" "$1" >"$XDG_RUNTIME_DIR/caelestia-splash.log" 2>&1 &
+    splash_pid=$!
+    finish_plasma_splash "$3" &
+    splash_watch_pid=$!
+}
+
+# Waits for the shell's signal and the minimum time (20 s at most), then walks ksplashqml through
+# the stages it still lacks. The sixth ends it; the pause before it lets a theme finish its
+# last animation.
+finish_plasma_splash() {
+    local min="$1" start=$SECONDS stage
+    until [ -e "$XDG_RUNTIME_DIR/caelestia-shell-ready" ] && [ $((SECONDS - start)) -ge "$min" ]; do
+        [ $((SECONDS - start)) -ge 20 ] && break
+        sleep 0.3
+    done
+    sleep 0.6
+    for stage in startPlasma kcminit ksmserver; do
+        send_splash_stage "$stage"
+    done
+    sleep 0.7
+    send_splash_stage desktop
+}
+
+send_splash_stage() {
+    gdbus call --session --dest org.kde.KSplash --object-path /KSplash \
+        --method org.kde.KSplash.setStage "$1" >/dev/null 2>&1
+}
+
 start_splash() {
     command -v kreadconfig6 >/dev/null 2>&1 || return 0
     local rc=caelestia-splashrc
     [ "$(kreadconfig6 --file "$rc" --group Login --key Enabled --default false)" = true ] || return 0
-    local qs shell_config qml display min theme logo=1
+    local qs shell_config qml display min plasma logo=1
+    display="$(systemctl --user show-environment | sed -n 's/^WAYLAND_DISPLAY=//p')"
+    [ -n "$display" ] || return 0
+    min="$(kreadconfig6 --file "$rc" --group Login --key MinSeconds --default 2)"
+    plasma="$(kreadconfig6 --file "$rc" --group Login --key PlasmaTheme --default "")"
+    if [ -n "$plasma" ]; then
+        if start_plasma_splash "$plasma" "$display" "$min"; then
+            say "login splash started: Plasma theme $plasma"
+            return 0
+        fi
+        say "login splash: Plasma theme $plasma cannot be shown (no ksplashqml, or no such splash); using the Caelestia design"
+    fi
     qs="$(command -v quickshell || command -v qs)" || return 0
     shell_config="${CAELESTIA_SHELL_CONFIG:-$HOME/.config/quickshell/caelestia/shell.qml}"
     qml="$(dirname "$shell_config")/modules/splash/shell.qml"
@@ -104,18 +169,12 @@ start_splash() {
         say "the login splash is on but $qml is missing; skipped"
         return 0
     fi
-    display="$(systemctl --user show-environment | sed -n 's/^WAYLAND_DISPLAY=//p')"
-    [ -n "$display" ] || return 0
-    min="$(kreadconfig6 --file "$rc" --group Login --key MinSeconds --default 2)"
     [ "$(kreadconfig6 --file "$rc" --group Login --key ShowLogo --default true)" = false ] && logo=0
-    # The Plymouth theme to draw, as the description Nexus stored (empty: the Caelestia design).
-    theme="$(kreadconfig6 --file "$rc" --group Login --key ThemeSpec --default "")"
     WAYLAND_DISPLAY="$display" CAELESTIA_SPLASH_MIN="$min" CAELESTIA_SPLASH_LOGO="$logo" \
-        CAELESTIA_SPLASH_THEME="$theme" \
         QS_NO_RELOAD_POPUP=1 \
         timeout --kill-after=3 30 "$qs" -n -p "$qml" >"$XDG_RUNTIME_DIR/caelestia-splash.log" 2>&1 &
     splash_pid=$!
-    say "login splash started"
+    say "login splash started: Caelestia design"
 }
 start_splash || true
 
