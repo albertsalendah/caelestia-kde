@@ -19,6 +19,8 @@ INSTALL_FISH="${INSTALL_FISH:-true}"
 INSTALL_PAPIRUS="${INSTALL_PAPIRUS:-true}"
 INSTALL_DARKLY="${INSTALL_DARKLY:-true}"
 INSTALL_SYSTEMSETTINGS="${INSTALL_SYSTEMSETTINGS:-true}"
+INSTALL_PIPEWIRE="${INSTALL_PIPEWIRE:-true}"
+INSTALL_BLUEDEVIL="${INSTALL_BLUEDEVIL:-true}"
 
 if ! command -v yay >/dev/null 2>&1; then
     info "yay not found - installing..."
@@ -95,6 +97,24 @@ if [[ "$PACKAGE_GROUP" == "all" || "$PACKAGE_GROUP" == "session" ]]; then
         PACKAGES+=(systemsettings)
     else
         info "Skipping System Settings installation by user choice."
+    fi
+fi
+
+# Sound and Bluetooth for a session without Plasma's own panels: the PipeWire daemon with its
+# PulseAudio and ALSA bridges (the shell already lists wireplumber, libpipewire and kpipewire), and
+# bluedevil with bluez, which is what the shell's Bluetooth page and the pairing dialogs talk to.
+# pipewire-pulse replaces pulseaudio, and pacman asks about that conflict, so on a machine that
+# still runs pulseaudio the package is reported as failed rather than swapped without being asked.
+if [[ "$PACKAGE_GROUP" == "all" || "$PACKAGE_GROUP" == "session" ]]; then
+    if [[ "$INSTALL_PIPEWIRE" == "true" ]]; then
+        PACKAGES+=(pipewire pipewire-pulse pipewire-alsa)
+    else
+        info "Skipping PipeWire installation by user choice."
+    fi
+    if [[ "$INSTALL_BLUEDEVIL" == "true" ]]; then
+        PACKAGES+=(bluedevil bluez bluez-utils)
+    else
+        info "Skipping Bluetooth (bluedevil) installation by user choice."
     fi
 fi
 

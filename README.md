@@ -118,6 +118,8 @@ terminal, the installer records Konsole as the shell's terminal.
 | Variable | Default | Effect |
 | --- | --- | --- |
 | `INSTALL_SYSTEMSETTINGS` | `true` | `false` skips System Settings, which hosts the display settings page |
+| `INSTALL_PIPEWIRE` | `true` | `false` skips `pipewire`, `pipewire-pulse` and `pipewire-alsa` (Arch) |
+| `INSTALL_BLUEDEVIL` | `true` | `false` skips `bluedevil` and `bluez`, and does not enable `bluetooth.service` (Arch) |
 | `INSTALL_WALLPAPER_PACK` | `false` | `true` downloads the dharmx wallpaper pack (about 100 MB); otherwise the shell's bundled wallpaper is used |
 
 For example: `INSTALL_WALLPAPER_PACK=true bash scripts/setup.sh`.

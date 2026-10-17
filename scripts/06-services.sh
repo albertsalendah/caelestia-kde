@@ -147,4 +147,16 @@ else
 fi
 ok "ydotoold service configured."
 
+# Bluedevil talks to bluetoothd, which Arch installs but does not start by itself.
+if [[ "${INSTALL_BLUEDEVIL:-true}" == "true" ]] && systemctl list-unit-files bluetooth.service >/dev/null 2>&1 \
+    && systemctl list-unit-files bluetooth.service | grep -q '^bluetooth.service'; then
+    if systemctl is-enabled --quiet bluetooth.service 2>/dev/null; then
+        ok "bluetooth.service is already enabled."
+    elif caelestia_sudo systemctl enable --now bluetooth.service 2>/dev/null; then
+        ok "bluetooth.service enabled."
+    else
+        warn "Could not enable bluetooth.service; run: sudo systemctl enable --now bluetooth.service"
+    fi
+fi
+
 ok "Services configured."

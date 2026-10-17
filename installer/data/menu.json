@@ -35,6 +35,27 @@
           "default": true
         },
         {
+          "id": "INSTALL_PIPEWIRE",
+          "type": "boolean",
+          "title": "PipeWire audio",
+          "help": "The PipeWire sound server with its PulseAudio and ALSA bridges. If PulseAudio is still installed, the conflict is reported and PulseAudio is kept.",
+          "default": true
+        },
+        {
+          "id": "INSTALL_BLUEDEVIL",
+          "type": "boolean",
+          "title": "Bluetooth (Bluedevil)",
+          "help": "Bluedevil and BlueZ, for pairing and managing Bluetooth devices.",
+          "default": true
+        },
+        {
+          "id": "INSTALL_SYSTEMSETTINGS",
+          "type": "boolean",
+          "title": "System Settings",
+          "help": "KDE System Settings, which also hosts the display settings page.",
+          "default": true
+        },
+        {
           "id": "INSTALL_THUNAR",
           "type": "boolean",
           "title": "Thunar integration files",
