@@ -270,6 +270,18 @@
       "help": "How the installer runs.",
       "items": [
         {
+          "id": "PLASMA_MODE",
+          "type": "select",
+          "title": "KDE Plasma found",
+          "help": "alongside: keep Plasma and add Caelestia as another login entry. replace: install Caelestia, then remove the Plasma desktop after you confirm what will be removed.",
+          "default": "alongside",
+          "options": [
+            "alongside",
+            "replace"
+          ],
+          "only_if": "plasma-installed"
+        },
+        {
           "id": "REMOVE_CACHE",
           "type": "boolean",
           "title": "Remove build cache after install",

@@ -6,6 +6,7 @@
 #include "Draw.hpp"
 #include "Runner.hpp"
 #include "Sudo.hpp"
+#include "Conditions.hpp"
 #include <chrono>
 #include <cstdio>
 #include <cstdlib>
@@ -729,7 +730,10 @@ namespace UI {
 }
 
 namespace UI {
-    bool render_menu(const json& menu_items, const std::string& title) {
+    bool render_menu(const json& all_items, const std::string& title) {
+        // Items that name a condition ("only_if") are shown only when it holds.
+        const json menu_items = Conditions::visible_items(all_items, Conditions::run_probe);
+
         struct MenuItemMeta {
             string type;
             string title;
