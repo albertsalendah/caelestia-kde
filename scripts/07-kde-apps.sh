@@ -46,9 +46,40 @@ case "$BASE_DISTRO" in
         ;;
 esac
 
+# KDE Connect finds and talks to a phone only when ports 1714-1764 are open, for TCP and for UDP.
+# ufw is used when it is installed (it takes the range as 1714:1764); otherwise a running
+# firewalld; with neither, the person is told what to open. Adding a rule that is already there
+# is harmless, so running the installer again is too.
+open_kdeconnect_ports() {
+    local proto
+    if command -v ufw >/dev/null 2>&1; then
+        for proto in tcp udp; do
+            if caelestia_sudo ufw allow "1714:1764/$proto" >/dev/null 2>&1; then
+                ok "ufw: allowed 1714:1764/$proto for KDE Connect."
+            else
+                warn "Could not add the ufw rule for KDE Connect; run: sudo ufw allow 1714:1764/$proto"
+            fi
+        done
+    elif command -v firewall-cmd >/dev/null 2>&1 && caelestia_sudo firewall-cmd --state >/dev/null 2>&1; then
+        for proto in tcp udp; do
+            if caelestia_sudo firewall-cmd --permanent --add-port="1714-1764/$proto" >/dev/null 2>&1; then
+                ok "firewalld: allowed 1714-1764/$proto for KDE Connect."
+            else
+                warn "Could not add the firewalld rule for KDE Connect; run: sudo firewall-cmd --permanent --add-port=1714-1764/$proto"
+            fi
+        done
+        caelestia_sudo firewall-cmd --reload >/dev/null 2>&1 || warn "Could not reload firewalld; run: sudo firewall-cmd --reload"
+    else
+        info "No ufw or running firewalld found. If you use another firewall, open 1714-1764 for TCP and UDP so that KDE Connect works."
+    fi
+}
+
 install_kde_app "${INSTALL_GWENVIEW:-false}" "Gwenview" gwenview
 install_kde_app "${INSTALL_KATE:-false}" "Kate" kate
 install_kde_app "${INSTALL_KDECONNECT:-false}" "KDE Connect" "${kde_connect_packages[@]}"
+if [[ "${INSTALL_KDECONNECT:-false}" == "true" ]] && command -v kdeconnect-cli >/dev/null 2>&1; then
+    open_kdeconnect_ports
+fi
 install_kde_app "${INSTALL_KWRITE:-false}" "KWrite" kwrite
 install_kde_app "${INSTALL_PARTITIONMANAGER:-false}" "KDE Partition Manager" "${partition_manager_packages[@]}"
 install_kde_app "${INSTALL_FILELIGHT:-false}" "Filelight" filelight

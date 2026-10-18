@@ -177,7 +177,7 @@
           "id": "INSTALL_KDECONNECT",
           "type": "boolean",
           "title": "KDE Connect",
-          "help": "Connect your phone: notifications, files, clipboard and remote input.",
+          "help": "Connect your phone: notifications, files, clipboard and remote input. Opens ports 1714-1764 (TCP and UDP) in ufw or firewalld.",
           "default": false
         },
         {

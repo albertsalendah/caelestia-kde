@@ -80,7 +80,10 @@ install_if_missing() { echo "install: \$*"; [ "\$1" != gwenview ]; }
 BASE_DISTRO="$distro"
 $block
 HARNESS
-    env -i PATH="$PATH" "$@" bash "$tmp/run.sh"
+    # Only an empty folder on the PATH: a KDE Connect or firewall tool on the machine running the
+    # tests must not be found (the firewall rules have their own tests).
+    mkdir -p "$tmp/empty"
+    env -i PATH="$tmp/empty" "$@" "$(command -v bash)" "$tmp/run.sh"
 }
 
 test_nothing_is_installed_unless_a_switch_is_on() {

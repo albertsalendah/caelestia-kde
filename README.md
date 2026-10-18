@@ -123,7 +123,7 @@ terminal, the installer records Konsole as the shell's terminal.
 | `INSTALL_WALLPAPER_PACK` | `false` | `true` downloads the dharmx wallpaper pack (about 100 MB); otherwise the shell's bundled wallpaper is used |
 | `PLASMA_MODE` | `alongside` | `replace` removes the Plasma desktop after the session is installed (see below). The installer asks only when `plasma-desktop` is installed |
 | `PLASMA_REMOVE_CONFIRMED` | `false` | Must be `true` for `replace` to remove anything. The installer sets it after you confirm the list; set it yourself when running the scripts directly |
-| `INSTALL_GWENVIEW`, `INSTALL_KATE`, `INSTALL_KDECONNECT`, `INSTALL_KWRITE`, `INSTALL_PARTITIONMANAGER`, `INSTALL_FILELIGHT` | `false` | `true` installs that KDE application (Gwenview, Kate, KDE Connect, KWrite, KDE Partition Manager, Filelight). The installer's Applications menu has a switch for each |
+| `INSTALL_GWENVIEW`, `INSTALL_KATE`, `INSTALL_KDECONNECT`, `INSTALL_KWRITE`, `INSTALL_PARTITIONMANAGER`, `INSTALL_FILELIGHT` | `false` | `true` installs that KDE application (Gwenview, Kate, KDE Connect, KWrite, KDE Partition Manager, Filelight). The installer's Applications menu has a switch for each. KDE Connect also gets ports 1714-1764 (TCP and UDP) opened in ufw or a running firewalld |
 
 For example: `INSTALL_WALLPAPER_PACK=true bash scripts/setup.sh`.
 
