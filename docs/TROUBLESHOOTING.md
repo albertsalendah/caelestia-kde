@@ -458,34 +458,18 @@ The recording patch restarts `plasma-xdg-desktop-portal-kde` before each recordi
 - The portal service is masked
 - The user's systemd session is in a bad state
 
-### 7.3 ydotoold (On-Screen Keyboard)
-
-`ydotoold` needs access to `/dev/uinput`. The installer writes
-`/etc/udev/rules.d/70-uinput.rules`, which tags the device for the active session
-(`TAG+="uaccess"`). Nothing is added to a group, and the device stays closed to
-programs running outside your session.
-
-**If ydotoold doesn't work:**
-- Check the rule exists and `/dev/uinput` is present (`sudo modprobe uinput` if not)
-- Verify: `ls -la /run/user/$(id -u)/.ydotool_socket`
-- Restart it: `systemctl --user restart ydotoold.service`
-
-Installs older than this rule put your user in the `input` group instead. The
-installer removes that membership when it replaces the old rule, and the change
-takes effect on your next login.
-
-### 7.4 Krohnkite Tiling Disabled on Uninstall
+### 7.3 Krohnkite Tiling Disabled on Uninstall
 
 The uninstaller disables `krohnkiteEnabled` in `kwinrc`. If you don't have the Krohnkite KWin script installed, this setting is simply ignored.
 
-### 7.5 KWin Script Injection Fails
+### 7.4 KWin Script Injection Fails
 
 The plugin injects a temporary KWin script for window tracking. If KWin scripting is disabled:
 ```bash
 qdbus6 org.kde.KWin /Scripting org.kde.kwin.Scripting.loadScript
 ```
 
-### 7.6 The Login Screen (Plasma Login and SDDM)
+### 7.5 The Login Screen (Plasma Login and SDDM)
 
 Plasma 6.6 and newer boot into Plasma Login, KDE's fork of SDDM. The two are
 configured in different places, and the installer picks a branch at install time:
@@ -526,7 +510,7 @@ sudo /usr/share/sddm/themes/caelestia/scripts/sync.sh   # SDDM
 Both greeters read their configuration when they start, so a change is visible at
 the next logout rather than immediately.
 
-### 7.7 Installer Window Rules
+### 7.6 Installer Window Rules
 
 The installer writes three groups into `~/.config/kwinrulesrc`. `caelestia-opacity`
 gives normal windows and dialogs an inactive opacity of 95 percent,

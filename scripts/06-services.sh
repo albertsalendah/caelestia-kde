@@ -38,20 +38,22 @@ else
     echo "  Existing virtual desktop configuration found - leaving it untouched."
 fi
 
+# Earlier versions of this installer set up ydotoold (key injection for an on-screen keyboard)
+# and a udev rule for /dev/uinput. Neither is installed any more. What an earlier version left is
+# removed here: its rule file when it holds exactly the line that version wrote, and the ydotoold
+# user service and wrapper. Group membership an even older version added is left alone.
 UINPUT_RULE="/etc/udev/rules.d/70-uinput.rules"
-LEGACY_UINPUT_RULE="/etc/udev/rules.d/80-uinput.rules"
 UINPUT_RULE_LINE='KERNEL=="uinput", MODE="0600", OPTIONS+="static_node=uinput", TAG+="uaccess"'
 
-uinput_rule_current() {
-    [[ -f "$UINPUT_RULE" ]] && grep -q 'TAG+="uaccess"' "$UINPUT_RULE"
+old_uinput_rule_present() {
+    [[ -f "$UINPUT_RULE" && "$(cat "$UINPUT_RULE")" == "$UINPUT_RULE_LINE" ]]
 }
 
 system_setup_needed() {
     install_is_packaged && return 1
     systemctl is-enabled --quiet keyd.service 2>/dev/null && return 0
     systemctl is-active --quiet keyd.service 2>/dev/null && return 0
-    uinput_rule_current || return 0
-    [[ ! -f "$LEGACY_UINPUT_RULE" ]] || return 0
+    old_uinput_rule_present && return 0
     return 1
 }
 
@@ -63,12 +65,9 @@ if ! system_setup_needed; then
     fi
 else
 echo "  Applying system-level configurations (requires root)..."
-caelestia_sudo bash -s -- "$USER" "$UINPUT_RULE" "$LEGACY_UINPUT_RULE" "$UINPUT_RULE_LINE" << 'EOF'
-TARGET_USER="$1"
-UINPUT_RULE="$2"
-LEGACY_UINPUT_RULE="$3"
-UINPUT_RULE_LINE="$4"
-RULE_CHANGED=""
+caelestia_sudo bash -s -- "$UINPUT_RULE" "$UINPUT_RULE_LINE" << 'EOF'
+UINPUT_RULE="$1"
+UINPUT_RULE_LINE="$2"
 
 if systemctl is-enabled --quiet keyd.service 2>/dev/null || \
    systemctl is-active --quiet keyd.service 2>/dev/null; then
@@ -76,76 +75,20 @@ if systemctl is-enabled --quiet keyd.service 2>/dev/null || \
     systemctl disable --now keyd.service 2>/dev/null || true
 fi
 
-echo "  Setting up ydotoold (OSK key injection daemon)..."
-
-if [ -f "$LEGACY_UINPUT_RULE" ]; then
-    rm -f "$LEGACY_UINPUT_RULE"
-    RULE_CHANGED=1
-    if id -nG "$TARGET_USER" | grep -qw input; then
-        if gpasswd -d "$TARGET_USER" input >/dev/null 2>&1; then
-            echo "  Removed $TARGET_USER from the 'input' group (takes effect on next login)."
-        else
-            echo "  Could not remove $TARGET_USER from the 'input' group; run: sudo gpasswd -d $TARGET_USER input"
-        fi
-    fi
-fi
-
-if [ ! -f "$UINPUT_RULE" ]; then
-    printf '%s\n' "$UINPUT_RULE_LINE" > "$UINPUT_RULE"
-    RULE_CHANGED=1
-    echo "  udev rule for uinput created (active session only, no group membership)."
-fi
-
-if [ -n "$RULE_CHANGED" ]; then
+if [ -f "$UINPUT_RULE" ] && [ "$(cat "$UINPUT_RULE")" = "$UINPUT_RULE_LINE" ]; then
+    rm -f "$UINPUT_RULE"
     udevadm control --reload-rules 2>/dev/null || true
-    udevadm trigger --sysname-match=uinput 2>/dev/null || true
-fi
-
-if [ ! -e /dev/uinput ]; then
-    echo "  /dev/uinput is not present yet; the on-screen keyboard needs it. Load it with: modprobe uinput"
+    echo "  Removed the uinput udev rule an earlier version installed."
 fi
 EOF
 fi
 
-mkdir -p "$HOME/.local/bin"
-cat > "$HOME/.local/bin/ydotoold-wrapper" << 'WRAPPER'
-#!/bin/bash
-# ydotoold-wrapper  starts ydotoold with uinput access (the active session gets it from the udev rule)
-SOCKET="${YDOTOOL_SOCKET:-/run/user/$(id -u)/.ydotool_socket}"
-if [ -S "$SOCKET" ] && pidof ydotoold > /dev/null 2>&1; then
-    exit 0
+if [[ -f "$HOME/.config/systemd/user/ydotoold.service" || -f "$HOME/.local/bin/ydotoold-wrapper" ]]; then
+    systemctl --user disable --now ydotoold.service 2>/dev/null || true
+    rm -f "$HOME/.config/systemd/user/ydotoold.service" "$HOME/.local/bin/ydotoold-wrapper"
+    systemctl --user daemon-reload 2>/dev/null || true
+    ok "Removed the ydotoold service an earlier version set up."
 fi
-exec /usr/bin/ydotoold \
-    --socket-path="$SOCKET" \
-    --socket-perm=0660
-WRAPPER
-chmod +x "$HOME/.local/bin/ydotoold-wrapper"
-ok "ydotoold-wrapper deployed to ~/.local/bin."
-
-mkdir -p "$HOME/.config/systemd/user"
-cat > "$HOME/.config/systemd/user/ydotoold.service" << 'UNIT'
-[Unit]
-Description=ydotoold key injection daemon
-After=graphical-session.target
-PartOf=graphical-session.target
-
-[Service]
-Type=simple
-ExecStart=%h/.local/bin/ydotoold-wrapper
-Restart=on-failure
-Environment=YDOTOOL_SOCKET=/run/user/%U/.ydotool_socket
-
-[Install]
-WantedBy=graphical-session.target
-UNIT
-systemctl --user daemon-reload
-systemctl --user enable ydotoold.service 2>/dev/null || true
-if systemctl --user start ydotoold.service 2>/dev/null; then
-    ok "ydotoold started."
-else
-    info "ydotoold will start on next login."
-fi
-ok "ydotoold service configured."
 
 # Bluedevil talks to bluetoothd, which Arch installs but does not start by itself.
 if [[ "${INSTALL_BLUEDEVIL:-true}" == "true" ]] && systemctl list-unit-files bluetooth.service >/dev/null 2>&1 \
