@@ -18,6 +18,7 @@ namespace UI {
     bool render_menu(const nlohmann::json& menu_items, const std::string& title);
 
     bool review_screen();
+    bool confirm_plasma_removal();
 
     void log_view(const std::string& log_path);
 

@@ -121,12 +121,28 @@ terminal, the installer records Konsole as the shell's terminal.
 | `INSTALL_PIPEWIRE` | `true` | `false` skips `pipewire`, `pipewire-pulse` and `pipewire-alsa` (Arch) |
 | `INSTALL_BLUEDEVIL` | `true` | `false` skips `bluedevil` and `bluez`, and does not enable `bluetooth.service` (Arch) |
 | `INSTALL_WALLPAPER_PACK` | `false` | `true` downloads the dharmx wallpaper pack (about 100 MB); otherwise the shell's bundled wallpaper is used |
+| `PLASMA_MODE` | `alongside` | `replace` removes the Plasma desktop after the session is installed (see below). The installer asks only when `plasma-desktop` is installed |
+| `PLASMA_REMOVE_CONFIRMED` | `false` | Must be `true` for `replace` to remove anything. The installer sets it after you confirm the list; set it yourself when running the scripts directly |
 | `INSTALL_GWENVIEW`, `INSTALL_KATE`, `INSTALL_KDECONNECT`, `INSTALL_KWRITE`, `INSTALL_PARTITIONMANAGER`, `INSTALL_FILELIGHT` | `false` | `true` installs that KDE application (Gwenview, Kate, KDE Connect, KWrite, KDE Partition Manager, Filelight). The installer's Applications menu has a switch for each |
 
 For example: `INSTALL_WALLPAPER_PACK=true bash scripts/setup.sh`.
 
 **Tested on.** CachyOS with SDDM. The Plasma Login and no-login-manager paths have only unit tests.
 Fedora, Debian and packaged installs skip this step.
+
+**Replacing Plasma (Arch).** When the installer finds `plasma-desktop` it offers "KDE Plasma found:
+alongside / replace". With `replace`, the installer shows exactly what will be removed, and only
+after you confirm it, and after the Caelestia session is installed, step 13 runs
+`pacman -Rn` on that list. The list is fixed (`scripts/lib/plasma-removal.sh`): `plasma-desktop`,
+`plasma-meta`, `kdeplasma-addons`, `kmenuedit`, `plasma-pa`, `plasma-systemmonitor`,
+`plasma-firewall`, `plasma-thunderbolt`, `plasma-vault`, `kinfocenter`, `print-manager` and
+`discover`, whichever of them are installed. It never touches what the session needs (`kwin`,
+`plasma-workspace`, `powerdevil`, `kscreen`, `polkit-kde-agent`, `xdg-desktop-portal-kde`,
+`systemsettings`, ...), which it marks as explicitly installed so that a later "remove orphans" keeps
+it. Dependencies left behind are not removed (`pacman -Qdtq` lists them). A Snapper snapshot of `/`
+is taken first when Snapper has a `root` config. If another installed package needs one of the
+listed packages, pacman refuses and nothing is changed. System Settings loses the pages
+`plasma-desktop` provides. Log out afterwards and choose the Caelestia session.
 
 **Uninstalling.** `bash ./uninstall.sh` removes the session files listed above. It leaves the login
 manager alone, except SDDM when this step was the one that enabled it.

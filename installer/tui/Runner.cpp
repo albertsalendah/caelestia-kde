@@ -163,6 +163,8 @@ vector<Step> steps = {
      "PENDING", "finalize"},
     {"Install optional components", "scripts/11-optional-apps.sh", "PENDING",
      "finalize"},
+    {"Remove Plasma desktop", "scripts/13-remove-plasma.sh", "PENDING",
+     "finalize"},
 };
 
 bool step_is_skipped(const Step& step) {
@@ -171,6 +173,12 @@ bool step_is_skipped(const Step& step) {
   }
   if (step.name == "Install SDDM theme") {
     return !answer_is_true("INSTALL_SDDM");
+  }
+  if (step.name == "Remove Plasma desktop") {
+    // Asked about after the review, so only the choice counts here; the script itself refuses
+    // unless the removal was confirmed.
+    auto mode = g_answers.find("PLASMA_MODE");
+    return mode == g_answers.end() || mode->second != "replace";
   }
   if (step.name == "Install optional components") {
     static const char* opt[] = {"INSTALL_VSCODE",  "INSTALL_ZED",
