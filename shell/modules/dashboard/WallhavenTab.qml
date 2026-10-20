@@ -23,6 +23,9 @@ Item {
     property real downloadProgressValue: 0
     property string downloadingWallpaperId: ""
     property string downloadState: "idle"
+    // Set to false when embedded in a full page (e.g. Nexus) where the
+    // drawer-style frame would look like a stray gray border.
+    property bool showFrame: true
     property string downloadMessage: ""
     property var selectedWallpaper: null
     property bool detailPanelOpen: false
@@ -62,9 +65,9 @@ Item {
         id: mainClippingRect
 
         anchors.fill: parent
-        anchors.margins: Tokens.padding.medium
+        anchors.margins: root.showFrame ? Tokens.padding.medium : 0
         anchors.leftMargin: 0
-        anchors.rightMargin: Tokens.padding.medium
+        anchors.rightMargin: root.showFrame ? Tokens.padding.medium : 0
 
         radius: mainBorder.innerRadius
         color: "transparent"
@@ -85,6 +88,7 @@ Item {
     InnerBorder {
         id: mainBorder
 
+        visible: root.showFrame
         leftThickness: 0
         rightThickness: Tokens.padding.medium
     }
@@ -260,6 +264,10 @@ Item {
 
                             radius: Tokens.rounding.large
                             color: Colours.layer(Colours.palette.m3surfaceContainerHigh, 1)
+                            // A 1px edge so the thumbnail does not dissolve into the grid
+                            // cell behind it. Pure black or white, never a tinted neutral.
+                            border.width: 1
+                            border.color: Colours.light ? Qt.rgba(0, 0, 0, 0.1) : Qt.rgba(1, 1, 1, 0.1)
 
                             StateLayer {
                                 onClicked: root.selectWallpaper(index)
@@ -312,7 +320,7 @@ Item {
         anchors.fill: parent
         anchors.margins: Tokens.padding.large
         opacity: root.detailPanelOpen ? 1 : 0
-        scale: root.detailPanelOpen ? 1 : 0.95
+        scale: root.detailPanelOpen ? 1 : 0.96
         clip: true
         enabled: root.detailPanelOpen
 

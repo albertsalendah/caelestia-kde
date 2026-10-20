@@ -1,6 +1,7 @@
 pragma ComponentBehavior: Bound
 
 import QtQuick
+import QtQuick.Controls
 import Quickshell
 import Quickshell.Widgets
 import Caelestia
@@ -16,6 +17,10 @@ Item {
     required property DesktopEntry modelData
     required property DrawerVisibilities visibilities
     required property var list
+
+    // Derived from the row height: the icon's container is still unlaid-out while the
+    // delegate is created, and the requested icon size is fixed at that moment.
+    readonly property real iconSize: (Tokens.sizes.launcher.itemHeight - Tokens.padding.small * 2) * 0.8
 
     implicitHeight: Tokens.sizes.launcher.itemHeight
 
@@ -35,6 +40,9 @@ Item {
                 root.visibilities.launcher = false;
             }
         }
+
+        ToolTip.visible: stateLayer.containsMouse && name.truncated
+        ToolTip.text: root.modelData?.name ?? ""
     }
 
     Item {
@@ -48,7 +56,7 @@ Item {
 
             asynchronous: false
             source: WinIcons.sourceFor(root.modelData, "", root.modelData?.id ?? "", 0)
-            implicitSize: Math.max(1, parent.height * 0.8)
+            implicitSize: root.iconSize
 
             anchors.verticalCenter: parent.verticalCenter
         }
@@ -66,6 +74,8 @@ Item {
 
                 text: root.modelData?.name ?? ""
                 font: Tokens.font.body.medium
+                elide: Text.ElideRight
+                width: parent.width
             }
 
             StyledText {

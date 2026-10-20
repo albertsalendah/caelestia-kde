@@ -10,6 +10,7 @@ import qs.components
 import qs.components.controls
 import qs.components.effects
 import qs.services
+import qs.modules.bar
 import qs.modules.bar.components as BarComponents
 import qs.modules.nexus.common
 
@@ -17,30 +18,53 @@ PageBase {
     id: root
 
     readonly property var componentMeta: {
-        "logo": { icon: "rocket_launch", name: qsTr("Logo") },
-        "workspaces": { icon: "workspaces", name: qsTr("Workspaces") },
-        "github": {
-            icon: "commit",
-            name: qsTr("GitHub"),
-            available: BarComponents.GithubStore.available,
-            unavailableText: qsTr("GitHub token not detected")
-        },
-        "greeter": { icon: "waving_hand", name: qsTr("Greeter") },
-        "tray": { icon: "expand_more", name: qsTr("System tray") },
-        "updateIndicator": { icon: "update", name: qsTr("Updates") },
-        "clock": { icon: "schedule", name: qsTr("Clock") },
-        "statusIcons": { icon: "wifi", name: qsTr("Status icons") },
-        "kbLayoutIndicator": { icon: "keyboard", name: qsTr("Keyboard layout") },
-        "notificationsIndicator": { icon: "notifications", name: qsTr("Notifications") },
-        "perfCpu": { icon: "memory", name: qsTr("CPU"), available: Cpu.name.length > 0, unavailableText: qsTr("CPU sensor not detected") },
-        "perfMemory": { icon: "memory_alt", name: qsTr("Memory"), available: Memory.total > 1, unavailableText: qsTr("Memory sensor not detected") },
-        "perfStorage": { icon: "hard_disk", name: qsTr("Storage"), available: Storage.disks.length > 0, unavailableText: qsTr("Storage disks not detected") },
-        "perfNetwork": { icon: "swap_vert", name: qsTr("Network") },
-        "perfGpu": { icon: "desktop_windows", name: qsTr("GPU"), available: Gpu.type !== Gpu.None, unavailableText: qsTr("GPU not detected") },
-        "perfBattery": { icon: "battery_full", name: qsTr("Battery"), available: UPower.displayDevice.isLaptopBattery, unavailableText: qsTr("Battery not detected") },
-        "dock": { icon: "apps", name: qsTr("Dock") },
-        "showDesktop": { icon: "keyboard_double_arrow_down", name: qsTr("Show Desktop") },
-        "power": { icon: "power_settings_new", name: qsTr("Power menu") }
+        const meta = {
+            "logo": { icon: "rocket_launch", name: qsTr("Logo") },
+            "workspaces": { icon: "workspaces", name: qsTr("Workspaces") },
+            "github": {
+                icon: "commit",
+                name: qsTr("GitHub"),
+                available: BarComponents.GithubStore.available,
+                unavailableText: qsTr("GitHub token not detected")
+            },
+            "media": { icon: "graphic_eq", name: qsTr("Now playing") },
+            "greeter": { icon: "waving_hand", name: qsTr("Greeter") },
+            "tray": { icon: "expand_more", name: qsTr("System tray") },
+            "updateIndicator": { icon: "update", name: qsTr("Updates") },
+            "clock": { icon: "schedule", name: qsTr("Clock") },
+            "statusIcons": { icon: "wifi", name: qsTr("Status icons") },
+            "kbLayoutIndicator": { icon: "keyboard", name: qsTr("Keyboard layout") },
+            "notificationsIndicator": { icon: "notifications", name: qsTr("Notifications") },
+            "perfCpu": { icon: "memory", name: qsTr("CPU"), available: Cpu.name.length > 0, unavailableText: qsTr("CPU sensor not detected") },
+            "perfMemory": { icon: "memory_alt", name: qsTr("Memory"), available: Memory.total > 1, unavailableText: qsTr("Memory sensor not detected") },
+            "perfStorage": { icon: "hard_disk", name: qsTr("Storage"), available: Storage.disks.length > 0, unavailableText: qsTr("Storage disks not detected") },
+            "perfNetwork": { icon: "swap_vert", name: qsTr("Network") },
+            "perfGpu": { icon: "desktop_windows", name: qsTr("GPU"), available: Gpu.type !== Gpu.None, unavailableText: qsTr("GPU not detected") },
+            "perfBattery": { icon: "battery_full", name: qsTr("Battery"), available: UPower.displayDevice.isLaptopBattery, unavailableText: qsTr("Battery not detected") },
+            "dock": { icon: "apps", name: qsTr("Dock") },
+            "showDesktop": { icon: "keyboard_double_arrow_down", name: qsTr("Show Desktop") },
+            "power": { icon: "power_settings_new", name: qsTr("Power menu") },
+            "shortcuts": { icon: "toggle_on", name: qsTr("Shortcuts") },
+            "screencapture": { icon: "screenshot_region", name: qsTr("Screen Capture") },
+            "keepawake": { icon: "coffee", name: qsTr("Keep Awake") },
+            "notes": { icon: "sticky_note_2", name: qsTr("Notes") },
+            "performance": { icon: "speed", name: qsTr("Performance") },
+            "weather": { icon: "cloud", name: qsTr("Weather") }
+        };
+
+        // Plugin widgets add themselves here; built-in ids win on collision.
+        for (const widget of BarWidgetRegistry.widgets) {
+            if (meta[widget.id])
+                continue;
+            meta[widget.id] = {
+                icon: widget.icon ?? "widgets",
+                name: widget.name ?? widget.id,
+                available: widget.available ?? true,
+                unavailableText: widget.unavailableText
+            };
+        }
+
+        return meta;
     }
     property bool isGlobalDragging: false
     property string globalDragCompId: ""
@@ -123,7 +147,7 @@ PageBase {
                     when: activeDragArea.drag.active
 
                     ParentChange { target: activeDelegate; parent: root.flickable.contentItem }
-                    PropertyChanges { target: activeDelegate; scale: 1.05 }
+                    PropertyChanges { target: activeDelegate; scale: NexusStyle.dragScale }
                 }
 
                 Behavior on scale { Anim { type: Anim.FastSpatial } }
@@ -327,7 +351,7 @@ PageBase {
     }
 
     function load(): void {
-        let entries = Config.bar.entries;
+        const entries = BarWidgets.entriesOf(Config.bar);
         leftModel.clear();
         middleModel.clear();
         rightModel.clear();
@@ -337,6 +361,9 @@ PageBase {
         for (let i = 0; i < entries.length; i++) {
             let entry = entries[i];
             if (entry.id === "spacer") continue;
+            // Skip entries whose widget no longer exists (e.g. a plugin that
+            // was uninstalled after its widget had been enabled).
+            if (!BarWidgets.isKnown(entry.id)) continue;
 
             activeCounts[entry.id] = (activeCounts[entry.id] || 0) + 1;
 
@@ -350,60 +377,16 @@ PageBase {
             }
         }
 
-        for (let key in componentMeta) {
-            if (!activeCounts[key]) {
-                libraryModel.append({ "compId": key, "isPlaceholder": false });
+        for (const id of BarWidgets.ids) {
+            if (!activeCounts[id]) {
+                libraryModel.append({ "compId": id, "isPlaceholder": false });
             }
         }
-    }
-
-    function defaultEntries(): var {
-        return [
-            { id: "logo", enabled: true, zone: "left" },
-            { id: "workspaces", enabled: true, zone: "left" },
-            { id: "greeter", enabled: true, zone: "left" },
-            { id: "dock", enabled: true, zone: "middle" },
-            { id: "tray", enabled: true, zone: "right" },
-            { id: "updateIndicator", enabled: true, zone: "right" },
-            { id: "github", enabled: false, zone: "right" },
-            { id: "clock", enabled: true, zone: "right" },
-            { id: "statusIcons", enabled: true, zone: "right" },
-            { id: "kbLayoutIndicator", enabled: false, zone: "right" },
-            { id: "notificationsIndicator", enabled: false, zone: "right" },
-            { id: "perfCpu", enabled: false, zone: "right" },
-            { id: "perfMemory", enabled: false, zone: "right" },
-            { id: "perfStorage", enabled: false, zone: "right" },
-            { id: "perfNetwork", enabled: false, zone: "right" },
-            { id: "perfGpu", enabled: false, zone: "right" },
-            { id: "perfBattery", enabled: false, zone: "right" },
-            { id: "showDesktop", enabled: true, zone: "right" },
-            { id: "power", enabled: true, zone: "right" }
-        ];
     }
 
     function resetToDefaults(): void {
-        const entries = defaultEntries();
-        GlobalConfig.bar.entries = entries;
-
-        leftModel.clear();
-        middleModel.clear();
-        rightModel.clear();
-        libraryModel.clear();
-
-        for (const entry of entries) {
-            if (!entry.enabled) {
-                libraryModel.append({ compId: entry.id, isPlaceholder: false });
-                continue;
-            }
-
-            const zone = entry.zone || "left";
-            if (zone === "left")
-                leftModel.append({ compId: entry.id, isPlaceholder: false });
-            else if (zone === "middle")
-                middleModel.append({ compId: entry.id, isPlaceholder: false });
-            else
-                rightModel.append({ compId: entry.id, isPlaceholder: false });
-        }
+        BarWidgets.resetToDefaults(GlobalConfig.bar);
+        load();
     }
 
     function save(): void {
@@ -426,11 +409,12 @@ PageBase {
         }
         for (let i = 0; i < libraryModel.count; i++) {
             if (!libraryModel.get(i).isPlaceholder) {
-                newEntries.push({ id: libraryModel.get(i).compId, enabled: false, zone: "left" });
+                const id = libraryModel.get(i).compId;
+                newEntries.push({ id: id, enabled: false, zone: BarWidgets.zoneFor(Config.bar, id) });
             }
         }
 
-        GlobalConfig.bar.entries = newEntries;
+        BarWidgets.replaceAll(GlobalConfig.bar, newEntries);
     }
 
     title: qsTr("Toggle & rearrange")

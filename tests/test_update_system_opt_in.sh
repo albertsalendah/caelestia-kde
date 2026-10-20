@@ -100,35 +100,36 @@ test_the_update_asks_for_the_system_update_only_through_the_function() {
 # --- Nexus -> Updates ----------------------------------------------------------------------------
 
 test_the_updates_page_setting_is_off_by_default_and_reaches_the_updater() {
-    local checker
+    local checker page
     checker="$(cat "$CHECKER")"
+    page="$(cat "$PAGE")"
 
     assert_contains "$checker" "property bool systemUpdate: false" "the setting should default to off"
     assert_contains "$checker" "property alias systemUpdate: updaterSettings.systemUpdate" "and be reachable from the page"
-    assert_contains "$checker" 'CAELESTIA_UPDATE_SYSTEM: updaterSettings.systemUpdate ? "1" : "0"' "and be handed to caelestia-update"
+    # Upstream runs the updater in the person's terminal, so the opt-in travels as the environment
+    # variable the updater reads, set only when the switch is on.
+    assert_contains "$page" 'const env = UpdateChecker.systemUpdate ? ["env", "CAELESTIA_UPDATE_SYSTEM=1"] : [];' "and be handed to caelestia-update, only when on"
+    assert_contains "$page" 'Launch.terminalCommand([...env, "sh", "-c", hold, "sh", ...command], root.terminalCommand)' "through the terminal command that adds the terminal's own flag"
 }
 
-test_the_switch_is_remembered_with_the_other_updater_settings() {
-    # QtCore's Settings saves every property declared inside it and restores them at startup, which
-    # is how Deploy Configurations and Build Shell UI are remembered. A property declared outside
-    # the block would forget its state at every restart.
+test_the_switch_is_remembered_in_the_updater_settings() {
+    # QtCore's Settings saves every property declared inside it and restores them at startup. A
+    # property declared outside the block would forget its state at every restart.
     local block
     block="$(awk '/^    Settings \{/{f=1} f{print} f&&/^    }/{exit}' "$CHECKER")"
 
     assert_contains "$block" 'category: "Updater"' "the block should be the updater's"
-    assert_contains "$block" "property bool deployConfigs:" "the existing switches live in it"
-    assert_contains "$block" "property bool systemUpdate: false" "so the system update switch must too"
+    assert_contains "$block" "property bool systemUpdate: false" "the system update switch lives in it"
     assert_contains "$(cat "$CHECKER")" "import QtCore" "and Settings must come from QtCore"
 }
 
-test_the_updates_page_has_a_system_update_switch_at_the_end_of_the_group() {
+test_the_updates_page_has_a_system_update_switch() {
     local page
     page="$(cat "$PAGE")"
 
     assert_contains "$page" "checked: UpdateChecker.systemUpdate" "the switch should show the setting"
     assert_contains "$page" "onToggled: UpdateChecker.systemUpdate = checked" "and change it"
-    assert_not_contains "$(grep -B3 'qsTr("Build Shell UI")' "$PAGE")" "last: true" "Build Shell UI is no longer the last row"
-    assert_contains "$(grep -B3 'qsTr("Update the System")' "$PAGE")" "last: true" "Update the System closes the group"
+    assert_contains "$page" 'text: qsTr("Update the System")' "under the name the person looks for"
 }
 
 run_tests

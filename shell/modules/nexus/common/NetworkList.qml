@@ -146,7 +146,7 @@ ItemList {
                     Layout.fillWidth: true
                     text: qsTr("Security: %1%2").arg(network.modelData.security).arg(network.modelData.active ? qsTr(" • Connected") : Nmcli.hasSavedProfile(network.modelData.ssid) ? qsTr(" • Saved") : "")
                     color: Colours.palette.m3onSurfaceVariant
-                    font: Tokens.font.label.small
+                    font: NexusStyle.secondaryFont
                     elide: Text.ElideRight
                 }
             }

@@ -99,6 +99,7 @@ PageBase {
             Layout.fillWidth: true
             text: qsTr("Component background")
             subtext: qsTr("Render a solid background behind the GitHub activity widget")
+            reset: ({ node: GlobalConfig.bar.github, setting: "background" })
             checked: Config.bar.github.background
             onToggled: GlobalConfig.bar.github.background = checked
         }
@@ -136,7 +137,7 @@ PageBase {
 
                     StyledText {
                         text: qsTr("Used to fetch your contribution graph (read:user)")
-                        font: Tokens.font.label.small
+                        font: NexusStyle.secondaryFont
                         color: Colours.palette.m3onSurfaceVariant
                         elide: Text.ElideRight
                     }

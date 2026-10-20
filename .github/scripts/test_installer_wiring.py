@@ -2,12 +2,14 @@
 """Installer wiring tests.
 
 The invariants the installer's step scripts have to keep: that the entrypoints exist,
-that every numbered scripts/*.sh is run by one of the step lists, that the update path
-sparsifies only paths src/bin/caelestia-update writes, and a few ordering guarantees
-inside those scripts. They read the same few installer files and change for their own
-reasons, which is why they are not in test_repo_integrity.py.
+that every numbered scripts/*.sh is run by one of the step lists, that the sparse checkout
+the update path writes covers everything the shell build installs and sparsifies only
+paths src/bin/caelestia-update writes, and a few ordering guarantees inside those scripts.
+They read the same few installer files and change for their own reasons, which is why they
+are not in test_repo_integrity.py.
 """
 
+import posixpath
 import re
 import sys
 import unittest
@@ -99,21 +101,78 @@ class InstallerTests(unittest.TestCase):
 
         The updater writes that list before it checks the tree out, so a helper cannot
         live in the tree and be called from there: the two name the same paths twice.
-        This is what stops the second copy from drifting to a path nothing sparsifies,
+        This is what stops the second copy from drifting to a rule nothing else writes,
         which would leave the fallback silently doing nothing.
         """
         updater = (ROOT / "src" / "bin" / "caelestia-update").read_text(encoding="utf-8")
         build = (ROOT / "scripts" / "08-build-shell.sh").read_text(encoding="utf-8")
 
         owned = set(re.findall(r'echo "([^"]+)" >+ \.git/info/sparse-checkout', updater))
-        added = set(re.findall(r'echo "([^"]+)" >> "\$sparse_file"', build))
+        added = set()
+        for call in re.findall(r"^\s*sparsify_checkout_paths (.+)$", build, re.MULTILINE):
+            added.update(call.split())
 
         self.assertTrue(owned, "caelestia-update should still write the sparse-checkout list")
-        self.assertTrue(added, "08-build-shell.sh should still name the path it adds")
+        self.assertTrue(added, "08-build-shell.sh should still name the rules it adds")
         self.assertEqual(
             sorted(added - owned),
             [],
-            "08-build-shell.sh sparsifies path(s) caelestia-update never writes:",
+            "08-build-shell.sh sparsifies rule(s) caelestia-update never writes:",
+        )
+
+    def test_the_sparse_checkout_covers_everything_the_shell_install_reads(self) -> None:
+        """#1039: cmake --install fails when an install rule's source is not sparsified.
+
+        shell/CMakeLists.txt installs files from outside shell/ - src/, scripts/ and
+        assets/ - and the update path checks the repository out sparse before it builds.
+        Configure and build only read shell/, so they succeed on a checkout that is
+        missing assets/org.quickshell.desktop; cmake --install is the first step to touch
+        it and it dies with "file INSTALL cannot find .../assets/org.quickshell.desktop",
+        aborting the update before the new revision is recorded. A full checkout has the
+        file, so only the sparse one in the update path reproduces it. Nothing else
+        compares the install rules against src/bin/caelestia-update's sparse-checkout
+        list, so an install rule added for a path nothing sparsifies is caught here.
+        """
+        updater = (ROOT / "src" / "bin" / "caelestia-update").read_text(encoding="utf-8")
+        entries = {
+            entry.rstrip("/")
+            for entry in re.findall(r'echo "([^"]+)" >+ \.git/info/sparse-checkout', updater)
+        }
+        self.assertTrue(entries, "caelestia-update should still write the sparse-checkout list")
+
+        # ${CAELESTIA_ROOT_DIR} is the repository root and ${CMAKE_CURRENT_SOURCE_DIR} the
+        # directory of the CMakeLists.txt being read, both as shell/CMakeLists.txt spells
+        # them. Resolving the two is what tells an install rule for a path authored
+        # outside shell/ from one that sits inside it and travels with the tree.
+        root_refs = re.compile(r"\$\{CAELESTIA_ROOT_DIR\}/([^\"\s)]+)")
+        here_refs = re.compile(r"\$\{CMAKE_CURRENT_SOURCE_DIR\}/([^\"\s)]+)")
+
+        required = {"shell"}  # the build configures from the shell/ tree itself
+        for cmake_lists in sorted((ROOT / "shell").rglob("CMakeLists.txt")):
+            relative = cmake_lists.relative_to(ROOT)
+            if "build" in relative.parts:
+                continue
+            base = cmake_lists.parent.relative_to(ROOT).as_posix()
+            text = cmake_lists.read_text(encoding="utf-8")
+            paths = root_refs.findall(text)
+            paths += [posixpath.join(base, ref) for ref in here_refs.findall(text)]
+            for path in paths:
+                normalized = posixpath.normpath(path)
+                if not normalized.startswith("../") and normalized not in (".", ".."):
+                    required.add(normalized.split("/", 1)[0])
+
+        self.assertLessEqual(
+            {"src", "scripts"},
+            required,
+            "the shell build should still install its CLI wrappers and step scripts from outside shell/",
+        )
+        self.assertEqual(
+            sorted(
+                name for name in required
+                if not any(name == entry or name.startswith(entry + "/") for entry in entries)
+            ),
+            [],
+            "the shell build reads path(s) that src/bin/caelestia-update never sparsifies:",
         )
 
 
@@ -202,6 +261,53 @@ class InstallStepSafetyTests(unittest.TestCase):
         )
 
 
+class TuiArgumentTests(unittest.TestCase):
+    def test_every_argument_is_read_for_a_mode_and_a_directory(self) -> None:
+        main_cpp = (ROOT / "installer" / "tui" / "main.cpp").read_text(encoding="utf-8")
+
+        self.assertIn("for (int argi = 1; argi < argc; ++argi)", main_cpp,
+                      "main.cpp should walk every argument, not just argv[1]")
+        self.assertIn('arg == "--update"', main_cpp, "the update mode should still be recognised")
+        self.assertIn('arg == "--uninstall"', main_cpp, "the uninstall mode should still be recognised")
+        self.assertIn("g_bundle_dir = arg", main_cpp, "a non-flag argument should set the bundle directory")
+
+    def test_a_mode_and_a_directory_can_both_be_given(self) -> None:
+        main_cpp = (ROOT / "installer" / "tui" / "main.cpp").read_text(encoding="utf-8")
+
+        self.assertNotIn(
+            "std::string first = argv[1];",
+            main_cpp,
+            "reading only argv[1] discards the second argument of a two-argument call",
+        )
+
+
+class TerminalHandoverTests(unittest.TestCase):
+    def test_the_raw_mode_is_tracked_apart_from_the_alt_screen(self) -> None:
+        term_hpp = (ROOT / "installer" / "tui" / "Term.hpp").read_text(encoding="utf-8")
+        term_cpp = (ROOT / "installer" / "tui" / "Term.cpp").read_text(encoding="utf-8")
+
+        self.assertIn("extern bool raw_mode;", term_hpp,
+                      "the tty attribute change needs its own flag")
+        restore_body = term_cpp.split("void restore()", 1)[1].split("void init()", 1)[0]
+        self.assertIn("if (raw_mode)", restore_body,
+                      "restore() should undo the tty attributes whenever they were changed")
+
+    def test_the_handover_restores_the_terminal_before_forking(self) -> None:
+        main_cpp = (ROOT / "installer" / "tui" / "main.cpp").read_text(encoding="utf-8")
+
+        run_external_body = main_cpp.split("void run_external(", 1)[1].split("\nint main(", 1)[0]
+        restore_at = run_external_body.find("Term::restore()")
+        fork_at = run_external_body.find("fork()")
+
+        self.assertNotEqual(restore_at, -1, "run_external should restore the terminal")
+        self.assertNotEqual(fork_at, -1, "run_external should still fork the script")
+        self.assertLess(
+            restore_at,
+            fork_at,
+            "the terminal has to be restored before the child inherits it",
+        )
+
+
 class ScriptNumberingTests(unittest.TestCase):
     def test_install_step_scripts_have_consistent_numbers(self) -> None:
         """Step numbers stay a two-digit base with an optional letter suffix.
@@ -236,9 +342,9 @@ class InstallerEnvironmentTests(unittest.TestCase):
     getenv("HOME"), and libstdc++ throws std::logic_error ("basic_string: construction
     from null is not valid") on a null pointer rather than yielding an empty string.
     That aborts the installer: in Runner::execute before the first step runs, and again
-    on the success path in phase 5. Nothing executes the TUI - no test, no CI job - so
-    only reading the source catches it. Every caller now goes through xdg_cache_dir()
-    in Globals.cpp, which is where the checked form lives.
+    on the success path in phase 5. Nothing executes the TUI at test time - the CI job
+    only compiles it - so reading the source is what catches it. Every caller now goes
+    through xdg_cache_dir() in Globals.cpp, which is where the checked form lives.
     """
 
     TUI = ROOT / "installer" / "tui"

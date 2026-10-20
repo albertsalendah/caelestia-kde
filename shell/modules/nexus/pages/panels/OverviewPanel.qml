@@ -5,6 +5,7 @@ import QtQuick.Layouts
 import Caelestia.Config
 import qs.components
 import qs.components.controls
+import qs.services
 import qs.utils
 import qs.modules.nexus.common
 
@@ -108,12 +109,14 @@ PageBase {
         ToggleRow {
             first: true
             text: qsTr("Enable overview")
+            reset: ({ node: GlobalConfig.overview, setting: "enabled" })
             checked: GlobalConfig.overview.enabled
             onToggled: GlobalConfig.overview.enabled = checked
         }
         ToggleRow {
             text: qsTr("Show on hover")
             subtext: qsTr("Open overview by hovering a corner instead of dragging")
+            reset: ({ node: GlobalConfig.overview, setting: "showOnHover" })
             checked: GlobalConfig.overview.showOnHover
             onToggled: GlobalConfig.overview.showOnHover = checked
         }
@@ -121,6 +124,7 @@ PageBase {
             label: qsTr("Trigger area size")
             last: GlobalConfig.overview.showOnHover
             subtext: qsTr("Size of the corner activation areas in pixels")
+            reset: ({ node: GlobalConfig.overview, setting: "hoverThickness" })
             value: GlobalConfig.overview.hoverThickness
             from: 1
             to: 100
@@ -132,6 +136,7 @@ PageBase {
             last: !GlobalConfig.overview.showOnHover
             label: qsTr("Drag threshold")
             subtext: qsTr("Distance to drag from corner to open overview")
+            reset: ({ node: GlobalConfig.overview, setting: "dragThreshold" })
             value: GlobalConfig.overview.dragThreshold
             from: 10
             to: 200
@@ -148,22 +153,26 @@ PageBase {
         ToggleRow {
             first: true
             text: qsTr("Top-Left corner")
+            reset: ({ node: GlobalConfig.overview, setting: "hoverTopLeft" })
             checked: GlobalConfig.overview.hoverTopLeft
             onToggled: GlobalConfig.overview.hoverTopLeft = checked
         }
         ToggleRow {
             text: qsTr("Top-Right corner")
+            reset: ({ node: GlobalConfig.overview, setting: "hoverTopRight" })
             checked: GlobalConfig.overview.hoverTopRight
             onToggled: GlobalConfig.overview.hoverTopRight = checked
         }
         ToggleRow {
             text: qsTr("Bottom-Left corner")
+            reset: ({ node: GlobalConfig.overview, setting: "hoverBottomLeft" })
             checked: GlobalConfig.overview.hoverBottomLeft
             onToggled: GlobalConfig.overview.hoverBottomLeft = checked
         }
         ToggleRow {
             last: true
             text: qsTr("Bottom-Right corner")
+            reset: ({ node: GlobalConfig.overview, setting: "hoverBottomRight" })
             checked: GlobalConfig.overview.hoverBottomRight
             onToggled: GlobalConfig.overview.hoverBottomRight = checked
         }
@@ -191,15 +200,36 @@ PageBase {
         ToggleRow {
             text: qsTr("Disable wallpaper blur")
             subtext: qsTr("Do not blur the background wallpaper when opening overview")
+            reset: ({ node: GlobalConfig.overview, setting: "disableWallpaperBlur" })
             checked: GlobalConfig.overview.disableWallpaperBlur
             onToggled: GlobalConfig.overview.disableWallpaperBlur = checked
         }
         ToggleRow {
-            last: true
             text: qsTr("Enable overview blur")
             subtext: qsTr("Enable QuickShell-based blur effect on overview wallpaper")
+            reset: ({ node: GlobalConfig.overview, setting: "enableOverviewBlur" })
             checked: GlobalConfig.overview.enableOverviewBlur
             onToggled: GlobalConfig.overview.enableOverviewBlur = checked
+        }
+        ToggleRow {
+            text: qsTr("Ambient color mode")
+            subtext: Colours.light ? qsTr("Ambient glow is unavailable in light mode") : qsTr("Ambient light glow in window info panel")
+            reset: ({ node: GlobalConfig.overview, setting: "ambientColor" })
+            checked: GlobalConfig.overview.ambientColor
+            enabled: !Colours.light
+            onToggled: GlobalConfig.overview.ambientColor = checked
+        }
+        StepperRow {
+            last: true
+            label: qsTr("Ambient glow opacity")
+            reset: ({ node: GlobalConfig.overview, setting: "ambientOpacity" })
+            value: GlobalConfig.overview.ambientOpacity
+            from: 0
+            to: 1
+            stepSize: 0.05
+            enabled: GlobalConfig.overview.ambientColor && !Colours.light
+            opacity: enabled ? 1 : 0.5
+            onMoved: v => GlobalConfig.overview.ambientOpacity = v
         }
         SectionHeader {
             text: qsTr("Animations")
@@ -225,6 +255,7 @@ PageBase {
         StepperRow {
             label: qsTr("Base duration")
             subtext: qsTr("Base duration for overview opening/closing in milliseconds")
+            reset: ({ node: GlobalConfig.overview, setting: "baseDuration" })
             value: GlobalConfig.overview.baseDuration
             from: 100
             to: 1000
@@ -234,6 +265,7 @@ PageBase {
         StepperRow {
             label: qsTr("Blob scale speed")
             subtext: qsTr("Scaling speed modifier for background blobs")
+            reset: ({ node: GlobalConfig.overview, setting: "blobScaleSpeed" })
             value: GlobalConfig.overview.blobScaleSpeed
             from: 0.1
             to: 5.0
@@ -243,6 +275,7 @@ PageBase {
         StepperRow {
             label: qsTr("Wallpaper fade speed")
             subtext: qsTr("Fade speed modifier for the wallpaper")
+            reset: ({ node: GlobalConfig.overview, setting: "wallpaperFadeSpeed" })
             value: GlobalConfig.overview.wallpaperFadeSpeed
             from: 0.1
             to: 5.0
@@ -253,6 +286,7 @@ PageBase {
             last: true
             label: qsTr("Grid fade speed")
             subtext: qsTr("Fade speed modifier for the window grid")
+            reset: ({ node: GlobalConfig.overview, setting: "gridFadeSpeed" })
             value: GlobalConfig.overview.gridFadeSpeed
             from: 0.1
             to: 5.0

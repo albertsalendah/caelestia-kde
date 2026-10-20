@@ -55,6 +55,8 @@ CORE_PACKAGES=(
     libepoxy-devel libdrm-devel
 
     libqalculate libqalculate-devel libsecret vulkan-headers ksshaskpass libX11-devel
+
+    protobuf-devel protobuf-compiler openssl-devel avahi
 )
 
 SHELL_PACKAGES=(
@@ -64,7 +66,7 @@ SHELL_PACKAGES=(
 
 THEME_PACKAGES=(
     adw-gtk3-theme google-rubik-fonts google-noto-sans-fonts
-    google-noto-sans-cjk-fonts google-noto-emoji-fonts
+    google-noto-sans-cjk-ttc-fonts google-noto-emoji-fonts
 )
 
 UTILITY_PACKAGES=(
@@ -199,7 +201,9 @@ for pkg in "${COPR_PKGS[@]}"; do
             fi
             ;;
         gpu-screen-recorder)
-            if caelestia_sudo dnf copr enable -y brycensranch/gpu-screen-recorder-git && caelestia_sudo dnf install -y gpu-screen-recorder-ui; then
+            # Install the package that was asked for: the COPR also ships -ui, and
+            # reporting success for it would leave gpu-screen-recorder itself missing.
+            if caelestia_sudo dnf copr enable -y brycensranch/gpu-screen-recorder-git && caelestia_sudo dnf install -y gpu-screen-recorder; then
                 COPR_FAILED="no"
             fi
             ;;
@@ -329,7 +333,7 @@ else
     info "Skipping Darkly package installation by user choice."
 fi
 
-fi  # end of PACKAGE_GROUP themes/all block
+fi
 
 if command -v xdg-user-dirs-update >/dev/null 2>&1; then
     xdg-user-dirs-update || true
@@ -351,7 +355,7 @@ if ! command -v qdbus6 >/dev/null 2>&1; then
     fi
 fi
 
-fi  # end of PACKAGE_GROUP shell/all block
+fi
 
 if [ ${#FAILED_PKGS[@]} -ne 0 ]; then
     mkdir -p "${XDG_CACHE_HOME:-$HOME/.cache}/caelestia-kde"

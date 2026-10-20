@@ -88,7 +88,7 @@ test_other_package_groups_do_not_get_them() {
 # enabled (yes or no), $4 whether enabling it works (yes or no). Prints what happened.
 bluetooth_block() {
     local bluedevil="$1" exists="$2" enabled="$3" works="$4" block tmp
-    block="$(awk '/^# Bluedevil talks to bluetoothd/ { on = 1 } on && /^ok "Services configured\."$/ { exit } on { print }' "$SERVICES")"
+    block="$(awk '/^# Bluedevil talks to bluetoothd/ { on = 1 } on { print } on && /^fi$/ { exit }' "$SERVICES")"
     tmp="$(new_tmpdir)"
     cat > "$tmp/run.sh" <<HARNESS
 ok() { echo "ok: \$*"; }

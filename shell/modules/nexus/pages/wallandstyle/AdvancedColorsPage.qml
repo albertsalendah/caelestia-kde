@@ -88,6 +88,7 @@ PageBase {
                 first: true
                 text: qsTr("Smart color scheme")
                 subtext: qsTr("Automatically select color variants and theme mode")
+                reset: ({ node: GlobalConfig.services, setting: "smartScheme" })
                 checked: GlobalConfig.services.smartScheme
                 onToggled: GlobalConfig.services.smartScheme = checked
             }
@@ -96,6 +97,7 @@ PageBase {
                 Layout.topMargin: Tokens.spacing.extraSmall / 2
                 text: qsTr("Automatic light and dark")
                 subtext: qsTr("Switch the theme mode on a schedule")
+                reset: ({ node: GlobalConfig.services, setting: "autoSchemeEnabled" })
                 checked: GlobalConfig.services.autoSchemeEnabled
                 onToggled: GlobalConfig.services.autoSchemeEnabled = checked
                 last: !GlobalConfig.services.autoSchemeEnabled
@@ -117,6 +119,7 @@ PageBase {
                 Layout.topMargin: Tokens.spacing.extraSmall / 2
                 label: qsTr("Light mode hour")
                 subtext: qsTr("Switches at %1").arg(GlobalConfig.services.autoSchemeLightTime)
+                reset: ({ node: GlobalConfig.services, setting: "autoSchemeLightTime" })
                 value: root.schemeHour(GlobalConfig.services.autoSchemeLightTime)
                 from: 0
                 to: 23
@@ -129,6 +132,7 @@ PageBase {
                 last: true
                 label: qsTr("Dark mode hour")
                 subtext: qsTr("Switches at %1, also used when sunrise and sunset are unavailable").arg(GlobalConfig.services.autoSchemeDarkTime)
+                reset: ({ node: GlobalConfig.services, setting: "autoSchemeDarkTime" })
                 value: root.schemeHour(GlobalConfig.services.autoSchemeDarkTime)
                 from: 0
                 to: 23
@@ -163,6 +167,15 @@ PageBase {
             subtext: enabled ? qsTr("Chroma of the wallpaper-derived palette, at 100% by default") : qsTr("%1 keeps its own colors, so this does not apply").arg(Colours.scheme)
             valueLabel: Math.round(value * Colours.maxIntensity * 100) + "%"
             value: root.intensityPosition
+            // Custom reset: intensity lives in Colours, not in a config node
+            reset: ({
+                customGet: () => root.intensityPosition,
+                customDef: 0.5,
+                customSet: v => {
+                    root.intensityPosition = v;
+                    Colours.setIntensity(v);
+                }
+            })
             onInteraction: root.draggingIntensity = true
             onMoved: v => {
                 if (root.draggingIntensity)

@@ -2,19 +2,13 @@ pragma ComponentBehavior: Bound
 
 import QtQuick.Layouts
 import Caelestia.Config
+import qs.modules.bar
 import qs.modules.nexus.common
 
 PageBase {
     id: root
 
-    readonly property bool indicatorEnabled: {
-        const entries = GlobalConfig.bar.entries || [];
-        for (let i = 0; i < entries.length; i++) {
-            if (entries[i].id === "updateIndicator" && entries[i].enabled)
-                return true;
-        }
-        return false;
-    }
+    readonly property bool indicatorEnabled: BarWidgets.isEnabled(GlobalConfig.bar, "updateIndicator")
 
     title: qsTr("Updates")
     isSubPage: true
@@ -30,21 +24,20 @@ PageBase {
             text: qsTr("Show update indicator")
             subtext: qsTr("Always-visible icon in the taskbar that changes when a Caelestia update is available")
             checked: root.indicatorEnabled
-            onToggled: {
-                const entries = GlobalConfig.bar.entries ? [...GlobalConfig.bar.entries] : [];
-                const idx = entries.findIndex(e => e.id === "updateIndicator");
-                if (idx >= 0)
-                    entries[idx] = { id: "updateIndicator", enabled: checked, zone: entries[idx].zone || "right" };
-                else
-                    entries.push({ id: "updateIndicator", enabled: checked, zone: "right" });
-                GlobalConfig.bar.entries = entries;
-            }
+            // Custom reset: enabled state lives in bar.entries, default is true
+            reset: ({
+                customGet: () => root.indicatorEnabled,
+                customDef: true,
+                customSet: v => BarWidgets.setEnabled(GlobalConfig.bar, "updateIndicator", v)
+            })
+            onToggled: BarWidgets.setEnabled(GlobalConfig.bar, "updateIndicator", checked)
         }
 
         ToggleRow {
             last: true
             text: qsTr("Enable update checking")
             subtext: qsTr("Enables the update indicator and periodic checks (every 30 minutes)")
+            reset: ({ node: GlobalConfig.general, setting: "checkUpdates" })
             checked: GlobalConfig.general.checkUpdates
             onToggled: GlobalConfig.general.checkUpdates = checked
         }

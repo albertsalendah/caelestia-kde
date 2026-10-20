@@ -22,7 +22,14 @@ Item {
         return max;
     }
     property real offsetScale: shouldBeActive ? 0 : 1
+    property bool keepAlive: false
 
+    signal closed()
+
+    onOffsetScaleChanged: {
+        if (offsetScale >= 1 && !shouldBeActive)
+            closed();
+    }
     onShouldBeActiveChanged: {
         if (shouldBeActive) {
             implicitHeight = Qt.binding(() => content.implicitHeight);
@@ -38,6 +45,13 @@ Item {
     opacity: 1 - offsetScale
     Component.onCompleted: Qt.callLater(() => Apps)
 
+    Timer {
+        running: Config.launcher.enabled && !root.keepAlive
+        interval: 1500
+
+        onTriggered: root.keepAlive = true
+    }
+
     Behavior on offsetScale {
         enabled: !visibilities.skipLauncherAnim
 
@@ -48,7 +62,7 @@ Item {
 
         anchors.top: parent.top
         anchors.horizontalCenter: parent.horizontalCenter
-        active: root.shouldBeActive || root.visible
+        active: root.shouldBeActive || root.visible || root.keepAlive
         sourceComponent: Component {
             Content {
                 visibilities: root.visibilities

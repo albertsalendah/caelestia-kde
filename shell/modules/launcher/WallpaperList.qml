@@ -131,8 +131,9 @@ PathView {
     Timer {
         id: previewTimer
 
-        interval: 100
+        interval: 500
         onTriggered: {
+            if (!root.visibilities.launcher) return;
             if (root.currentItem)
                 Wallpapers.preview((root.currentItem as WallpaperItem).modelData.path);
         }

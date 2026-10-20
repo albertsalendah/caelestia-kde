@@ -247,6 +247,26 @@ configure_lockscreen_greeter() {
     fi
 }
 
+sparsify_checkout_paths() {
+    local rule path sparse_file
+
+    for rule in "$@"; do
+        path="${rule%/}"
+        [[ -e "$BUNDLE_DIR/$path" ]] && continue
+
+        (
+            cd "$BUNDLE_DIR" || exit 0
+            sparse_file="$(git rev-parse --git-path info/sparse-checkout 2>/dev/null || true)"
+            [[ -n "$sparse_file" && -f "$sparse_file" ]] || exit 0
+
+            grep -q "^$rule" "$sparse_file" 2>/dev/null || echo "$rule" >> "$sparse_file"
+            git read-tree -mu HEAD 2>/dev/null ||
+                git checkout HEAD -- "$path" 2>/dev/null || true
+        )
+    done
+    return 0
+}
+
 CCACHE_DIR="${CCACHE_DIR:-${XDG_CACHE_HOME:-$HOME/.cache}/caelestia-kde/ccache}"
 export CCACHE_DIR
 mkdir -p "$CCACHE_DIR"
@@ -262,23 +282,7 @@ if [[ "${CAELESTIA_SETUP_RUNNING:-0}" == "0" ]]; then
         bash "$BUNDLE_DIR/scripts/02a-submodules.sh" || die "Failed to initialize submodules"
     fi
 
-    # A checkout that predates `installer/` being in the sparse-checkout rules needs
-    # the path adding before anything can read it. src/bin/caelestia-update owns that
-    # list and writes it before it checks the tree out; this is the fallback for the
-    # copies it already deployed. Run from the tree so the path git prints resolves
-    # there, and ask git for it: in a linked worktree .git is a file and the rules
-    # live in the main repository instead.
-    if [[ ! -d "$BUNDLE_DIR/installer" ]]; then
-        (
-            cd "$BUNDLE_DIR" || exit 0
-            sparse_file="$(git rev-parse --git-path info/sparse-checkout 2>/dev/null || true)"
-            [[ -n "$sparse_file" && -f "$sparse_file" ]] || exit 0
-
-            grep -q '^installer/' "$sparse_file" 2>/dev/null || echo "installer/" >> "$sparse_file"
-            git read-tree -mu HEAD 2>/dev/null ||
-                git checkout HEAD -- installer 2>/dev/null || true
-        )
-    fi
+    sparsify_checkout_paths installer/ assets/ uninstall.sh
 
     if [[ -f "$BUNDLE_DIR/scripts/02-all-packages.sh" && -d "$BUNDLE_DIR/installer" ]]; then
         info "Checking core, shell, theme, and utility dependencies..."
@@ -425,6 +429,17 @@ try_download_prebuilt_shell() {
         rm -f "$tmp_archive"
         return 1
     fi
+    if ! tar -tzf "$tmp_archive" bin/ >/dev/null 2>&1 \
+        || ! tar -tzf "$tmp_archive" lib/caelestia/ >/dev/null 2>&1; then
+        warn "Prebuilt shell artifact has no CMake-owned CLI/data tree - falling back to a local build."
+        rm -f "$tmp_archive"
+        return 1
+    fi
+    if ! tar -C "$HOME/.local" -xzf "$tmp_archive" bin; then
+        warn "Failed to extract CMake-owned CLI files"
+        rm -f "$tmp_archive"
+        return 1
+    fi
     rm -f "$tmp_archive"
     return 0
 }
@@ -471,7 +486,7 @@ else
     info "Configuring CMake..."
     prepare_build_dir build
     drop_stale_m3shapes_record build CMakeLists.txt "${XDG_CACHE_HOME:-$HOME/.cache}/caelestia-kde"
-    cmake -G "$CMAKE_GENERATOR" -B build -DCMAKE_BUILD_TYPE=Release -DCAELESTIA_CACHE_DEPS=ON -DCMAKE_INSTALL_PREFIX="$HOME/.local" -DINSTALL_QSCONFDIR="$HOME/.config/quickshell/caelestia" -DINSTALL_LIBDIR="lib/caelestia" -DINSTALL_QMLDIR="lib/qt6/qml" || {
+    cmake -G "$CMAKE_GENERATOR" -B build -DCMAKE_BUILD_TYPE=Release -DCAELESTIA_CACHE_DEPS=ON -DCAELESTIA_OFFLINE="${CAELESTIA_OFFLINE:-OFF}" -DCMAKE_INSTALL_PREFIX="$HOME/.local" -DINSTALL_BINDIR="bin" -DINSTALL_DATADIR="lib/caelestia" -DINSTALL_QSCONFDIR="$HOME/.config/quickshell/caelestia" -DINSTALL_LIBDIR="lib/caelestia" -DINSTALL_QMLDIR="lib/qt6/qml" || {
         err "CMake configuration failed."
         exit 1
     }
@@ -496,6 +511,22 @@ else
     fi
 fi
 
+kwin_plugin_version() {
+    local ver=""
+    if [[ -f /usr/include/kwin/config-kwin.h ]]; then
+        ver="$(grep -oE 'KWIN_PLUGIN_VERSION_STRING "[^"]+"' /usr/include/kwin/config-kwin.h 2>/dev/null | cut -d'"' -f2 || true)"
+    fi
+    if [[ -z "$ver" ]] && command -v kwin_wayland >/dev/null 2>&1; then
+        ver="$(kwin_wayland --version 2>/dev/null | grep -oE '[0-9]+\.[0-9]+\.[0-9]+' | head -n1 || true)"
+    fi
+    printf '%s\n' "${ver:-unknown}"
+}
+
+effect_kwin_version() {
+    local so="$1"
+    grep -aoE 'org\.kde\.kwin\.EffectPluginFactory[0-9]+\.[0-9]+\.[0-9]+' "$so" 2>/dev/null | head -n1 | sed 's/org\.kde\.kwin\.EffectPluginFactory//' || true
+}
+
 WS_STAMP="${XDG_CACHE_HOME:-$HOME/.cache}/caelestia-kde/workspace-tracker.installed"
 
 ws_built_effect() {
@@ -512,7 +543,8 @@ ws_built_effect() {
 
 ws_signature() {
     local built="$1" installed="$2"
-    printf '%s %s\n' \
+    printf '%s %s %s\n' \
+        "$(kwin_plugin_version)" \
         "$(file_sha256 "$built")" \
         "$(stat -c '%s:%Y' "$installed" 2>/dev/null || echo missing)"
 }
@@ -526,9 +558,14 @@ ws_installed_path() {
 }
 
 ws_effect_up_to_date() {
-    local built installed
+    local built installed kwin_ver
     built="$(ws_built_effect)" || return 1
     installed="$(ws_installed_path "$(basename "$built")")" || return 1
+    kwin_ver="$(kwin_plugin_version)"
+    if [[ -n "$kwin_ver" && "$kwin_ver" != "unknown" ]]; then
+        [[ "$(effect_kwin_version "$installed")" == "$kwin_ver" ]] || return 1
+        [[ "$(effect_kwin_version "$built")" == "$kwin_ver" ]] || return 1
+    fi
     [[ -f "$WS_STAMP" ]] || return 1
     [[ "$(cat "$WS_STAMP")" == "$(ws_signature "$built" "$installed")" ]]
 }
@@ -542,6 +579,14 @@ ws_record_install() {
 }
 
 info "Building and installing workspace-tracker KWin Effect..."
+ws_target_kwin_ver="$(kwin_plugin_version)"
+if ws_prev_built="$(ws_built_effect 2>/dev/null)"; then
+    if [[ -n "$ws_target_kwin_ver" && "$ws_target_kwin_ver" != "unknown" ]] \
+        && [[ "$(effect_kwin_version "$ws_prev_built")" != "$ws_target_kwin_ver" ]]; then
+        info "KWin version changed ($ws_target_kwin_ver) — cleaning workspace-tracker build cache..."
+        rm -rf kwin-effects/workspace-tracker/build
+    fi
+fi
 prepare_build_dir kwin-effects/workspace-tracker/build
 WS_INSTALLED=0
 WS_RECONFIGURE=1
@@ -569,6 +614,7 @@ if [[ $WS_INSTALLED -eq 1 ]]; then
         kwriteconfig6 --file kwinrc --group Plugins --key kwin_workspace_trackerEnabled true
     fi
     if [[ $WS_RECONFIGURE -eq 1 ]]; then
+        qdbus6 org.kde.KWin /Effects org.kde.kwin.Effects.loadEffect kwin_workspace_tracker 2>/dev/null || true
         qdbus6 org.kde.KWin /KWin reconfigure 2>/dev/null || true
         ok "Installed workspace-tracker to KDE."
     fi
@@ -582,6 +628,7 @@ QML_MODULES=(
     Caelestia/Settings
     Caelestia/Models
     Caelestia/Services
+    Caelestia/Services/QuickShare
     Caelestia/Blobs
     Caelestia/Images
     Caelestia/Layouts
@@ -610,43 +657,17 @@ write_shell_environment
 
 mkdir -p ~/.local/bin ~/.config/systemd/user
 
-info "Installing Caelestia bin wrappers..."
-install -m 755 "$BUNDLE_DIR/src/bin/caelestia-record" ~/.local/bin/caelestia-record
-install -m 755 "$BUNDLE_DIR/src/bin/caelestia-screenshot" ~/.local/bin/caelestia-screenshot
-install -m 755 "$BUNDLE_DIR/src/bin/caelestia-shell-ipc" ~/.local/bin/caelestia-shell-ipc
-install -m 755 "$BUNDLE_DIR/src/bin/caelestia" ~/.local/bin/caelestia
-install -m 755 "$BUNDLE_DIR/src/bin/caelestia-color" ~/.local/bin/caelestia-color
-install -m 755 "$BUNDLE_DIR/src/bin/caelestia-update" ~/.local/bin/caelestia-update
-install -m 755 "$BUNDLE_DIR/src/bin/caelestia-check-updates" ~/.local/bin/caelestia-check-updates
-ok "Caelestia bin wrappers installed to ~/.local/bin"
-
+install -m 644 "$BUNDLE_DIR/scripts/lib/update-state.sh" "$(install_lib_dir)/update-state.sh"
 info "Installing the update-checker units..."
 install -m 644 "$BUNDLE_DIR/src/systemd/caelestia-update-checker.service" ~/.config/systemd/user/caelestia-update-checker.service
 install -m 644 "$BUNDLE_DIR/src/systemd/caelestia-update-checker.timer" ~/.config/systemd/user/caelestia-update-checker.timer
-systemctl --user daemon-reload
-systemctl --user enable --now caelestia-update-checker.timer
-ok "Update-checker timer enabled"
-
-CAELESTIA_SHARE="$HOME/.local/lib/caelestia"
-if [[ -d "$BUNDLE_DIR/src/matugen" && -d "$BUNDLE_DIR/src/schemes" ]]; then
-    info "Installing the color pipeline data..."
-    rm -rf "$CAELESTIA_SHARE/matugen.old"
-    [[ -d "$CAELESTIA_SHARE/matugen" ]] && mv "$CAELESTIA_SHARE/matugen" "$CAELESTIA_SHARE/matugen.old"
-    mkdir -p "$CAELESTIA_SHARE"
-    cp -r "$BUNDLE_DIR/src/matugen" "$CAELESTIA_SHARE/matugen"
-    rm -rf "$CAELESTIA_SHARE/schemes"
-    cp -r "$BUNDLE_DIR/src/schemes" "$CAELESTIA_SHARE/schemes"
-    rm -rf "$CAELESTIA_SHARE/matugen.old"
-    find "$CAELESTIA_SHARE/matugen" "$CAELESTIA_SHARE/schemes" -type d -exec chmod 755 {} +
-    find "$CAELESTIA_SHARE/matugen" "$CAELESTIA_SHARE/schemes" -type f -exec chmod 644 {} +
-    ok "Color pipeline data installed to $CAELESTIA_SHARE"
-    if ! command -v matugen >/dev/null 2>&1; then
-        warn "matugen binary is missing from PATH; dynamic wallpaper color schemes require matugen."
-    fi
+if [[ -n "${XDG_RUNTIME_DIR:-}" ]]; then
+    systemctl --user daemon-reload || true
+    systemctl --user enable --now caelestia-update-checker.timer || true
+    ok "Update-checker timer enabled"
 else
-    warn "Color pipeline data missing from the checkout; wallpaper and scheme will not work."
+    info "Skipping update-checker timer setup (no XDG_RUNTIME_DIR)"
 fi
-
 
 DEST_DIR="$HOME/.config/quickshell/caelestia/assets/icons/yet-another-monochrome-icon-set"
 TMP_DIR="${DEST_DIR}.tmp"

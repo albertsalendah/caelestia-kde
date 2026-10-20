@@ -16,12 +16,10 @@ Searcher {
     readonly property string currentNamePath: `${Paths.state}/wallpaper/path.txt`
     readonly property string fallback: Quickshell.shellPath("assets/wallpaper.webp")
 
-    property bool showPreview: false
-    readonly property string current: showPreview ? previewPath : actualCurrent
+    readonly property bool previewing: previewPath !== ""
+    readonly property string current: previewing ? previewPath : actualCurrent
     property string previewPath
     property string actualCurrent
-    property bool previewColourLock
-    property bool pendingPreviewClear
     property var videoThumbs: ({})
     property var videoThumbsPending: ({})
 
@@ -110,6 +108,8 @@ Searcher {
     }
 
     function setWallpaper(path: string): void {
+        if (previewing && path !== actualCurrent)
+            previewColoursState.hold();
         actualCurrent = path;
         if (Images.isVideo(path)) {
             const thumb = thumbFor(path);
@@ -118,7 +118,7 @@ Searcher {
                 Quickshell.execDetached(["sh", "-c", script, "--", thumb, path, root.currentNamePath]);
                 syncPlasmaWallpaper(thumb);
             } else {
-                Quickshell.execDetached(["sh", "-c", 'printf "%s" > "$1"', "--", path, root.currentNamePath]);
+                Quickshell.execDetached(["sh", "-c", 'printf "%s" "$1" > "$2"', "--", path, root.currentNamePath]);
             }
         } else {
             Quickshell.execDetached(["caelestia", "wallpaper", "-f", path, ...Colours.smartArg]);
@@ -126,16 +126,12 @@ Searcher {
         }
     }
 
-    // Mirrors the wallpaper onto Plasma's own desktop background so it doesn't
-    // stay stale (e.g. showing the deploy-time default) whenever the shell
-    // isn't running to keep it in sync itself, such as after a crash/exit.
     function syncPlasmaWallpaper(imagePath: string): void {
         if (!imagePath)
             return;
         const script = 'var allDesktops = desktops();' +
             'for (var i = 0; i < allDesktops.length; i++) {' +
             '    var d = allDesktops[i];' +
-            '    d.wallpaperPlugin = "org.kde.image";' +
             '    d.currentConfigGroup = ["Wallpaper", "org.kde.image", "General"];' +
             '    d.writeConfig("Image", "file://" + ' + JSON.stringify(imagePath) + ');' +
             '}';
@@ -147,18 +143,18 @@ Searcher {
 
     function preview(path: string): void {
         previewPath = path;
-        showPreview = true;
+        previewColourOf(path);
+    }
 
-        if (Colours.scheme === "dynamic")
-            getPreviewColoursProc.running = true;
+    function previewColourOf(path: string): void {
+        if (Colours.scheme !== "dynamic")
+            return;
+        previewColoursState.show(thumbFor(path));
     }
 
     function stopPreview(): void {
-        showPreview = false;
-        if (previewColourLock)
-            pendingPreviewClear = true;
-        else
-            Colours.showPreview = false;
+        previewPath = "";
+        previewColoursState.stop();
     }
 
     function getThumbnailPath(path: string): string {
@@ -214,17 +210,14 @@ Searcher {
                 Quickshell.execDetached(["sh", "-c", script, "--", out, path, root.currentNamePath]);
                 syncPlasmaWallpaper(out);
             }
+            if (path === root.previewPath && root.previewing)
+                root.previewColourOf(path);
         }
         const pending = root.videoThumbsPending;
         delete pending[path];
         root.videoThumbsPending = pending;
         if (proc)
             proc.destroy();
-    }
-
-    onPreviewColourLockChanged: {
-        if (!previewColourLock && pendingPreviewClear)
-            Colours.showPreview = false;
     }
 
     list: filteredList
@@ -265,13 +258,11 @@ Searcher {
                 return;
             }
             root.actualCurrent = wall;
-            root.previewColourLock = false;
             if (!Images.isVideo(wall))
                 syncPlasmaWallpaper(wall);
         }
         onLoadFailed: {
             root.actualCurrent = root.fallback;
-            root.previewColourLock = false;
             Quickshell.execDetached(["caelestia", "wallpaper", "-f", root.fallback, ...Colours.smartArg]);
             syncPlasmaWallpaper(root.fallback);
         }
@@ -286,15 +277,7 @@ Searcher {
         nameFilters: Images.validImageExtensions.concat(Images.validVideoExtensions).map(e => `*.${e}`)
     }
 
-    Process {
-        id: getPreviewColoursProc
-
-        command: ["caelestia", "wallpaper", "-p", root.previewPath, ...Colours.smartArg]
-        stdout: StdioCollector {
-            onStreamFinished: {
-                Colours.load(text, true);
-                Colours.showPreview = true;
-            }
-        }
+    PreviewColours {
+        id: previewColoursState
     }
 }

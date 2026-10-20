@@ -70,11 +70,18 @@ that. An install that came from a package updates through its package manager in
 
 ### Uninstalling
 
-Choose *Uninstall* from the installer TUI, or run:
+Open *Settings*, go to the *About* page, and choose *Uninstall Caelestia*. That opens
+the uninstaller in a terminal, where it asks for confirmation of its own.
+
+You can also choose *Uninstall* from the installer TUI, or run the script from the
+checkout directly:
 
 ```bash
 bash ./uninstall.sh
 ```
+
+A packaged install has no script to run: the row names the package manager's command
+instead.
 
 ## Independent session (Arch-based)
 

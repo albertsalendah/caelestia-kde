@@ -23,7 +23,7 @@ ColumnLayout {
     }
 
     spacing: Tokens.spacing.small * scaleOffset
-    width: Math.max(Tokens.sizes.bar.kbLayoutWidth * scaleOffset, _isSidebarOpen ? (Tokens.sizes.sidebar.width * scaleOffset) - Tokens.padding.extraLargeIncreased * scaleOffset : 0)
+    width: Math.max(Tokens.sizes.bar.kbLayoutWidth * scaleOffset, _isSidebarOpen ? (Visibilities.sidebarWidthFor(Tokens.sizes.sidebar.width) * scaleOffset) - Tokens.padding.extraLargeIncreased * scaleOffset : 0)
 
     Component.onCompleted: kb.start()
 
@@ -49,42 +49,40 @@ ColumnLayout {
 
         clip: true
         interactive: true
+        boundsBehavior: Flickable.StopAtBounds
         implicitHeight: Math.min(contentHeight, 320)
         visible: kb.visibleModel.count > 0
         spacing: Tokens.spacing.small
 
         add: Transition {
-            NumberAnimation {
-                properties: "opacity"
+            Anim {
+                property: "opacity"
                 from: 0
                 to: 1
-                duration: 140
+                type: Anim.FastEffects
             }
-            NumberAnimation {
-                properties: "y"
-                duration: 180
-                easing.type: Easing.OutCubic
+            Anim {
+                property: "y"
+                type: Anim.FastSpatial
             }
         }
         remove: Transition {
-            NumberAnimation {
-                properties: "opacity"
+            Anim {
+                property: "opacity"
                 to: 0
-                duration: 100
+                type: Anim.FastEffects
             }
         }
         move: Transition {
-            NumberAnimation {
-                properties: "y"
-                duration: 180
-                easing.type: Easing.OutCubic
+            Anim {
+                property: "y"
+                type: Anim.FastSpatial
             }
         }
         displaced: Transition {
-            NumberAnimation {
-                properties: "y"
-                duration: 180
-                easing.type: Easing.OutCubic
+            Anim {
+                property: "y"
+                type: Anim.FastSpatial
             }
         }
 
@@ -98,7 +96,7 @@ ColumnLayout {
             width: list.width
             height: Math.max(36, rowText.implicitHeight + Tokens.padding.small)
             ToolTip.visible: isDisabled && layer.containsMouse
-            ToolTip.text: "XKB supports only 4 layouts at a time"
+            ToolTip.text: qsTr("XKB supports only 4 layouts at a time")
 
             StateLayer {
                 id: layer
@@ -169,7 +167,7 @@ ColumnLayout {
 
         Connections {
             function onActiveLabelChanged() {
-                if (!activeRow.visible)
+                if (!activeRow.visible || !Tokens.anim.enabled)
                     return;
                 popIn.restart();
             }
@@ -183,34 +181,32 @@ ColumnLayout {
             running: false
 
             ParallelAnimation {
-                NumberAnimation {
+                Anim {
                     target: activeRow
                     property: "opacity"
                     to: 0.0
-                    duration: 70
+                    type: Anim.FastEffects
                 }
-                NumberAnimation {
+                Anim {
                     target: activeRow
                     property: "scale"
-                    to: 0.92
-                    duration: 70
+                    to: 0.96
+                    type: Anim.FastEffects
                 }
             }
 
             ParallelAnimation {
-                NumberAnimation {
+                Anim {
                     target: activeRow
                     property: "opacity"
                     to: 1.0
-                    duration: 160
-                    easing.type: Easing.OutCubic
+                    type: Anim.DefaultEffects
                 }
-                NumberAnimation {
+                Anim {
                     target: activeRow
                     property: "scale"
                     to: 1.0
-                    duration: 220
-                    easing.type: Easing.OutBack
+                    type: Anim.FastSpatial
                 }
             }
         }

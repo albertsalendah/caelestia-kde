@@ -191,6 +191,9 @@ stop_spinner() {
 }
 
 start_spinner
+# The full cleanup trap lands later; until then a Ctrl-C must still stop
+# the spinner and hand the terminal back.
+trap 'stty sane 2>/dev/null || true; tput cnorm 2>/dev/null || true; kill "${SPINNER_PID:-}" 2>/dev/null || true' EXIT
 
 PREBUILT_BIN=""
 if [[ -z "${CAELESTIA_FORCE_BUILD_INSTALLER:-}" ]] && command -v curl >/dev/null 2>&1 && checkout_may_use_prebuilt_installer; then
@@ -240,7 +243,7 @@ else
         fi
 
         BUILD_DIR="$BUNDLE_DIR/installer/build"
-        BUILD_LOG="/tmp/caelestia_build.log"
+        BUILD_LOG="$(mktemp "${TMPDIR:-/tmp}/caelestia-build.XXXXXX.log")"
         # Configure from a clean directory: cmake bakes absolute source paths into
         # CMakeCache.txt and refuses to configure over a cache naming a different tree.
         # One checkout routinely has two names here - ~/Desktop/caelestia-kwin and
@@ -274,6 +277,8 @@ fi
 
 cleanup_install_state() {
     stty sane 2>/dev/null || true
+    kill "${SPINNER_PID:-}" 2>/dev/null || true
+    rm -f "${BUILD_LOG:-}" "${ERR_LOG:-}" 2>/dev/null || true
     tput cnorm 2>/dev/null || true
     printf '\033[0m\033[?1049l\033[?25h' 2>/dev/null || true
 
@@ -308,12 +313,15 @@ if [[ ! -x "$BIN" ]]; then
 fi
 
 _installer_start=$(date +%s)
-"$BIN" "$@" 2>/tmp/caelestia_installer_err.log
-_exit_code=$?
+# Under set -e a plain invocation would kill this script on the installer's first
+# non-zero exit, making the diagnostic block below unreachable exactly when it matters.
+ERR_LOG="$(mktemp "${TMPDIR:-/tmp}/caelestia-installer-err.XXXXXX.log")"
+_exit_code=0
+"$BIN" "$@" 2>"$ERR_LOG" || _exit_code=$?
 _installer_elapsed=$(($(date +%s) - _installer_start))
 
 _reached_done=0
-if grep -q '\[installer\] done (success)' /tmp/caelestia_installer_err.log 2>/dev/null; then
+if grep -q '\[installer\] done (success)' "$ERR_LOG" 2>/dev/null; then
     _reached_done=1
 fi
 
@@ -343,9 +351,9 @@ if [[ $_show_diagnostic -eq 1 ]]; then
     echo "============================================================"
     echo ""
 
-    if [[ -s /tmp/caelestia_installer_err.log ]]; then
+    if [[ -s "$ERR_LOG" ]]; then
         echo "--- stderr output ---"
-        cat /tmp/caelestia_installer_err.log
+        cat "$ERR_LOG"
         echo "--- end stderr ------"
         echo ""
     else

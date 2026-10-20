@@ -180,7 +180,7 @@ PageBase {
                                 ? qsTr("Saved weather coordinates: %1").arg(GlobalConfig.services.weatherLocation)
                                 : qsTr("No fixed location saved")
                             color: Colours.palette.m3onSurfaceVariant
-                            font: Tokens.font.label.small
+                            font: NexusStyle.secondaryFont
                             elide: Text.ElideRight
                         }
                     }
@@ -262,7 +262,7 @@ PageBase {
                             text: Weather.locationSearchError
                             wrapMode: Text.WordWrap
                             color: Colours.palette.m3error
-                            font: Tokens.font.label.small
+                            font: NexusStyle.secondaryFont
                         }
 
                         StyledText {
@@ -270,7 +270,7 @@ PageBase {
                             visible: !Weather.locationSearchError && locationField.text.length >= 2 && Weather.locationSearchResults.length === 0
                             text: qsTr("No matching locations")
                             color: Colours.palette.m3onSurfaceVariant
-                            font: Tokens.font.label.small
+                            font: NexusStyle.secondaryFont
                         }
 
                         Repeater {
@@ -314,7 +314,7 @@ PageBase {
                                     StyledText {
                                         text: resultRow.modelData.timezone || ""
                                         color: Colours.palette.m3onSurfaceVariant
-                                        font: Tokens.font.label.small
+                                        font: NexusStyle.secondaryFont
                                         visible: text.length > 0
                                         elide: Text.ElideRight
                                     }
@@ -359,7 +359,7 @@ PageBase {
                             width: root.compactWeatherPicker ? Math.max(120, actionFlow.width - Tokens.padding.extraLarge * 2) : 260
                             text: root.pendingLocation ? (root.pendingLocation.label || root.pendingLocation.name) : qsTr("No location selected")
                             color: Colours.palette.m3onSurfaceVariant
-                            font: Tokens.font.label.small
+                            font: NexusStyle.secondaryFont
                             elide: Text.ElideRight
                             verticalAlignment: Text.AlignVCenter
                         }

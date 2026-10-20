@@ -35,6 +35,7 @@ PageBase {
                 first: true
                 text: qsTr("Wallpaper slideshow")
                 subtext: qsTr("Automatically change wallpaper on a timer")
+                reset: ({ node: GlobalConfig.background, setting: "slideshowEnabled" })
                 checked: Config.background.slideshowEnabled
                 onToggled: GlobalConfig.background.slideshowEnabled = checked
                 enabled: Config.background.wallpaperEnabled
@@ -46,6 +47,7 @@ PageBase {
                 icon: ""
                 label: qsTr("Slideshow interval")
                 valueLabel: Math.max(1, Math.round(value * 60)) + " min"
+                reset: ({ node: GlobalConfig.background, setting: "slideshowInterval" })
                 value: Config.background.slideshowInterval
                 enabled: Config.background.slideshowEnabled && Config.background.wallpaperEnabled
                 onMoved: v => GlobalConfig.background.slideshowInterval = v
@@ -57,6 +59,7 @@ PageBase {
                 last: true
                 text: qsTr("Random order")
                 subtext: qsTr("Affects slideshow and the 'Next Wallpaper' right-click menu option")
+                reset: ({ node: GlobalConfig.background, setting: "slideshowRandom" })
                 checked: Config.background.slideshowRandom
                 onToggled: GlobalConfig.background.slideshowRandom = checked
                 enabled: Config.background.wallpaperEnabled

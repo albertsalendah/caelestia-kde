@@ -6,6 +6,7 @@ import Caelestia.Config
 import qs.components
 import qs.components.controls
 import qs.services
+import qs.modules.nexus.common
 
 StyledRect {
     id: root
@@ -15,10 +16,12 @@ StyledRect {
     property alias valueLabel: valueLabel.text
     property string subtext
     property real value
+    property var reset
     property bool first
     property bool last
     property bool iconClickable: false
     property bool spacious: false
+    property bool roomyHeader: false
 
     signal moved(value: real)
     signal interaction(value: real)
@@ -39,13 +42,16 @@ StyledRect {
         anchors.fill: parent
         anchors.margins: spacious ? Tokens.padding.largeIncreased : Tokens.padding.medium
         anchors.topMargin: spacious ? Tokens.padding.large : Tokens.padding.small
+        // Keep the same right inset as ToggleRow/StepperRow (12px) even when
+        // spacious, so reset icons line up in one column across every row type.
+        anchors.rightMargin: Tokens.padding.medium
         spacing: spacious ? Tokens.spacing.medium : Tokens.spacing.small
 
         MaterialIcon {
             id: icon
 
             visible: text !== ""
-            color: Colours.palette.m3onSurfaceVariant
+            color: root.enabled ? Colours.palette.m3onSurfaceVariant : Colours.disabledContent
             fontStyle: spacious ? Tokens.font.icon.medium : Tokens.font.icon.small
 
             MouseArea {
@@ -63,6 +69,7 @@ StyledRect {
 
             RowLayout {
                 Layout.fillWidth: true
+                Layout.minimumHeight: root.roomyHeader ? 40 : 0
                 spacing: Tokens.spacing.small
 
                 ColumnLayout {
@@ -74,6 +81,7 @@ StyledRect {
 
                         Layout.fillWidth: true
                         font: Tokens.font.body.small
+                        color: root.enabled ? Colours.palette.m3onSurface : Colours.disabledContent
                         elide: Text.ElideRight
                     }
 
@@ -81,8 +89,8 @@ StyledRect {
                         Layout.fillWidth: true
                         visible: root.subtext !== ""
                         text: root.subtext
-                        color: Colours.palette.m3onSurfaceVariant
-                        font: Tokens.font.label.small
+                        color: root.enabled ? Colours.palette.m3onSurfaceVariant : Colours.disabledContent
+                        font: NexusStyle.secondaryFont
                         elide: Text.ElideRight
                     }
                 }
@@ -90,8 +98,13 @@ StyledRect {
                 StyledText {
                     id: valueLabel
 
-                    color: Colours.palette.m3onSurfaceVariant
+                    color: root.enabled ? Colours.palette.m3onSurfaceVariant : Colours.disabledContent
                     font: Tokens.font.body.small
+                }
+
+                SettingResetButton {
+                    Layout.alignment: Qt.AlignVCenter
+                    options: root.reset
                 }
             }
 

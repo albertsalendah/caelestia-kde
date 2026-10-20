@@ -15,7 +15,7 @@ Item {
     required property ShellScreen screen
     required property Item wallpaper
     readonly property bool windowHidesVisualiser: Kwin.windowHidesDesktopWidgets(root.screen ? root.screen.name : "", Config.background.visualiser.hideOnAllMonitors)
-    readonly property bool shouldBeActive: Config.background.visualiser.enabled && !(GameMode.enabled && GlobalConfig.utilities.gameMode.disableVisualizer) && (!Config.background.visualiser.autoHide || !windowHidesVisualiser)
+    readonly property bool shouldBeActive: Config.background.visualiser.enabled && !Audio.muted && !(GameMode.enabled && GlobalConfig.utilities.gameMode.disableVisualizer) && (!Config.background.visualiser.autoHide || !windowHidesVisualiser)
     property real offset: shouldBeActive ? 0 : screen.height * 0.2
     readonly property var barWrapper: {
         let name = root.screen ? root.screen.name : undefined;
@@ -70,6 +70,7 @@ Item {
                     anchors.topMargin: Config.bar.position === "top" ? root.barExclusiveZone : Config.border.thickness
                     anchors.bottomMargin: Config.bar.position === "bottom" ? root.barExclusiveZone : Config.border.thickness
                     values: Audio.cava?.values ?? []
+                    sideWidth: Math.min(0.5, Math.max(0.05, 0.4 * Config.background.visualiser.size))
                     primaryColor: Qt.alpha(Colours.palette.m3primary, 0.7)
                     secondaryColor: Qt.alpha(Colours.palette.m3inversePrimary, 0.7)
                     rounding: Tokens.rounding.medium * Config.background.visualiser.rounding
@@ -90,7 +91,7 @@ Item {
                     }
                 }
                 FrameAnimation {
-                    running: root.opacity > 0 && !bars.settled && (Audio.cava?.values?.length ?? 0) > 0
+                    running: root.opacity > 0 && !bars.settled && (Audio.cava?.values?.length ?? 0) > 0 && Tokens.anim.enabled
                     onTriggered: bars.advance(frameTime)
                 }
             }

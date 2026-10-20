@@ -64,6 +64,7 @@ PageBase {
             first: true
             text: qsTr("Enable rich presence")
             subtext: qsTr("Broadcast custom presence to Vesktop")
+            reset: ({ node: GlobalConfig.services, setting: "arpcEnabled" })
             checked: GlobalConfig.services.arpcEnabled
             onToggled: GlobalConfig.services.arpcEnabled = checked
         }
@@ -73,6 +74,7 @@ PageBase {
             Layout.fillWidth: true
             text: qsTr("Auto-detect Steam games")
             subtext: qsTr("Automatically broadcast running Steam games")
+            reset: ({ node: GlobalConfig.services, setting: "arpcSteamAutoDetect" })
             checked: GlobalConfig.services.arpcSteamAutoDetect
             onToggled: GlobalConfig.services.arpcSteamAutoDetect = checked
         }
@@ -82,6 +84,7 @@ PageBase {
             Layout.fillWidth: true
             text: qsTr("Broadcast Caelestia info")
             subtext: qsTr("Broadcast shell uptime and system info")
+            reset: ({ node: GlobalConfig.services, setting: "arpcCaelestiaInfo" })
             checked: GlobalConfig.services.arpcCaelestiaInfo
             onToggled: GlobalConfig.services.arpcCaelestiaInfo = checked
         }
@@ -92,6 +95,7 @@ PageBase {
             last: true
             label: qsTr("Clear when idle")
             subtext: GlobalConfig.services.arpcIdleTimeout > 0 ? qsTr("Hide the presence after %1 minutes away").arg(Math.round(GlobalConfig.services.arpcIdleTimeout / 60)) : qsTr("Never hide the presence (minutes)")
+            reset: ({ node: GlobalConfig.services, setting: "arpcIdleTimeout" })
             value: Math.round(GlobalConfig.services.arpcIdleTimeout / 60)
             from: 0
             to: 60
@@ -137,7 +141,7 @@ PageBase {
 
                     StyledText {
                         text: qsTr("Used to fetch game icons for Steam games")
-                        font: Tokens.font.label.small
+                        font: NexusStyle.secondaryFont
                         color: Colours.palette.m3onSurfaceVariant
                         elide: Text.ElideRight
                     }
@@ -148,7 +152,7 @@ PageBase {
                     Layout.preferredHeight: 32
                     radius: Tokens.rounding.small
                     color: Colours.layer(Colours.palette.m3surfaceVariant, 2)
-                    
+
                     StyledTextField {
                         id: tokenInput
 
@@ -223,8 +227,8 @@ PageBase {
                 model: GlobalConfig.services.arpcTargetWindows
                 clip: true
 
-                move: Transition { NumberAnimation { properties: "y"; duration: 200; easing.type: Easing.OutCubic } }
-                moveDisplaced: Transition { NumberAnimation { properties: "y"; duration: 200; easing.type: Easing.OutCubic } }
+                move: Transition { Anim { properties: "y"; type: Anim.FastSpatial } }
+                moveDisplaced: Transition { Anim { properties: "y"; type: Anim.FastSpatial } }
 
                 delegate: StyledRect {
                     id: delegateRect
@@ -270,7 +274,7 @@ PageBase {
 
                                 StateLayer {
                                     anchors.fill: parent
-                                    radius: 14
+                                    radius: Tokens.rounding.full
                                     onClicked: {
                                         let list = Array.from(GlobalConfig.services.arpcTargetWindows);
                                         let labels = Array.from(GlobalConfig.services.arpcTargetWindowLabels);
@@ -299,7 +303,7 @@ PageBase {
                             Layout.preferredHeight: 24
 
                             placeholderText: qsTr("Custom label (optional) - use {class}, {title}")
-                            font: Tokens.font.label.small
+                            font: NexusStyle.secondaryFont
                             verticalAlignment: TextInput.AlignVCenter
 
                             property bool initializing: true
@@ -374,8 +378,8 @@ PageBase {
                 model: GlobalConfig.services.arpcSteamBlacklist
                 clip: true
 
-                move: Transition { NumberAnimation { properties: "y"; duration: 200; easing.type: Easing.OutCubic } }
-                moveDisplaced: Transition { NumberAnimation { properties: "y"; duration: 200; easing.type: Easing.OutCubic } }
+                move: Transition { Anim { properties: "y"; type: Anim.FastSpatial } }
+                moveDisplaced: Transition { Anim { properties: "y"; type: Anim.FastSpatial } }
 
                 delegate: StyledRect {
                     id: blacklistDelegateRect
@@ -406,7 +410,7 @@ PageBase {
                         StyledText {
                             Layout.fillWidth: true
                             Layout.alignment: Qt.AlignVCenter
-                            text: "Steam App ID: " + blacklistDelegateRect.modelData
+                            text: qsTr("Steam App ID: %1").arg(blacklistDelegateRect.modelData)
                             font: Tokens.font.body.small
                             elide: Text.ElideRight
                         }
@@ -418,7 +422,7 @@ PageBase {
 
                             StateLayer {
                                 anchors.fill: parent
-                                radius: 14
+                                radius: Tokens.rounding.full
                                 onClicked: {
                                     let list = Array.from(GlobalConfig.services.arpcSteamBlacklist);
                                     list.splice(blacklistDelegateRect.index, 1);
@@ -447,6 +451,7 @@ PageBase {
             last: true
             text: qsTr("Enable manual override")
             subtext: qsTr("Force broadcast this custom presence and ignore all other apps")
+            reset: ({ node: GlobalConfig.services, setting: "arpcManualOverride" })
             checked: GlobalConfig.services.arpcManualOverride
             onToggled: GlobalConfig.services.arpcManualOverride = checked
         }
@@ -468,7 +473,7 @@ PageBase {
                     spacing: Tokens.spacing.extraSmall
                     Layout.fillWidth: true
 
-                    StyledText { text: "App/game name"; color: Colours.palette.m3onSurface }
+                    StyledText { text: qsTr("App/game name"); color: Colours.palette.m3onSurface }
                     StyledInputField {
                         id: manualAppName
                         Layout.fillWidth: true
@@ -482,7 +487,7 @@ PageBase {
                     spacing: Tokens.spacing.extraSmall
                     Layout.fillWidth: true
 
-                    StyledText { text: "Details"; color: Colours.palette.m3onSurface }
+                    StyledText { text: qsTr("Details"); color: Colours.palette.m3onSurface }
                     StyledInputField {
                         id: manualDetails
                         Layout.fillWidth: true
@@ -496,7 +501,7 @@ PageBase {
                     spacing: Tokens.spacing.extraSmall
                     Layout.fillWidth: true
 
-                    StyledText { text: "State"; color: Colours.palette.m3onSurface }
+                    StyledText { text: qsTr("State"); color: Colours.palette.m3onSurface }
                     StyledInputField {
                         id: manualState
                         Layout.fillWidth: true
@@ -510,7 +515,7 @@ PageBase {
                     spacing: Tokens.spacing.extraSmall
                     Layout.fillWidth: true
 
-                    StyledText { text: "Large image key/URL"; color: Colours.palette.m3onSurface }
+                    StyledText { text: qsTr("Large image key/URL"); color: Colours.palette.m3onSurface }
                     StyledInputField {
                         id: manualLargeImage
                         Layout.fillWidth: true
@@ -524,7 +529,7 @@ PageBase {
                     spacing: Tokens.spacing.extraSmall
                     Layout.fillWidth: true
 
-                    StyledText { text: "Small image key/URL"; color: Colours.palette.m3onSurface }
+                    StyledText { text: qsTr("Small image key/URL"); color: Colours.palette.m3onSurface }
                     StyledInputField {
                         id: manualSmallImage
                         Layout.fillWidth: true
@@ -537,7 +542,7 @@ PageBase {
                 Item {
                     Layout.fillWidth: true
                     Layout.preferredHeight: 40
-                    
+
                     IconTextButton {
                         anchors.right: parent.right
                         anchors.verticalCenter: parent.verticalCenter

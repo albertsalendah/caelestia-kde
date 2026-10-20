@@ -35,7 +35,7 @@ PageBase {
             first: true
             text: qsTr("Force System Defaults (xdg-open)")
             subtext: qsTr("Override applications to use KDE system defaults")
-            
+
             checked: GlobalConfig.general.apps.audio.join(" ") === "xdg-open" &&
                      GlobalConfig.general.apps.playback.join(" ") === "xdg-open" &&
                      GlobalConfig.general.apps.explorer.join(" ") === "xdg-open"
@@ -76,6 +76,22 @@ PageBase {
             label: qsTr("Media playback")
             status: GlobalConfig.general.apps.playback.join(" ")
             onSelected: app => GlobalConfig.general.apps.playback = app.command
+        }
+
+        DefaultRow {
+            enabled: !systemDefaultsToggle.checked
+            icon: "web"
+            label: qsTr("Browser")
+            status: GlobalConfig.general.apps.browser.join(" ")
+            onSelected: app => GlobalConfig.general.apps.browser = app.command
+        }
+
+        DefaultRow {
+            enabled: !systemDefaultsToggle.checked
+            icon: "code"
+            label: qsTr("Editor")
+            status: GlobalConfig.general.apps.editor.join(" ")
+            onSelected: app => GlobalConfig.general.apps.editor = app.command
         }
 
         DefaultRow {
@@ -173,7 +189,7 @@ PageBase {
                                 Layout.fillWidth: true
                                 text: qsTr("Uses xdg-open (KDE Default)")
                                 color: Colours.palette.m3onSurfaceVariant
-                                font: Tokens.font.label.small
+                                font: NexusStyle.secondaryFont
                                 elide: Text.ElideRight
                             }
                         }
@@ -226,7 +242,7 @@ PageBase {
                                 visible: text !== ""
                                 text: (appItem.modelData.comment || appItem.modelData.genericName) ?? ""
                                 color: Colours.palette.m3onSurfaceVariant
-                                font: Tokens.font.label.small
+                                font: NexusStyle.secondaryFont
                                 elide: Text.ElideRight
                             }
                         }

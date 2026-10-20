@@ -9,6 +9,7 @@ StyledSwitch {
     id: root
 
     property string subtext
+    property var reset
     property alias first: bg.first
     property alias last: bg.last
     readonly property alias bg: bg
@@ -25,7 +26,7 @@ StyledSwitch {
 
     indicator.anchors.verticalCenter: verticalCenter
     indicator.anchors.right: right
-    indicator.anchors.rightMargin: root.horizontalPadding
+    indicator.anchors.rightMargin: resetBtn.visible ? resetBtn.width + resetBtn.anchors.rightMargin + Tokens.spacing.small : root.horizontalPadding
 
     onPressed: stateLayer.press(stateLayer.mouseX, stateLayer.mouseY)
 
@@ -65,6 +66,7 @@ StyledSwitch {
 
                 text: root.text
                 font: root.font
+                color: root.enabled ? Colours.palette.m3onSurface : Colours.disabledContent
                 elide: Text.ElideRight
             }
 
@@ -74,10 +76,21 @@ StyledSwitch {
 
                 visible: root.subtext
                 text: root.subtext
-                color: Colours.palette.m3onSurfaceVariant
-                font: Tokens.font.label.small
+                color: root.enabled ? Colours.palette.m3onSurfaceVariant : Colours.disabledContent
+                font: NexusStyle.secondaryFont
                 elide: Text.ElideRight
             }
         }
+    }
+
+    SettingResetButton {
+        id: resetBtn
+
+        // Same right inset as SliderRow/StepperRow so reset icons line up
+        // in one column across every row type.
+        anchors.right: parent.right
+        anchors.rightMargin: Tokens.padding.medium
+        anchors.verticalCenter: parent.verticalCenter
+        options: root.reset
     }
 }

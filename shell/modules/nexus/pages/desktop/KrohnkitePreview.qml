@@ -6,6 +6,7 @@ import Caelestia.Config
 import qs.components
 import qs.components.controls
 import qs.services
+import qs.modules.nexus.common
 
 // Live preview pane: a scaled-down screen rectangle showing how windows will be
 // arranged under the current Krohnkite layout and gap settings.
@@ -267,7 +268,7 @@ Item {
             StyledText {
                 text: qsTr("Windows:")
                 color: Colours.palette.m3onSurfaceVariant
-                font: Tokens.font.label.small
+                font: NexusStyle.secondaryFont
                 Layout.rightMargin: Tokens.spacing.small
             }
 
@@ -392,7 +393,7 @@ Item {
                     StyledText {
                         anchors.centerIn: parent
                         text: (winRect.index + 1).toString()
-                        font: Tokens.font.label.small
+                        font: NexusStyle.secondaryFont
                         color: winRect.index === 0
                             ? Colours.palette.m3onPrimaryContainer
                             : Colours.palette.m3onSecondaryContainer

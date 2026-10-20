@@ -40,17 +40,16 @@ int main(int argc, char** argv) {
         std::cout << Conditions::holds("plasma-installed", probe(true)) << Conditions::holds("plasma-installed", probe(false)) << " calls=" << calls << "\n";
         std::cout << (last == Conditions::plasma_probe_command() ? "asked the plasma command" : "asked something else") << "\n";
     } else if (what == "visible") {
-        // B needs plasma-installed, C names a condition nobody knows, D has a value that is not a name.
-        nlohmann::json items = nlohmann::json::parse(R"([
-            {"id": "A"},
-            {"id": "B", "only_if": "plasma-installed"},
-            {"id": "C", "only_if": "made-up"},
-            {"id": "D", "only_if": 7}
-        ])");
+        // B needs plasma-installed, C names a condition nobody knows; A names none.
+        struct Item {
+            std::string id;
+            std::string only_if;
+        };
+        const std::vector<Item> items = {{"A", ""}, {"B", "plasma-installed"}, {"C", "made-up"}};
         auto list = [&](bool answer) {
             std::string out;
-            for (const auto& item : Conditions::visible_items(items, probe(answer)))
-                out += item["id"].get<std::string>();
+            for (const auto& item : Conditions::visible(items, probe(answer)))
+                out += item.id;
             return out;
         };
         std::cout << list(true) << " " << list(false) << "\n";
@@ -88,7 +87,7 @@ test_the_menu_filter_keeps_items_without_a_condition_and_those_whose_condition_h
     local probe out
     probe="$(build_probe)" || return 0
     out="$("$probe" visible)"
-    assert_eq "ABCD ACD" "$out" "with Plasma: all four; without it only B goes (an unknown condition or a value that is not a name shows its item)"
+    assert_eq "ABC AC" "$out" "with Plasma: all three; without it only B goes (an unknown condition shows its item)"
 }
 
 test_a_probe_reports_the_exit_status_and_runs_each_command_once() {
@@ -155,12 +154,13 @@ true" "$out" "one item, in Installer options; no typo in a condition name (an un
 }
 
 test_the_menu_hides_items_by_condition_but_still_seeds_their_defaults() {
-    local ui defaults
+    local ui parse
     ui="$(cat "$UI_CPP")"
-    assert_contains "$ui" 'const json menu_items = Conditions::visible_items(all_items, Conditions::run_probe);' "render_menu draws the filtered items, asking the real probe"
-    defaults="$(awk '/void init_menu_defaults\(const json& items\)/ { on = 1 } on { print } on && /^    }$/ { exit }' "$UI_CPP")"
-    assert_contains "$defaults" 'g_answers' "the function found is the one that seeds the answers"
-    assert_not_contains "$defaults" 'only_if' "defaults are seeded for hidden items too, so the scripts always get PLASMA_MODE"
+    assert_contains "$ui" 'const std::vector<MenuItem> items = Conditions::visible(all_items, Conditions::run_probe);' "render_menu draws the filtered items, asking the real probe"
+    parse="$(awk '/std::vector<MenuItem> parse_menu\(const json& items\) \{/ { on = 1 } on { print } on && /^    }$/ { exit }' "$UI_CPP")"
+    assert_contains "$parse" 'g_answers' "the function found is the one that seeds the answers"
+    assert_contains "$parse" 'm.only_if = item.contains("only_if") && item["only_if"].is_string() ? item["only_if"].get<string>() : "";' "it reads the condition (a value that is not a string means none)"
+    assert_not_contains "$parse" 'Conditions::' "and seeds defaults without asking it, so the scripts always get PLASMA_MODE"
 }
 
 test_the_installer_still_compiles_with_the_menu_change() {

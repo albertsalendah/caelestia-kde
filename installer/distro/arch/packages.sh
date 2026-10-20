@@ -50,6 +50,8 @@ CORE_PACKAGES=(
     kcoreaddons kconfig networkmanager-qt kpipewire kwin
 
     ffmpeg libqalculate libsecret ksshaskpass libx11 vulkan-headers
+
+    protobuf openssl avahi
 )
 
 SHELL_PACKAGES=(

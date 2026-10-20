@@ -127,7 +127,7 @@ test_the_troubleshooting_guide_no_longer_covers_ydotoold_and_stays_numbered() {
     local doc
     doc="$(cat "$TROUBLESHOOTING")"
     assert_not_contains "$doc" "ydotoold" "no section for it"
-    assert_eq "### 7.1 ### 7.2 ### 7.3 ### 7.4 ### 7.5 ### 7.6" "$(grep -o '^### 7\.[0-9]' "$TROUBLESHOOTING" | tr '\n' ' ' | sed 's/ $//')" "section 7 has no gap"
+    assert_eq "### 7.1 ### 7.2 ### 7.3 ### 7.4 ### 7.5 ### 7.6 ### 7.7" "$(grep -o '^### 7\.[0-9]' "$TROUBLESHOOTING" | tr '\n' ' ' | sed 's/ $//')" "section 7 has no gap"
 }
 
 test_uninstall_still_cleans_up_after_older_installs() {

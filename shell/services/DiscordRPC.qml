@@ -171,12 +171,12 @@ Item {
         let topTargetTitle = "";
         let topTargetMatchIdx = -1;
 
-        const activeClass = Kwin.activeWindow.class ?? "";
+        const activeClass = Kwin.activeWindow?.class ?? "";
         if (activeClass !== "") {
             const activeIdx = Strings.findMatchingIndex(GlobalConfig.services.arpcTargetWindows, activeClass);
             if (activeIdx >= 0) {
                 topTargetClass = activeClass;
-                topTargetTitle = Kwin.activeWindow.title ?? "";
+                topTargetTitle = Kwin.activeWindow?.title ?? "";
                 topTargetMatchIdx = activeIdx;
             }
         }
@@ -210,12 +210,12 @@ Item {
             if (appId !== root.currentSteamAppId || !root.currentSteamData) {
                 root.currentSteamAppId = appId;
                 root.fetchSteamData(appId);
-                return; 
+                return;
             }
             if (root.currentSteamData) {
                 root.sendActivity({
                     details: root.currentSteamData.name,
-                    state: root.currentSteamData.state || "Playing via Steam",
+                    state: root.currentSteamData.state || qsTr("Playing via Steam"),
                     large_image: root.currentSteamData.icon || "steam",
                     small_image: "",
                     startTimestamp: root.shellStartTime
@@ -251,11 +251,11 @@ Item {
             let os = SysInfo.osPrettyName || SysInfo.osName || "Linux";
             let kernel = SysInfo.kernel ? SysInfo.kernel : "";
             let qsVersion = CUtils.version ? " (v" + CUtils.version + ")" : "";
-            
+
             let detailsStr = os;
             if (kernel) detailsStr += " • " + kernel;
 
-            let schemeName = Colours.scheme || (Colours.light ? "Light Mode" : "Dark Mode");
+            let schemeName = Colours.scheme || (Colours.light ? qsTr("Light Mode") : qsTr("Dark Mode"));
             let stateStr = "Scheme: " + schemeName;
             if (Colours.variant) stateStr += " | Variant: " + Colours.variant;
 
@@ -267,8 +267,8 @@ Item {
                 small_image: "",
                 startTimestamp: root.shellStartTime,
                 buttons: [
-                    { label: "Website", url: "https://caelestiashell.com" },
-                    { label: "GitHub", url: "https://github.com/ladybug-me/caelestia-kde" }
+                    { label: qsTr("Website"), url: "https://caelestiashell.com" },
+                    { label: qsTr("GitHub"), url: "https://github.com/ladybug-me/caelestia-kde" }
                 ]
             });
             return;
@@ -280,16 +280,16 @@ Item {
     function fetchSteamData(appId) {
         root.fetchingSteam = true;
         Requests.get("https://store.steampowered.com/api/appdetails?appids=" + appId, function(steamRes) {
-            let steamData = JSON.parse(steamRes);
+            let steamData = Requests.parseJson(steamRes);
             let gameName = "Unknown Steam Game (" + appId + ")";
             if (steamData && steamData[appId] && steamData[appId].success) {
                 gameName = steamData[appId].data.name;
             }
-                
+
             Requests.get("https://store.steampowered.com/appreviews/" + appId + "?json=1", function(revRes) {
                 let revData = null;
                 try { revData = JSON.parse(revRes); } catch(e) {}
-                let reviewText = "Playing via Steam";
+                let reviewText = qsTr("Playing via Steam");
                 if (revData && revData.query_summary && revData.query_summary.total_reviews > 0) {
                     let score = Math.round((revData.query_summary.total_positive / revData.query_summary.total_reviews) * 100);
                     let desc = revData.query_summary.review_score_desc || "Mixed";
@@ -340,7 +340,7 @@ Item {
                     root.updatePresence();
                 }
             }, function() {
-                root.currentSteamData = { name: gameName, icon: "", state: "Playing via Steam" };
+                root.currentSteamData = { name: gameName, icon: "", state: qsTr("Playing via Steam") };
                 root.fetchingSteam = false;
                 root.updatePresence();
             });
@@ -356,7 +356,7 @@ Item {
         if (data.name && data.name !== "") activity.name = data.name;
         if (data.state && data.state !== "") activity.state = data.state;
         if (data.details && data.details !== "") activity.details = data.details;
-        
+
         const assets = {};
         if (data.large_image && data.large_image !== "") assets.large_image = data.large_image;
         if (data.large_text && data.large_text !== "") assets.large_text = data.large_text;

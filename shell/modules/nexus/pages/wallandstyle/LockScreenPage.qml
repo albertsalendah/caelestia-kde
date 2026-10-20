@@ -148,6 +148,7 @@ PageBase {
             Layout.fillWidth: true
             text: qsTr("Sync with desktop wallpaper")
             subtext: qsTr("Keep the lock screen wallpaper in sync with the desktop wallpaper")
+            reset: ({ node: GlobalConfig.lock, setting: "syncWallpaper" })
             checked: Config.lock.syncWallpaper
             onToggled: {
                 GlobalConfig.lock.syncWallpaper = checked;
@@ -185,6 +186,7 @@ PageBase {
             Layout.fillWidth: true
             text: qsTr("Blur wallpaper")
             subtext: qsTr("Blur the entire wallpaper, not just behind the widgets")
+            reset: ({ node: GlobalConfig.lock, setting: "blurWallpaper" })
             checked: Config.lock.blurWallpaper
             onToggled: {
                 GlobalConfig.lock.blurWallpaper = checked;
@@ -201,6 +203,7 @@ PageBase {
             Layout.fillWidth: true
             text: qsTr("Fingerprint unlock")
             subtext: qsTr("Allow fingerprint authentication on the lock screen")
+            reset: ({ node: GlobalConfig.lock, setting: "enableFprint" })
             checked: Config.lock.enableFprint
             onToggled: {
                 GlobalConfig.lock.enableFprint = checked;
@@ -256,6 +259,7 @@ PageBase {
             Layout.fillWidth: true
             text: qsTr("Rotate profile picture shape")
             subtext: qsTr("Continuously rotate the profile picture shape")
+            reset: ({ node: GlobalConfig.lock, setting: "rotateProfilePic" })
             checked: Config.lock.rotateProfilePic
             onToggled: {
                 GlobalConfig.lock.rotateProfilePic = checked;
@@ -267,6 +271,7 @@ PageBase {
             Layout.fillWidth: true
             text: qsTr("Lock on startup")
             subtext: qsTr("Lock the session shortly after logging in")
+            reset: ({ node: GlobalConfig.lock, setting: "lockOnStartup" })
             checked: Config.lock.lockOnStartup
             onToggled: {
                 GlobalConfig.lock.lockOnStartup = checked;
@@ -278,6 +283,7 @@ PageBase {
             Layout.fillWidth: true
             text: qsTr("Hide notifications")
             subtext: qsTr("Hide notification previews until you unlock")
+            reset: ({ node: GlobalConfig.lock, setting: "hideNotifs" })
             checked: Config.lock.hideNotifs
             onToggled: {
                 GlobalConfig.lock.hideNotifs = checked;
@@ -290,6 +296,7 @@ PageBase {
             Layout.fillWidth: true
             text: qsTr("Recolor logo")
             subtext: qsTr("Tint the lock screen artwork to match the palette")
+            reset: ({ node: GlobalConfig.lock, setting: "recolourLogo" })
             checked: Config.lock.recolourLogo
             onToggled: {
                 GlobalConfig.lock.recolourLogo = checked;
@@ -306,6 +313,7 @@ PageBase {
             Layout.fillWidth: true
             text: qsTr("Sleep")
             subtext: qsTr("Show sleep action on the lock screen")
+            reset: ({ node: GlobalConfig.lock, setting: "showSleep" })
             checked: Config.lock.showSleep
             onToggled: {
                 GlobalConfig.lock.showSleep = checked;
@@ -317,6 +325,7 @@ PageBase {
             Layout.fillWidth: true
             text: qsTr("Hibernate")
             subtext: qsTr("Show hibernate action on the lock screen")
+            reset: ({ node: GlobalConfig.lock, setting: "showHibernate" })
             checked: Config.lock.showHibernate
             onToggled: {
                 GlobalConfig.lock.showHibernate = checked;
@@ -328,6 +337,7 @@ PageBase {
             Layout.fillWidth: true
             text: qsTr("Switch user")
             subtext: qsTr("Show switch user action on the lock screen")
+            reset: ({ node: GlobalConfig.lock, setting: "showSwitchUser" })
             checked: Config.lock.showSwitchUser
             onToggled: {
                 GlobalConfig.lock.showSwitchUser = checked;
@@ -339,6 +349,7 @@ PageBase {
             Layout.fillWidth: true
             text: qsTr("Log out")
             subtext: qsTr("Show log out action on the lock screen")
+            reset: ({ node: GlobalConfig.lock, setting: "showLogout" })
             checked: Config.lock.showLogout
             onToggled: {
                 GlobalConfig.lock.showLogout = checked;
@@ -350,6 +361,7 @@ PageBase {
             Layout.fillWidth: true
             text: qsTr("Restart")
             subtext: qsTr("Show restart action on the lock screen")
+            reset: ({ node: GlobalConfig.lock, setting: "showReboot" })
             checked: Config.lock.showReboot
             onToggled: {
                 GlobalConfig.lock.showReboot = checked;
@@ -362,6 +374,7 @@ PageBase {
             Layout.fillWidth: true
             text: qsTr("Shut down")
             subtext: qsTr("Show shut down action on the lock screen")
+            reset: ({ node: GlobalConfig.lock, setting: "showShutdown" })
             checked: Config.lock.showShutdown
             onToggled: {
                 GlobalConfig.lock.showShutdown = checked;

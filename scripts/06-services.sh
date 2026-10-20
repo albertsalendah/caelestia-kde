@@ -5,6 +5,7 @@ set -euo pipefail
 source "$(dirname "${BASH_SOURCE[0]}")/lib/install-kind.sh"
 source "$(dirname "${BASH_SOURCE[0]}")/lib/log.sh"
 source "$(dirname "${BASH_SOURCE[0]}")/lib/privileges.sh"
+source "$(dirname "${BASH_SOURCE[0]}")/lib/virtual-desktops.sh"
 
 echo
 echo ""
@@ -26,17 +27,7 @@ done
 echo "  Disabling legacy quickshell-kde-bridge KWin script..."
 kwriteconfig6 --file kwinrc --group "Plugins" --key "quickshell-kde-bridgeEnabled" "false"
 
-echo "  Setting default KWin virtual desktops to 5 (only if not already configured)..."
-EXISTING_DESKTOPS="$(kreadconfig6 --file kwinrc --group "Desktops" --key "Number" 2>/dev/null || true)"
-if [ -z "$EXISTING_DESKTOPS" ]; then
-    kwriteconfig6 --file kwinrc --group "Desktops" --key "Number" "5"
-    kwriteconfig6 --file kwinrc --group "Desktops" --key "Rows" "1"
-    for i in $(seq 1 5); do
-        kwriteconfig6 --file kwinrc --group "Desktops" --key "Name_$i" "Desktop $i"
-    done
-else
-    echo "  Existing virtual desktop configuration found - leaving it untouched."
-fi
+ensure_five_virtual_desktops
 
 # Earlier versions of this installer set up ydotoold (key injection for an on-screen keyboard)
 # and a udev rule for /dev/uinput. Neither is installed any more. What an earlier version left is
@@ -101,5 +92,50 @@ if [[ "${INSTALL_BLUEDEVIL:-true}" == "true" ]] && systemctl list-unit-files blu
         warn "Could not enable bluetooth.service; run: sudo systemctl enable --now bluetooth.service"
     fi
 fi
+
+configure_quick_share() {
+    local bundle="${BUNDLE_DIR:-$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)}"
+    local setup="$bundle/shell/scripts/quickshare_setup.sh"
+    local port_file="$bundle/shell/scripts/quickshare-port"
+    local port status
+
+    if install_is_packaged; then
+        skip "Quick Share's setup is the shell's own prompt on a packaged install."
+        return 0
+    fi
+
+    if [[ ! -f "$setup" ]]; then
+        warn "Quick Share's setup helper is missing from $setup; it may not be able to receive."
+        return 0
+    fi
+
+    if [[ ! -f "$port_file" ]]; then
+        warn "Quick Share's transfer port is missing from $port_file; it may not be able to receive."
+        return 0
+    fi
+
+    # The port the service listens on, read from the file the plugin build bakes it in
+    # from: the rule below has to open the port the listener actually binds, and a second
+    # copy of the number here is what would let the two drift apart.
+    port="$(<"$port_file")"
+    if ! [[ "$port" =~ ^[0-9]+$ ]]; then
+        warn "Quick Share's transfer port in $port_file is not a port number; it may not be able to receive."
+        return 0
+    fi
+
+    status="$(bash "$setup" --status --port "$port" 2>/dev/null || true)"
+    if [[ "$status" != *"SETUP=needed"* ]]; then
+        skip "Quick Share already has the access it needs."
+        return 0
+    fi
+
+    if caelestia_sudo bash "$setup" --port "$port"; then
+        ok "Quick Share can receive: Avahi is running and port $port is open."
+    else
+        warn "Quick Share setup did not finish; retry from Settings -> Services -> Quick Share."
+    fi
+}
+
+configure_quick_share
 
 ok "Services configured."

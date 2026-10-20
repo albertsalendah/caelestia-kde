@@ -18,11 +18,13 @@ PageBase {
     id: root
 
     property var fonts: [
+        { label: qsTr("Follow system"), family: "", mono: false },
         { label: qsTr("Google Sans Flex"), family: "GoogleSansFlex", mono: false },
         { label: qsTr("Rubik"), family: "Rubik", mono: false },
     ]
 
     property var monoFonts: [
+        { label: qsTr("Follow system"), family: "", mono: true },
         { label: qsTr("CaskaydiaCove NF"), family: "CaskaydiaCove NF", mono: true },
         { label: qsTr("JetBrainsMono Nerd Font"), family: "JetBrainsMono Nerd Font", mono: true },
     ]
@@ -47,6 +49,38 @@ PageBase {
             icon: "restart_alt"
             type: TextButton.Filled
             onClicked: Launch.exec(["bash", "-c", `bash "${Quickshell.shellPath("scripts/restart_shell.sh")}"; sleep 1; caelestia shell nexus openPage 0 8`])
+        },
+        IconTextButton {
+            id: resetBtn
+
+            property bool armed: false
+            readonly property bool dirty: {
+                const nodes = [GlobalConfig.appearance, GlobalConfig.border, GlobalConfig.appearance.rounding, GlobalConfig.appearance.transparency, GlobalConfig.appearance.font, GlobalConfig.appearance.spacing, GlobalConfig.appearance.padding, GlobalConfig.appearance.anim.durations];
+                return nodes.some(n => n.overrides.length > 0);
+            }
+
+            text: resetBtn.armed ? qsTr("Sure?") : qsTr("Reset settings")
+            icon: "restart_alt"
+            type: resetBtn.dirty ? TextButton.Filled : TextButton.Tonal
+            enabled: resetBtn.dirty || resetBtn.armed
+            onClicked: {
+                if (resetBtn.armed) {
+                    resetBtn.armed = false;
+                    resetArmTimer.stop();
+                    GlobalConfig.resetOption("appearance");
+                    GlobalConfig.resetOption("border");
+                } else {
+                    resetBtn.armed = true;
+                    resetArmTimer.start();
+                }
+            }
+
+            Timer {
+                id: resetArmTimer
+
+                interval: 3000
+                onTriggered: resetBtn.armed = false
+            }
         }
     ]
 
@@ -90,6 +124,7 @@ PageBase {
             spacing: 0
 
             ToggleRow {
+                reset: ({ node: GlobalConfig.appearance, setting: "pitchBlack" })
                 first: true
                 text: qsTr("Bezel mode (Pitch black)")
                 subtext: qsTr("Make the shell pitch black to blend with display bezels")
@@ -98,6 +133,7 @@ PageBase {
                 Layout.fillWidth: true
             }
             ToggleRow {
+                reset: ({ node: GlobalConfig.appearance, setting: "islands" })
                 text: qsTr("Islands")
                 subtext: qsTr("Everything appears as its own floating widget (Very Experimental)")
                 checked: GlobalConfig.appearance.islands
@@ -106,6 +142,7 @@ PageBase {
                 Layout.fillWidth: true
             }
             StepperRow {
+                reset: ({ node: GlobalConfig.border, setting: "thickness" })
                 label: qsTr("Border thickness")
                 subtext: qsTr("Thickness of the shell border in pixels. Set to 0 for a borderless look")
                 value: GlobalConfig.border.thickness
@@ -116,6 +153,7 @@ PageBase {
                 Layout.topMargin: Tokens.spacing.extraSmall / 2 - parent.spacing
             }
             StepperRow {
+                reset: ({ node: GlobalConfig.appearance.rounding, setting: "scale" })
                 label: qsTr("Corner radius scale")
                 subtext: qsTr("Multiplies the shell's corner rounding")
                 value: GlobalConfig.appearance.rounding.scale
@@ -126,6 +164,7 @@ PageBase {
                 Layout.topMargin: Tokens.spacing.extraSmall / 2 - parent.spacing
             }
             ToggleRow {
+                reset: ({ node: GlobalConfig.appearance.transparency, setting: "enabled" })
                 text: qsTr("Transparency")
                 subtext: qsTr("Enable transparency across the shell")
                 checked: GlobalConfig.appearance.transparency.enabled
@@ -139,6 +178,8 @@ PageBase {
                 Layout.fillWidth: true
             }
             SliderRow {
+                reset: ({ node: GlobalConfig.appearance.transparency, setting: "base" })
+                roomyHeader: true
                 label: qsTr("Base opacity")
                 valueLabel: Math.round(value * 100) + "%"
                 value: GlobalConfig.appearance.transparency.base
@@ -147,29 +188,13 @@ PageBase {
                 Layout.topMargin: Tokens.spacing.extraSmall / 2 - parent.spacing
             }
             SliderRow {
+                reset: ({ node: GlobalConfig.appearance.transparency, setting: "layers" })
                 label: qsTr("Layers opacity")
                 subtext: qsTr("Requires shell restart")
                 valueLabel: Math.round(value * 100) + "%"
                 value: GlobalConfig.appearance.transparency.layers
                 enabled: GlobalConfig.appearance.transparency.enabled
                 onMoved: v => GlobalConfig.appearance.transparency.layers = v
-                Layout.topMargin: Tokens.spacing.extraSmall / 2 - parent.spacing
-            }
-            ToggleRow {
-                text: qsTr("Ambient color mode")
-                subtext: Colours.light ? qsTr("Ambient glow is unavailable in light mode") : qsTr("Ambient light glow in window info panel")
-                checked: GlobalConfig.appearance.ambientColor
-                enabled: !Colours.light
-                onToggled: GlobalConfig.appearance.ambientColor = checked
-                Layout.topMargin: Tokens.spacing.extraSmall / 2 - parent.spacing
-                Layout.fillWidth: true
-            }
-            SliderRow {
-                label: qsTr("Ambient glow opacity")
-                valueLabel: Math.round(value * 100) + "%"
-                value: GlobalConfig.appearance.ambientOpacity
-                enabled: GlobalConfig.appearance.ambientColor && !Colours.light
-                onMoved: v => GlobalConfig.appearance.ambientOpacity = v
                 Layout.topMargin: Tokens.spacing.extraSmall / 2 - parent.spacing
             }
             Process {
@@ -187,6 +212,7 @@ PageBase {
                 command: ["bash", Quickshell.shellDir + "/scripts/bbdx-window-classes.sh"]
             }
             ToggleRow {
+                reset: ({ node: GlobalConfig.appearance, setting: "blur" })
                 text: qsTr("Background Blur")
                 subtext: parent.isBbdxEnabled ? qsTr("Disabling has no effect if Better Blur dx is enabled") : qsTr("Enable a frosted glass effect by blurring the background")
                 checked: parent.isBbdxEnabled ? true : GlobalConfig.appearance.blur
@@ -210,6 +236,7 @@ PageBase {
                 Layout.fillWidth: true
             }
             ToggleRow {
+                reset: ({ node: GlobalConfig.appearance, setting: "blurMask" })
                 text: qsTr("High Quality Blur Masks")
                 subtext: qsTr("Disable this to use high performance Wayland/KWin blur")
                 checked: GlobalConfig.appearance.blurMask
@@ -227,6 +254,11 @@ PageBase {
             }
             StepperRow {
                 last: true
+                reset: ({
+                    customGet: () => blurSettings.blurQuality,
+                    customSet: v => blurSettings.blurQuality = v,
+                    customDef: 20
+                })
                 label: qsTr("Blur Corner Quality")
                 subtext: qsTr("Increasing this can cause lags! Requires shell restart")
                 value: blurSettings.blurQuality
@@ -249,6 +281,7 @@ PageBase {
             spacing: 0
 
             StepperRow {
+                reset: ({ node: GlobalConfig.appearance.font, setting: "scale" })
                 first: true
                 Layout.fillWidth: true
                 label: qsTr("Font scale")
@@ -260,6 +293,7 @@ PageBase {
             }
 
             StepperRow {
+                reset: ({ node: GlobalConfig.appearance.spacing, setting: "scale" })
                 Layout.fillWidth: true
                 label: qsTr("Spacing scale")
                 value: GlobalConfig.appearance.spacing.scale
@@ -270,6 +304,7 @@ PageBase {
             }
 
             StepperRow {
+                reset: ({ node: GlobalConfig.appearance.padding, setting: "scale" })
                 Layout.fillWidth: true
                 label: qsTr("Padding scale")
                 value: GlobalConfig.appearance.padding.scale
@@ -280,7 +315,7 @@ PageBase {
             }
 
             StepperRow {
-                last: true
+                reset: ({ node: GlobalConfig.appearance.anim.durations, setting: "scale" })
                 Layout.fillWidth: true
                 label: qsTr("Animation speed scale")
                 value: GlobalConfig.appearance.anim.durations.scale
@@ -288,6 +323,16 @@ PageBase {
                 to: 4
                 stepSize: 0.05
                 onMoved: v => GlobalConfig.appearance.anim.durations.scale = v
+            }
+
+            ToggleRow {
+                reset: ({ node: GlobalConfig.appearance.anim, setting: "enabled" })
+                last: true
+                Layout.fillWidth: true
+                text: qsTr("Animations")
+                subtext: qsTr("Toggle animations on/off")
+                checked: GlobalConfig.appearance.anim.enabled
+                onToggled: GlobalConfig.appearance.anim.enabled = checked
             }
         }
 
@@ -300,6 +345,7 @@ PageBase {
             spacing: 0
 
             StepperRow {
+                reset: ({ node: GlobalConfig.border, setting: "rounding" })
                 first: true
                 Layout.fillWidth: true
                 label: qsTr("Border rounding")
@@ -311,6 +357,7 @@ PageBase {
             }
 
             StepperRow {
+                reset: ({ node: GlobalConfig.border, setting: "smoothing" })
                 Layout.fillWidth: true
                 label: qsTr("Border smoothing")
                 value: GlobalConfig.border.smoothing
@@ -321,6 +368,7 @@ PageBase {
             }
 
             StepperRow {
+                reset: ({ node: GlobalConfig.appearance, setting: "deformScale" })
                 last: true
                 Layout.fillWidth: true
                 label: qsTr("Blur deform")

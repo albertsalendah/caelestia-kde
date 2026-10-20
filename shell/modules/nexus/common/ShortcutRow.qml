@@ -56,7 +56,7 @@ ConnectedRect {
 
                 visible: text
                 color: Colours.palette.m3onSurfaceVariant
-                font: Tokens.font.label.small
+                font: NexusStyle.secondaryFont
                 elide: Text.ElideRight
                 animate: true
             }
@@ -100,7 +100,7 @@ ConnectedRect {
                             Layout.preferredWidth: 8
                             Layout.preferredHeight: 8
                             Layout.alignment: Qt.AlignVCenter
-                            radius: width / 2
+                            radius: Tokens.rounding.full
                             color: Colours.palette.m3error
 
                             layer.enabled: true

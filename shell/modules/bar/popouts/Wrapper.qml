@@ -29,12 +29,15 @@ Item {
     // hover previews and context menus are transient, so shoving panels around for
     // them feels jittery. The clock popout is deliberately NOT here — the calendar
     // is a real panel-sized popout and displaces notifications like audio/network do.
-    readonly property bool isDockPopout: currentName === "dockhover" || currentName === "dockcontext" || currentName === "greeter" || currentName === "greetercontext" || currentName === "activewindow" || currentName === "github" || currentName === "updateIndicator" || currentName === "clockcontext" || currentName === "statusiconscontext"
+    readonly property bool isDockPopout: currentName === "dockhover" || currentName === "dockcontext" || currentName === "dockbgcontext" || currentName === "greeter" || currentName === "greetercontext" || currentName === "activewindow" || currentName === "github" || currentName === "clockcontext" || currentName === "statusiconscontext" || currentName === "workspacescontext" || currentName === "traycontext" || currentName === "githubcontext"
     property alias currentName: popoutState.currentName
     property alias hasCurrent: popoutState.hasCurrent
     property alias dockModel: popoutState.dockModel
     property alias tasksModel: popoutState.tasksModel
     property real currentCenter
+    // Set by ClipWrapper: whether the current bar item sits under the sidebar,
+    // which can be narrower than the bar's right side now that it is resizable.
+    property bool underSidebar: true
     property string detachedMode
     readonly property QtObject dummy: QtObject {}
     property int animLength: dummy.Tokens.anim.durations.expressiveDefaultSpatial
@@ -66,7 +69,6 @@ Item {
     implicitHeight: nonAnimHeight
     focus: hasCurrent
     Keys.onEscapePressed: {
-        // Forward escape to password popout if active, otherwise close
         if (currentName === "wirelesspassword" && content.item) {
             const passwordPopout = (content.item as Content)?.children.find(c => c.name === "wirelesspassword");
             if (passwordPopout && passwordPopout.item) {
@@ -85,7 +87,9 @@ Item {
     PopoutState {
         id: popoutState
 
-        sidebarOpen: root.visibilities.sidebar
+        // Only attach to the sidebar when the popout would open below it anyway;
+        // otherwise it would end up away from the item that opened it.
+        sidebarOpen: root.visibilities.sidebar && root.underSidebar
         isHorizontal: Config.bar.position === "top" || Config.bar.position === "bottom"
         onDetachRequested: mode => root.detach(mode)
     }
@@ -107,6 +111,7 @@ Item {
         anchors.fill: parent
         sourceComponent: Content {
             popouts: popoutState
+            visibilities: root.visibilities
         }
     }
     Comp {
@@ -175,7 +180,7 @@ Item {
 
                 SequentialAnimation {
                     Anim {
-                        type: Anim.DefaultEffects
+                        type: Anim.FastEffects
                         property: "opacity"
                     }
                     PropertyAction {

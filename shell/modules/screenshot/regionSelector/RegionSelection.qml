@@ -6,7 +6,9 @@ import Qt.labs.synchronizer
 import Quickshell
 import Quickshell.Io
 import Quickshell.Wayland
+import Caelestia.Config
 import Caelestia.Services
+import qs.components
 import qs.services
 import qs.utils
 
@@ -18,7 +20,7 @@ PanelWindow {
     WlrLayershell.namespace: "osd"
     WlrLayershell.layer: WlrLayer.Overlay
     WlrLayershell.keyboardFocus: WlrKeyboardFocus.Exclusive
-    
+
 
 
     exclusionMode: ExclusionMode.Ignore
@@ -224,14 +226,17 @@ PanelWindow {
     property real regionY: Math.min(dragStartY, draggingY)
 
     TempScreenshotProcess {
-        id: screenshotProc
-
         running: true
         screen: root.screen
         screenshotDir: root.screenshotDir
         screenshotPath: root.screenshotPath
         onExited: (exitCode, exitStatus) => {
             Recorder.probeRecording();
+            if (exitCode !== 0) {
+                console.warn("[RegionSelection] snapshot failed with exit code", exitCode, "- backing out");
+                root.dismiss();
+                return;
+            }
             root.preparationDone = true;
         }
     }
@@ -259,7 +264,7 @@ root.snapshotWorkspaceId = snapId;
 const snapIdx = snapId > 0 ? snapId - 1 : 0;
 root.snapshotWorkspaceUuid = Kwin.workspaces[snapIdx]
     ? Kwin.workspaces[snapIdx].id : "";
-    
+
         root.visible = true;
         mouseArea.forceActiveFocus();
     }
@@ -304,7 +309,7 @@ root.snapshotWorkspaceUuid = Kwin.workspaces[snapIdx]
     function snipWindow(windowAddress) {
         root.screenshotConsumed = true;
 
-        const saveDir = `${Paths.absolutePath("~/Pictures/Screenshots")}`;
+        const saveDir = GlobalConfig.paths.screenshotsDir;
         const saveFile = `${saveDir}/screenshot-$(date +%Y-%m-%d_%H.%M.%S).png`;
 
         let spectacleFlags = "-b -a -n";
@@ -478,7 +483,7 @@ root.snapshotWorkspaceUuid = Kwin.workspaces[snapIdx]
                 opacity: root.draggedAway ? 0 : (root.targetedRegionValid() && !targeted ? 0 : root.targetRegionOpacity)
                 borderColor: root.windowBorderColor
                 fillColor: targeted ? root.windowFillColor : Qt.alpha(root.windowFillColor, 0)
-                radius: 12
+                radius: Tokens.rounding.medium
             }
         }
 
@@ -504,10 +509,10 @@ root.snapshotWorkspaceUuid = Kwin.workspaces[snapIdx]
                 }
             }
             Behavior on opacity {
-                animation: NumberAnimation { duration: 200; easing.type: Easing.OutQuad }
+                animation: Anim { type: Anim.DefaultEffects }
             }
             Behavior on anchors.bottomMargin {
-                animation: NumberAnimation { duration: 300; easing.type: Easing.OutQuad }
+                animation: Anim { type: Anim.FastSpatial }
             }
 
             spacing: 6

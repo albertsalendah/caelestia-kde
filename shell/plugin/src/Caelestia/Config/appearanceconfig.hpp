@@ -15,6 +15,7 @@ class RoundingTokens;
 class SpacingTokens;
 class PaddingTokens;
 class AnimDurationTokens;
+class AppearanceAnim;
 
 class AppearanceRounding : public settings::ObjectNode {
     CONFIG_NODE(AppearanceRounding, settings::ObjectNode)
@@ -196,27 +197,29 @@ struct FontConfig {
     };
 
 // clang-format off
-FONT_STYLE(Headline, u"GoogleSansFlex"_s,
+// An empty family leaves the QFont without one, so the shell follows the system font until
+// the user picks a font in Appearance.
+FONT_STYLE(Headline, u""_s,
     FONT({ .size = 32, .weight = QFont::Medium }),
     FONT({ .size = 28, .weight = QFont::Medium }),
     FONT({ .size = 24, .weight = QFont::Medium })
 )
-FONT_STYLE(Title, u"GoogleSansFlex"_s,
+FONT_STYLE(Title, u""_s,
     FONT({ .size = 22, .weight = QFont::Medium }),
     FONT({ .size = 16, .weight = QFont::Medium }),
     FONT({ .size = 14, .weight = QFont::Medium })
 )
-FONT_STYLE(Body, u"GoogleSansFlex"_s,
+FONT_STYLE(Body, u""_s,
     FONT({ .size = 16 }),
     FONT({ .size = 14 }),
     FONT({ .size = 12 })
 )
-FONT_STYLE(Label, u"GoogleSansFlex"_s,
+FONT_STYLE(Label, u""_s,
     FONT({ .size = 14, .weight = QFont::Medium }),
     FONT({ .size = 12, .weight = QFont::Medium }),
     FONT({ .size = 11 })
 )
-FONT_STYLE(Mono, u"CaskaydiaCove NF"_s,
+FONT_STYLE(Mono, u""_s,
     FONT({ .size = 16, .vaxes = {} }),
     FONT({ .size = 14, .vaxes = {} }),
     FONT({ .size = 12, .vaxes = {} })
@@ -275,6 +278,7 @@ class AnimDurations : public settings::ObjectNode {
 
 public:
     void bindTokens(AnimDurationTokens* tokens);
+    void bindAnim(AppearanceAnim* anim);
 
     [[nodiscard]] int small() const;
     [[nodiscard]] int normal() const;
@@ -291,13 +295,25 @@ signals:
     void valuesChanged();
 
 private:
+    // Scales a token duration, or collapses it while animations are switched off.
+    [[nodiscard]] int duration(int token) const;
+
     AnimDurationTokens* m_tokens = nullptr;
+    AppearanceAnim* m_anim = nullptr;
 };
 
 class AppearanceAnim : public settings::ObjectNode {
     CONFIG_NODE(AppearanceAnim, settings::ObjectNode)
 
+    // Off makes every duration the shell reads from the tokens zero, so each animated
+    // state change lands immediately while still changing state.
+    CONFIG_GLOBAL_PROPERTY(bool, enabled, true)
     CONFIG_SUBOBJECT(AnimDurations, durations)
+
+public:
+    // The duration getters read the switch through this rather than the property, which
+    // warns on every read of a global-layer key.
+    [[nodiscard]] bool animationsEnabled() const { return m_enabled; }
 };
 
 class AppearanceTransparency : public settings::ObjectNode {
@@ -323,8 +339,6 @@ class AppearanceConfig : public settings::ObjectNode {
     CONFIG_GLOBAL_PROPERTY(bool, islands, false)
     CONFIG_GLOBAL_PROPERTY(bool, blur, true)
     CONFIG_GLOBAL_PROPERTY(bool, blurMask, true)
-    CONFIG_GLOBAL_PROPERTY(bool, ambientColor, true)
-    CONFIG_GLOBAL_PROPERTY(qreal, ambientOpacity, 0.45)
 };
 
 } // namespace caelestia::config

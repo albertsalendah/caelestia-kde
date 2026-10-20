@@ -145,7 +145,7 @@ Item {
                 anchors.verticalCenter: parent.verticalCenter
                 width: root.currentDotRadius * 4
                 height: width
-                radius: width / 2
+                radius: Tokens.rounding.full
                 color: Colours.palette.m3primary
                 opacity: 0.15
             }
@@ -156,7 +156,7 @@ Item {
                 anchors.verticalCenter: parent.verticalCenter
                 width: root.currentDotRadius * 3
                 height: width
-                radius: width / 2
+                radius: Tokens.rounding.full
                 color: Colours.palette.m3primary
                 opacity: 0.22
             }
@@ -247,7 +247,7 @@ Item {
 
                             anchors.centerIn: parent
                             text: entry.typeInfo ? entry.typeInfo.label : ""
-                            font: Tokens.font.label.small
+                            font: NexusStyle.secondaryFont
                             color: entry.typeColor
                         }
                     }
@@ -265,7 +265,7 @@ Item {
 
                             anchors.centerIn: parent
                             text: qsTr("merge")
-                            font: Tokens.font.label.small
+                            font: NexusStyle.secondaryFont
                             color: entry.typeColor
                         }
                     }
@@ -275,7 +275,7 @@ Item {
                     width: parent.width
                     visible: entry.metaLine !== ""
                     text: entry.metaLine
-                    font: Tokens.font.label.small
+                    font: NexusStyle.secondaryFont
                     color: Colours.palette.m3onSurfaceVariant
                     elide: Text.ElideRight
                 }

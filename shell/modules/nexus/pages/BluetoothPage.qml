@@ -124,7 +124,7 @@ PageBase {
                             Layout.fillWidth: true
                             text: device.connected ? qsTr("Connected%1").arg(device.modelData?.batteryAvailable ? " • " + Math.round(device.modelData.battery * 100) + "%" : "") : qsTr("Saved")
                             color: device.connected ? Colours.palette.m3primary : Colours.palette.m3onSurfaceVariant
-                            font: Tokens.font.label.small
+                            font: NexusStyle.secondaryFont
                             elide: Text.ElideRight
                             animate: true
                         }

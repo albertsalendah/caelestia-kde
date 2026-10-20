@@ -12,6 +12,8 @@ import Caelestia.Config
 import Caelestia.Services
 import qs.components
 import qs.services
+import qs.utils
+import qs.modules.bar
 
 Item {
     id: root
@@ -35,20 +37,9 @@ Item {
     readonly property real middleZoneSize: isHorizontal ? middleLayout.implicitWidth : middleLayout.implicitHeight
     readonly property real rightZoneSize: isHorizontal ? rightLayout.implicitWidth : rightLayout.implicitHeight
 
-    property var leftEntries: {
-        let entries = Config.bar.entries || [];
-        return entries.filter(e => e.enabled && (!e.zone || e.zone === "left") && e.id !== "spacer");
-    }
-
-    property var middleEntries: {
-        let entries = Config.bar.entries || [];
-        return entries.filter(e => e.enabled && e.zone === "middle" && e.id !== "spacer");
-    }
-
-    property var rightEntries: {
-        let entries = Config.bar.entries || [];
-        return entries.filter(e => e.enabled && e.zone === "right" && e.id !== "spacer");
-    }
+    property var leftEntries: BarWidgets.zoneEntries(Config.bar.entries, "left")
+    property var middleEntries: BarWidgets.zoneEntries(Config.bar.entries, "middle")
+    property var rightEntries: BarWidgets.zoneEntries(Config.bar.entries, "right")
 
     function resetHover(): void {
         if (currentHoveredItem) {
@@ -92,7 +83,9 @@ Item {
     }
 
     function checkPopout(pos: real): void {
-        if (popouts.hasCurrent && (popouts.currentName === "clockcontext" || popouts.currentName === "dockcontext" || popouts.currentName === "greetercontext" || popouts.currentName === "statusiconscontext"))
+        // A context menu stays open while the pointer moves over the bar, so
+        // the hover routing below must not take it over or close it.
+        if (popouts.hasCurrent && (popouts.currentName === "clockcontext" || popouts.currentName === "dockcontext" || popouts.currentName === "greetercontext" || popouts.currentName === "statusiconscontext" || popouts.currentName === "workspacescontext" || popouts.currentName === "traycontext" || popouts.currentName === "githubcontext" || popouts.currentName === "weathercontext" || popouts.currentName === "mediacontext" || popouts.currentName === "performancecontext" || popouts.currentName === "screencapturecontext" || popouts.currentName === "keepawakecontext" || popouts.currentName === "osiconcontext" || popouts.currentName === "dockbgcontext" || popouts.currentName === "elementscontext"))
             return;
 
         const ch = getLoaderAt(isHorizontal ? pos : width / 2, isHorizontal ? height / 2 : pos) as WrappedLoader;
@@ -190,7 +183,7 @@ Item {
                 popouts.hasCurrent = false;
             }
         } else if (id === "dock") {
-            if (popouts.hasCurrent && (popouts.currentName === "dockcontext" || popouts.currentName === "greeter" || popouts.currentName === "greetercontext" || popouts.currentName === "statusiconscontext")) return;
+            if (popouts.hasCurrent && (popouts.currentName === "dockcontext" || popouts.currentName === "dockbgcontext" || popouts.currentName === "greeter" || popouts.currentName === "greetercontext" || popouts.currentName === "statusiconscontext")) return;
 
             const item = ch.item;
             if (item && typeof item.handleHover === "function") {
@@ -206,6 +199,36 @@ Item {
                 const inside = isHorizontal ? (relPos >= 0 && relPos <= item.implicitWidth) : (relPos >= 0 && relPos <= item.implicitHeight);
                 if (inside) {
                     popouts.currentName = "github";
+                    popouts.currentCenter = isHorizontal ? item.mapToItem(null, item.implicitWidth / 2, 0).x : (item.mapToItem(null, 0, item.implicitHeight / 2).y ?? 0);
+                    popouts.hasCurrent = true;
+                } else {
+                    popouts.hasCurrent = false;
+                }
+            } else {
+                popouts.hasCurrent = false;
+            }
+        } else if (id === "notes" || id === "weather" || id === "performance" || id === "shortcuts" || id === "screencapture" || id === "keepawake") {
+            const item = ch.item as Item;
+            if (item) {
+                const relPos = pos - top;
+                const inside = isHorizontal ? (relPos >= 0 && relPos <= item.implicitWidth) : (relPos >= 0 && relPos <= item.implicitHeight);
+                if (inside) {
+                    popouts.currentName = id;
+                    popouts.currentCenter = isHorizontal ? item.mapToItem(null, item.implicitWidth / 2, 0).x : (item.mapToItem(null, 0, item.implicitHeight / 2).y ?? 0);
+                    popouts.hasCurrent = true;
+                } else {
+                    popouts.hasCurrent = false;
+                }
+            } else {
+                popouts.hasCurrent = false;
+            }
+        } else if (id === "media") {
+            const item = ch.item as Item;
+            if (item) {
+                const relPos = pos - top;
+                const inside = isHorizontal ? (relPos >= 0 && relPos <= item.implicitWidth) : (relPos >= 0 && relPos <= item.implicitHeight);
+                if (inside) {
+                    popouts.currentName = "media";
                     popouts.currentCenter = isHorizontal ? item.mapToItem(null, item.implicitWidth / 2, 0).x : (item.mapToItem(null, 0, item.implicitHeight / 2).y ?? 0);
                     popouts.hasCurrent = true;
                 } else {
@@ -249,6 +272,13 @@ Item {
                 popouts.hasCurrent = false;
             }
         } else {
+            // Plugin widgets (and any widget without a bespoke branch) opt into
+            // hover popouts by exposing handleHover(pos, isHorizontal, popouts).
+            const item = ch.item;
+            if (item && typeof item.handleHover === "function") {
+                item.handleHover(pos - top, isHorizontal, popouts);
+                return;
+            }
             popouts.hasCurrent = false;
         }
     }
@@ -260,6 +290,15 @@ Item {
             if (ch.item && typeof ch.item.handleWheel === "function") {
                 ch.item.handleWheel(angleDelta);
             }
+            return;
+        }
+
+        // Plugin widgets (and any widget without a bespoke branch) opt into
+        // scroll handling by exposing handleWheel(pos, isHorizontal, angleDelta).
+        const item = ch?.item;
+        if (item && typeof item.handleWheel === "function") {
+            const mappedChPos = mapFromItem(ch, 0, 0);
+            item.handleWheel(pos - (isHorizontal ? mappedChPos.x : mappedChPos.y), isHorizontal, angleDelta);
             return;
         }
 
@@ -281,11 +320,32 @@ Item {
         } else if (Config.bar.scrollActions.brightness) {
             const monitor = Brightness.getMonitorForScreen(screen);
             if (angleDelta.y > 0)
-                monitor.setBrightness(monitor.brightness + GlobalConfig.services.brightnessIncrement);
+                monitor.stepBrightness(GlobalConfig.services.brightnessIncrement);
             else if (angleDelta.y < 0)
-                monitor.setBrightness(monitor.brightness - GlobalConfig.services.brightnessIncrement);
+                monitor.stepBrightness(-GlobalConfig.services.brightnessIncrement);
         }
     }
+
+    // Built-in widgets are handed the ambient values one by one in their own
+    // delegate choice. Plugin widgets are plain components, so the values they
+    // declare are filled in here instead and the rest are left alone.
+    function applyWidgetContext(widget: var): void {
+        if (!widget)
+            return;
+
+        const context = {
+            bar: root,
+            screen: root.screen,
+            popouts: root.popouts,
+            visibilities: root.visibilities
+        };
+
+        for (const name in context)
+            if (widget.hasOwnProperty(name))
+                widget[name] = context[name];
+    }
+
+    Component.onCompleted: Logger.mark("bar-ready")
 
     clip: true
 
@@ -383,7 +443,9 @@ Item {
             DelegateChoice {
                 roleValue: "logo"
                 delegate: WrappedLoader {
-                    sourceComponent: OsIcon {}
+                    sourceComponent: OsIcon {
+                        bar: root
+                    }
                 }
             }
             DelegateChoice {
@@ -441,7 +503,9 @@ Item {
                 roleValue: "kbLayoutIndicator"
                 delegate: WrappedLoader {
                     visible: enabled && (Kwin.kbLayout || "").length > 0
-                    sourceComponent: KbLayoutIndicator {}
+                    sourceComponent: KbLayoutIndicator {
+                        popouts: root.popouts
+                    }
                 }
             }
             DelegateChoice {
@@ -461,41 +525,53 @@ Item {
                 roleValue: "perfCpu"
                 delegate: WrappedLoader {
                     visible: enabled && Cpu.name.length > 0
-                    sourceComponent: PerfCpu {}
+                    sourceComponent: PerfCpu {
+                        popouts: root.popouts
+                    }
                 }
             }
             DelegateChoice {
                 roleValue: "perfMemory"
                 delegate: WrappedLoader {
                     visible: enabled && Memory.total > 1
-                    sourceComponent: PerfMemory {}
+                    sourceComponent: PerfMemory {
+                        popouts: root.popouts
+                    }
                 }
             }
             DelegateChoice {
                 roleValue: "perfStorage"
                 delegate: WrappedLoader {
                     visible: enabled && Storage.disks.length > 0
-                    sourceComponent: PerfStorage {}
+                    sourceComponent: PerfStorage {
+                        popouts: root.popouts
+                    }
                 }
             }
             DelegateChoice {
                 roleValue: "perfNetwork"
                 delegate: WrappedLoader {
-                    sourceComponent: PerfNetwork {}
+                    sourceComponent: PerfNetwork {
+                        popouts: root.popouts
+                    }
                 }
             }
             DelegateChoice {
                 roleValue: "perfGpu"
                 delegate: WrappedLoader {
                     visible: enabled && Gpu.type !== Gpu.None
-                    sourceComponent: PerfGpu {}
+                    sourceComponent: PerfGpu {
+                        popouts: root.popouts
+                    }
                 }
             }
             DelegateChoice {
                 roleValue: "perfBattery"
                 delegate: WrappedLoader {
                     visible: enabled && UPower.displayDevice.isLaptopBattery
-                    sourceComponent: PerfBattery {}
+                    sourceComponent: PerfBattery {
+                        popouts: root.popouts
+                    }
                 }
             }
             DelegateChoice {
@@ -503,6 +579,62 @@ Item {
                 delegate: WrappedLoader {
                     visible: enabled && GithubStore.available
                     sourceComponent: GithubActivity {
+                        popouts: root.popouts
+                    }
+                }
+            }
+            DelegateChoice {
+                roleValue: "media"
+                delegate: WrappedLoader {
+                    sourceComponent: Media {
+                        popouts: root.popouts
+                    }
+                }
+            }
+            DelegateChoice {
+                roleValue: "notes"
+                delegate: WrappedLoader {
+                    sourceComponent: Notes {
+                        popouts: root.popouts
+                    }
+                }
+            }
+            DelegateChoice {
+                roleValue: "weather"
+                delegate: WrappedLoader {
+                    sourceComponent: WeatherWidget {
+                        popouts: root.popouts
+                    }
+                }
+            }
+            DelegateChoice {
+                roleValue: "performance"
+                delegate: WrappedLoader {
+                    sourceComponent: PerformanceWidget {
+                        popouts: root.popouts
+                    }
+                }
+            }
+            DelegateChoice {
+                roleValue: "shortcuts"
+                delegate: WrappedLoader {
+                    sourceComponent: ShortcutsWidget {
+                        popouts: root.popouts
+                    }
+                }
+            }
+            DelegateChoice {
+                roleValue: "screencapture"
+                delegate: WrappedLoader {
+                    sourceComponent: ScreenCaptureWidget {
+                        popouts: root.popouts
+                    }
+                }
+            }
+            DelegateChoice {
+                roleValue: "keepawake"
+                delegate: WrappedLoader {
+                    sourceComponent: KeepAwakeWidget {
                         popouts: root.popouts
                     }
                 }
@@ -519,6 +651,16 @@ Item {
                     sourceComponent: Power {
                         visibilities: root.visibilities
                     }
+                }
+            }
+            // Fallback for plugin-provided widgets: DelegateChooser needs a
+            // static choice per id, so unknown ids resolve their component at
+            // runtime from the plugin registry.
+            DelegateChoice {
+                delegate: WrappedLoader {
+                    source: BarWidgetRegistry.widget(id)?.componentUrl ?? ""
+
+                    onItemChanged: root.applyWidgetContext(item)
                 }
             }
         }

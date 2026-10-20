@@ -31,9 +31,10 @@ Singleton {
 
     /// The command that runs `command` in the configured terminal. The flag the terminal needs
     /// before a command is added unless the setting already ends with it (for example
-    /// ["konsole", "-e"]), so both forms of the setting work.
-    function terminalCommand(command: list<string>): list<string> {
-        const terminal = GlobalConfig.general.apps.terminal;
+    /// ["konsole", "-e"]), so both forms of the setting work. terminalOverride replaces the
+    /// configured terminal for a caller that has resolved its own.
+    function terminalCommand(command: list<string>, terminalOverride: var): list<string> {
+        const terminal = terminalOverride ?? GlobalConfig.general.apps.terminal;
         if (terminal.length === 0)
             return command;
 
@@ -68,12 +69,16 @@ Singleton {
             Quickshell.execDetached(root.wrap(command));
     }
 
+    function launchInTerminal(command: list<string>, workingDirectory: string): void {
+        Quickshell.execDetached({
+            command: root.wrap(root.terminalCommand([`${Quickshell.shellDir}/assets/wrap_term_launch.sh`, ...command])),
+            workingDirectory: workingDirectory
+        });
+    }
+
     function launchEntry(entry: DesktopEntry): void {
         if (entry.runInTerminal)
-            Quickshell.execDetached({
-                command: root.wrap(root.terminalCommand([`${Quickshell.shellDir}/assets/wrap_term_launch.sh`, ...entry.command])),
-                workingDirectory: entry.workingDirectory
-            });
+            root.launchInTerminal(entry.command, entry.workingDirectory);
         else
             Quickshell.execDetached({
                 command: root.wrap(entry.command),

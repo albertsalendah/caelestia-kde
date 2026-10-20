@@ -97,7 +97,7 @@ PageBase {
                                 return security;
                             }
                             color: saved.isActive ? Colours.palette.m3primary : Colours.palette.m3onSurfaceVariant
-                            font: Tokens.font.label.small
+                            font: NexusStyle.secondaryFont
                             elide: Text.ElideRight
                         }
                     }

@@ -6,7 +6,7 @@ PerfStat {
     icon: "memory_alt"
     accent: Colours.palette.m3primary
     value: Memory.percentage
-    valueText: Memory.total > 0 ? Units.formatKibUsage(Memory.used,Memory.total) : "..."
+    valueText: isNaN(Memory.percentage) ? "..." : Math.round(Memory.percentage * 100)
 
     ServiceRef {
         service: Memory

@@ -7,6 +7,7 @@ import qs.components
 import qs.components.containers
 import qs.services
 import qs.modules.nexus
+import qs.modules.nexus.common
 
 VerticalFadeFlickable {
     id: root
@@ -121,7 +122,7 @@ VerticalFadeFlickable {
                             Layout.fillWidth: true
                             text: item.page.description
                             color: Colours.palette.m3onSurfaceVariant
-                            font: Tokens.font.label.small
+                            font: NexusStyle.secondaryFont
                             elide: Text.ElideRight
                         }
                     }

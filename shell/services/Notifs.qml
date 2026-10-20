@@ -27,7 +27,7 @@ Singleton {
     property bool loaded
 
     function getCursorOutputName(): string {
-        const monitor = Kwin.monitors[Kwin.cursorOutputName()] || Kwin.focusedMonitor;
+        const monitor = Kwin.monitors.find(m => m.name === Kwin.cursorOutputName()) || Kwin.focusedMonitor;
         return monitor?.name || Kwin.cursorOutputName() || "";
     }
 
@@ -55,6 +55,51 @@ Singleton {
     // Called only when an actual list of items is needed (serialisation, clear).
     // Not used as a binding anywhere.
     function notClosed(): list<NotifData> { return list.filter(n => !n.closed) }
+
+    /// Files a freshly created notification: counts it, puts it at the top of the
+    /// list and evicts whatever the cap pushes out. Both the D-Bus path below and
+    /// the shell-authored path go through here so the cap policy lives once.
+    function registerNotification(comp: NotifData): void {
+        root.openCount++;
+        if (comp.popup)
+            root.popupCount++;
+
+        const next = [comp, ...root.list];
+        const cap = root.notifCap;
+        if (next.length > cap) {
+            const evicted = next.splice(cap);
+            for (const old of evicted) old.close();
+        }
+        root.list = next;
+    }
+
+    /// Raises a notification the shell authored itself: there is no D-Bus
+    /// notification behind it, and its actions run shell callbacks rather than
+    /// the sender's. Kept out of the on-disk history, since those callbacks
+    /// cannot survive a restart (see NotifData.shellRaised).
+    function addShellNotification(params: var): NotifData {
+        // The same bookkeeping the D-Bus path does: which screen a popup belongs to
+        // is settled before it is created, because shouldShowPopup() reads it.
+        root.activeTargetOutput = root.getTargetOutput();
+
+        const comp = notifComp.createObject(root, {
+            popup: root.shouldShowPopup(),
+            shellRaised: true,
+            image: "",
+            hints: ({}),
+            appName: params.appName ?? qsTr("Caelestia"),
+            summary: params.summary ?? "",
+            body: params.body ?? "",
+            appIcon: params.appIcon ?? "",
+            materialIcon: params.materialIcon ?? "",
+            actions: params.actions ?? [],
+            resident: params.resident ?? true
+        });
+
+        root.registerNotification(comp);
+
+        return comp;
+    }
 
     function shouldShowPopup(): bool {
         if (props.dnd || [...Visibilities.screens.values()].some(v => v.sidebar))
@@ -109,7 +154,7 @@ Singleton {
     }
 
     function serializeState(): string {
-        return JSON.stringify(root.notClosed().map(n => ({
+        return JSON.stringify(root.notClosed().filter(n => !n.shellRaised).map(n => ({
                         time: n.time,
                         id: n.id,
                         summary: n.summary,
@@ -183,17 +228,7 @@ Singleton {
                 notification: notif
             });
 
-            root.openCount++;
-            if (showPopup)
-                root.popupCount++;
-
-            const next = [comp, ...root.list];
-            const cap = root.notifCap;
-            if (next.length > cap) {
-                const evicted = next.splice(cap);
-                for (const old of evicted) old.close();
-            }
-            root.list = next;
+            root.registerNotification(comp);
 
             if (root.shouldPlaySound(notif))
                 Audio.playNotification();
@@ -206,11 +241,21 @@ Singleton {
         printErrors: false
         path: `${Paths.state}/notifs.json`
         onLoaded: {
-            const data = JSON.parse(text());
+            let data;
+            try {
+                data = JSON.parse(text());
+            } catch (err) {
+                Logger.log("[Notifs] saved notifications are corrupt, starting fresh:", err);
+                data = [];
+            }
+            if (!Array.isArray(data)) {
+                Logger.log("[Notifs] saved notifications are not a list, starting fresh");
+                data = [];
+            }
+            data.sort((a, b) => b.time - a.time);
             const cap = root.notifCap;
-            for (const notif of data.slice(0, cap))
-                root.list.push(notifComp.createObject(root, notif));
-            root.list.sort((a, b) => b.time - a.time);
+            root.list = data.slice(0, cap).map(n => notifComp.createObject(root, n));
+
             root.openCount = root.list.filter(n => !n.closed).length;
             root.popupCount = root.list.filter(n => n.popup).length;
             root.lastSavedState = root.serializeState();

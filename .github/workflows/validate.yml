@@ -7,6 +7,9 @@ on:
     branches: ["**"]
   workflow_dispatch:
 
+permissions:
+  contents: read
+
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
@@ -97,21 +100,6 @@ jobs:
         run: python3 .github/scripts/check_file_hygiene.py ${{ github.event_name == 'push' && '--all' || '' }}
         continue-on-error: ${{ github.event_name == 'push' }}
 
-  markdown-lint:
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
-
-      - name: Lint markdown files
-        uses: DavidAnson/markdownlint-cli2-action@05f32210e84442804257b2a6f20b273450ec8265 # v19
-        continue-on-error: true
-        with:
-          globs: |
-            README.md
-            docs/**/*.md
-            .github/*.md
-
   qml-conventions:
     runs-on: ubuntu-latest
     steps:
@@ -126,7 +114,6 @@ jobs:
       - name: Run QML convention regression check
         run: python3 .github/scripts/check_qml_conventions.py
 
-# error cascades so the reported file is not the cause. qmllint cannot resolve Quickshell's
   qml-syntax:
     runs-on: ubuntu-latest
     steps:
@@ -141,7 +128,21 @@ jobs:
       - name: Check QML structural syntax
         run: python3 .github/scripts/check_qml_syntax.py --source-root shell
 
-# Bash inside QML `command: ["bash", "-c", `...`]` strings, which qmllint and shellcheck
+
+  qml-finals:
+    name: Check QML final-member shadows
+    runs-on: ubuntu-latest
+    container: archlinux:base-devel
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+
+      - name: Install the Qt tooling
+        uses: ./.github/actions/install-build-deps
+
+      - name: Check that no component shadows a final member
+        run: python3 .github/scripts/check_qml_finals.py --source-root shell
+
   embedded-bash:
     runs-on: ubuntu-latest
     steps:
@@ -170,7 +171,6 @@ jobs:
       - name: Cross-check QML config references against C++ declarations
         run: python3 .github/scripts/check_config_references.py
 
-  # Job 10: actionlint - validate workflow files themselves
   actionlint:
     runs-on: ubuntu-latest
     steps:
@@ -201,7 +201,6 @@ jobs:
       - name: Check for value-typed statics of Wayland proxy-wrapping types
         run: python3 .github/scripts/check_wayland_static_lifetime.py
 
-# No Qt/QML toolchain here (qmllint6 cannot resolve this repo's qs.* directory imports), so
   qml-imports:
     runs-on: ubuntu-latest
     steps:
@@ -230,7 +229,6 @@ jobs:
       - name: Check for unescaped bash interpolation in QML template literals
         run: python3 .github/scripts/check_qml_template_interp.py
 
-  # Job 14: Shell quality - syntax, shellcheck, strict mode, unsafe patterns
   shell-quality:
     runs-on: ubuntu-latest
     steps:
@@ -243,7 +241,6 @@ jobs:
       - name: Run shell quality checks
         run: bash .github/scripts/check_shell_quality.sh
 
-  # Job 15: C++ formatting - the files this change touches, against shell/.clang-format.
   # The plugin has a backlog of files that predate the formatter, so the check is
   # scoped to changed files rather than the whole tree.
   cpp-format:
@@ -277,17 +274,208 @@ jobs:
         uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
 
       - name: Run the shell test suite
-        run: bash tests/run-tests.sh
+        run: bash tests/run-tests.sh --artifacts test-artifacts
+
+      - name: Upload Bash test diagnostics
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: bash-test-diagnostics
+          path: test-artifacts/
+          if-no-files-found: ignore
+
+  # Alongside shell-tests rather than inside it: this one needs the release tags, which a
+  # shallow checkout does not have. The job runs on every pull request so the gate below
+  # stays satisfied; the check is what is release-only, because a promotion onto main is
+  # the one pull request where this tree and the tree on a user's machine are a release
+  # apart and the updater that runs is the deployed one (issue #1075).
+  release-update-safety:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          # The release an update comes from is a tag in this history.
+          fetch-depth: 0
+
+      - name: Check an update from the previous release
+        if: github.base_ref == 'main'
+        run: bash tests/run-tests.sh --suite isolated test_update_across_versions.sh
+
+  build-parity:
+    name: Clean offline build and artifact parity
+    runs-on: ubuntu-latest
+    container: archlinux:base-devel
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+
+      - name: Install shell build dependencies
+        uses: ./.github/actions/install-build-deps
+
+      - name: Fetch pinned build dependency
+        run: |
+          set -euo pipefail
+          export CAELESTIA_DEPS_DIR="$PWD/.ci-deps"
+          bash scripts/fetch-dependencies.sh
+
+      - name: Build and stage source layout offline
+        env:
+          CAELESTIA_DEPS_DIR: ${{ github.workspace }}/.ci-deps
+          http_proxy: http://127.0.0.1:9
+          https_proxy: http://127.0.0.1:9
+          all_proxy: http://127.0.0.1:9
+        run: |
+          set -euo pipefail
+          cmake -G Ninja -B build-source -S shell -DCMAKE_BUILD_TYPE=Release \
+            -DCAELESTIA_CACHE_DEPS=ON -DCAELESTIA_OFFLINE=ON \
+            -DCAELESTIA_PACKAGE=OFF -DCMAKE_INSTALL_PREFIX=/ \
+            -DINSTALL_DATADIR=usr/share/caelestia
+          cmake --build build-source --parallel
+          DESTDIR="$PWD/stage-source" cmake --install build-source
+          python3 .github/scripts/write_provenance_hash.py \
+            stage-source/usr/share/caelestia/build-provenance.json stage-source
+
+      - name: Build and stage package layout offline
+        env:
+          CAELESTIA_DEPS_DIR: ${{ github.workspace }}/.ci-deps
+          http_proxy: http://127.0.0.1:9
+          https_proxy: http://127.0.0.1:9
+          all_proxy: http://127.0.0.1:9
+        run: |
+          set -euo pipefail
+          cmake -G Ninja -B build-package -S shell -DCMAKE_BUILD_TYPE=Release \
+            -DCAELESTIA_CACHE_DEPS=ON -DCAELESTIA_OFFLINE=ON \
+            -DCAELESTIA_PACKAGE=ON -DCMAKE_INSTALL_PREFIX=/ \
+            -DINSTALL_DATADIR=usr/share/caelestia
+          cmake --build build-package --parallel
+          DESTDIR="$PWD/stage-package" cmake --install build-package
+          python3 .github/scripts/write_provenance_hash.py \
+            stage-package/usr/share/caelestia/build-provenance.json stage-package
+          python3 .github/scripts/check_artifact_parity.py stage-source stage-package
+
+      - name: Validate installed manifests
+        run: |
+          set -euo pipefail
+          source scripts/lib/install-fs.sh
+          validate_install_manifest build-source/install_manifest.txt stage-source
+          validate_install_manifest build-package/install_manifest.txt stage-package
+          python3 .github/scripts/check_provenance.py \
+            stage-source/usr/share/caelestia/build-provenance.json
+          python3 .github/scripts/check_provenance.py \
+            stage-package/usr/share/caelestia/build-provenance.json
+
+  installer-build:
+    name: Build installer TUI with strict warnings
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+
+      - name: Set up CMake and compiler
+        run: sudo apt-get update -qq && sudo apt-get install -y -qq cmake g++
+
+      - name: Configure installer
+        run: cmake -S installer/tui -B installer/build -DCMAKE_BUILD_TYPE=Release -DCMAKE_CXX_FLAGS="-Wall -Wextra -Werror"
+
+      - name: Build installer
+        run: cmake --build installer/build --parallel
+
+      - name: Run installer unit tests
+        run: |
+          cmake --build installer/build --target step-policy-tests --parallel
+          ctest --test-dir installer/build --output-on-failure -R step-policy-tests
+
+  installer-sanitizers:
+    name: Build installer with sanitizers
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+
+      - name: Set up CMake and compiler
+        run: sudo apt-get update -qq && sudo apt-get install -y -qq cmake g++
+
+      - name: Configure sanitizer build
+        run: cmake -S installer/tui -B installer/build-sanitizers -DCMAKE_BUILD_TYPE=Debug -DCAELESTIA_ENABLE_SANITIZERS=ON
+
+      - name: Build sanitizer target
+        run: cmake --build installer/build-sanitizers --parallel
+
+      - name: Run sanitizer unit tests
+        run: |
+          cmake --build installer/build-sanitizers --target step-policy-tests --parallel
+          ctest --test-dir installer/build-sanitizers --output-on-failure -R step-policy-tests
+
+  runtime-smoke:
+    name: Installed QML runtime smoke
+    runs-on: ubuntu-latest
+    container: archlinux:base-devel
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+
+      - name: Install runtime and build dependencies
+        uses: ./.github/actions/install-build-deps
+        with:
+          extra-packages: dbus quickshell weston
+
+      - name: Fetch pinned build dependency
+        run: |
+          set -euo pipefail
+          export CAELESTIA_DEPS_DIR="$PWD/.ci-deps"
+          bash scripts/fetch-dependencies.sh
+
+      - name: Build and run the installed runtime smoke
+        uses: ./.github/actions/runtime-smoke
+        with:
+          deps-dir: .ci-deps
+          install-root: runtime-install
+          log-dir: runtime-smoke
+
+  shell-sanitizers:
+    name: Build shell plugins with sanitizers
+    runs-on: ubuntu-latest
+    container: archlinux:base-devel
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+
+      - name: Install shell build dependencies
+        uses: ./.github/actions/install-build-deps
+
+      - name: Fetch pinned build dependency
+        run: |
+          set -euo pipefail
+          export CAELESTIA_DEPS_DIR="$PWD/.ci-deps"
+          bash scripts/fetch-dependencies.sh
+
+      - name: Configure sanitizer build
+        env:
+          CAELESTIA_DEPS_DIR: ${{ github.workspace }}/.ci-deps
+          http_proxy: http://127.0.0.1:9
+          https_proxy: http://127.0.0.1:9
+          all_proxy: http://127.0.0.1:9
+        run: |
+          set -euo pipefail
+          cmake -G Ninja -B build-shell-sanitizers -S shell \
+            -DCMAKE_BUILD_TYPE=Debug \
+            -DCAELESTIA_CACHE_DEPS=ON -DCAELESTIA_OFFLINE=ON \
+            -DCAELESTIA_PACKAGE=OFF -DCAELESTIA_ENABLE_SANITIZERS=ON
+
+      - name: Build sanitized shell plugins
+        run: cmake --build build-shell-sanitizers --parallel
 
   validate-gate:
     needs:
       - python-quality
       - shell-tests
+      - release-update-safety
       - repo-integrity
       - json-validation
       - file-hygiene
-      - markdown-lint
       - qml-conventions
+      - qml-finals
       - embedded-bash
       - config-cross-ref
       - actionlint
@@ -296,6 +484,11 @@ jobs:
       - qml-template-interp
       - shell-quality
       - cpp-format
+      - build-parity
+      - installer-build
+      - installer-sanitizers
+      - runtime-smoke
+      - shell-sanitizers
     runs-on: ubuntu-latest
     if: always()
     steps:
@@ -309,7 +502,6 @@ jobs:
           job_results[repo-integrity]="${{ needs.repo-integrity.result }}"
           job_results[json-validation]="${{ needs.json-validation.result }}"
           job_results[file-hygiene]="${{ needs.file-hygiene.result }}"
-          job_results[markdown-lint]="${{ needs.markdown-lint.result }}"
           job_results[qml-conventions]="${{ needs.qml-conventions.result }}"
           job_results[embedded-bash]="${{ needs.embedded-bash.result }}"
           job_results[config-cross-ref]="${{ needs.config-cross-ref.result }}"
@@ -319,7 +511,13 @@ jobs:
           job_results[qml-template-interp]="${{ needs.qml-template-interp.result }}"
           job_results[shell-quality]="${{ needs.shell-quality.result }}"
           job_results[shell-tests]="${{ needs.shell-tests.result }}"
+          job_results[release-update-safety]="${{ needs.release-update-safety.result }}"
           job_results[cpp-format]="${{ needs.cpp-format.result }}"
+          job_results[build-parity]="${{ needs.build-parity.result }}"
+          job_results[installer-build]="${{ needs.installer-build.result }}"
+          job_results[installer-sanitizers]="${{ needs.installer-sanitizers.result }}"
+          job_results[runtime-smoke]="${{ needs.runtime-smoke.result }}"
+          job_results[shell-sanitizers]="${{ needs.shell-sanitizers.result }}"
 
           all_passed=true
           for job in "${!job_results[@]}"; do
@@ -327,7 +525,8 @@ jobs:
             if [[ "$result" == "success" ]]; then
               echo "- [PASS] **${job}**" >> $GITHUB_STEP_SUMMARY
             elif [[ "$result" == "skipped" ]]; then
-              echo "- [SKIP] **${job}**" >> $GITHUB_STEP_SUMMARY
+              echo "- [FAIL] **${job}** - applicable job was skipped" >> $GITHUB_STEP_SUMMARY
+              all_passed=false
             else
               echo "- [FAIL] **${job}** - ${result}" >> $GITHUB_STEP_SUMMARY
               all_passed=false

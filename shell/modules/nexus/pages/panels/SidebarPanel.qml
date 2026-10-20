@@ -12,6 +12,14 @@ import qs.modules.nexus.common
 PageBase {
     id: root
 
+    property list<MenuItem> openTabItems: [
+        MenuItem { text: qsTr("Last used") },
+        MenuItem { text: qsTr("Notifications") },
+        MenuItem { text: qsTr("AI Assistant") },
+        MenuItem { text: qsTr("News") }
+    ]
+    property list<string> openTabValues: ["last", "notifications", "ai", "news"]
+
     title: qsTr("Sidebar")
     isSubPage: true
 
@@ -29,6 +37,7 @@ PageBase {
         ToggleRow {
             first: true
             text: qsTr("Enabled")
+            reset: ({ node: GlobalConfig.sidebar, setting: "enabled" })
             checked: Config.sidebar.enabled
             onToggled: GlobalConfig.sidebar.enabled = checked
         }
@@ -38,6 +47,7 @@ PageBase {
             Layout.fillWidth: true
             label: qsTr("Drag threshold")
             subtext: qsTr("Pixels dragged before the sidebar opens")
+            reset: ({ node: GlobalConfig.sidebar, setting: "dragThreshold" })
             value: Config.sidebar.dragThreshold
             from: 0
             to: 200
@@ -51,6 +61,7 @@ PageBase {
             last: true
             label: qsTr("Grab width")
             subtext: qsTr("Pixels of screen edge reserved for grabbing the sidebar")
+            reset: ({ node: GlobalConfig.sidebar, setting: "grabWidth" })
             value: Config.sidebar.grabWidth
             from: 1
             to: 100
@@ -62,11 +73,25 @@ PageBase {
             text: qsTr("Sidebar Tabs")
         }
 
-        ToggleRow {
-            Layout.fillWidth: true
+        SelectRow {
             first: true
+            label: qsTr("Open on")
+            subtext: qsTr("Tab shown when the sidebar opens")
+            menuItems: root.openTabItems
+            active: {
+                const idx = root.openTabValues.indexOf(Config.sidebar.defaultTab);
+                return idx >= 0 ? root.openTabItems[idx] : root.openTabItems[0];
+            }
+            fallbackIcon: "tab"
+            onSelected: item => GlobalConfig.sidebar.defaultTab = root.openTabValues[root.openTabItems.indexOf(item)]
+        }
+
+        ToggleRow {
+            Layout.topMargin: Tokens.spacing.extraSmall / 2 - parent.spacing
+            Layout.fillWidth: true
             text: qsTr("Show News tab")
             subtext: qsTr("Show the News tab in the sidebar")
+            reset: ({ node: GlobalConfig.ai, setting: "showNews" })
             checked: GlobalConfig.ai.showNews
             onToggled: GlobalConfig.ai.showNews = checked
         }
@@ -77,6 +102,7 @@ PageBase {
             last: true
             text: qsTr("Show Caelestia Mode")
             subtext: qsTr("Show the Caelestia Mode toggle at the bottom of notifications")
+            reset: ({ node: GlobalConfig.ai, setting: "showCaelestiaMode" })
             checked: GlobalConfig.ai.showCaelestiaMode
             onToggled: GlobalConfig.ai.showCaelestiaMode = checked
         }

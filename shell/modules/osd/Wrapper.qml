@@ -28,12 +28,16 @@ Item {
         timer.restart();
     }
 
+    function refreshBrightness(): void {
+        root.brightness = root.monitor?.effectiveBrightness ?? 0;
+    }
+
     Component.onCompleted: {
         volume = Audio.volume;
         muted = Audio.muted;
         sourceVolume = Audio.sourceVolume;
         sourceMuted = Audio.sourceMuted;
-        brightness = root.monitor?.brightness ?? 0;
+        refreshBrightness();
     }
     visible: offsetScale < 1
     anchors.leftMargin: Config.bar.position === "right" ? (-implicitWidth - 5 - sidebarOffset) * offsetScale : 0
@@ -68,7 +72,11 @@ Item {
     Connections {
         function onBrightnessChanged(): void {
             root.show();
-            root.brightness = root.monitor?.brightness ?? 0;
+            root.refreshBrightness();
+        }
+
+        function onDimmingChanged(): void {
+            root.refreshBrightness();
         }
 
         target: root.monitor

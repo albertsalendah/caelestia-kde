@@ -30,7 +30,10 @@ while i < len(raw):
     c = raw[i]
     if c == "\\":
         nxt = raw[i + 1]
-        out.append(escapes.get(nxt, nxt))
+        # A backslash at the end of a line is a line continuation in a template literal: it
+        # produces nothing, and the next line follows directly.
+        if nxt != "\n":
+            out.append(escapes.get(nxt, nxt))
         i += 2
         continue
     if c == "`":

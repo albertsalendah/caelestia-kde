@@ -18,7 +18,8 @@ Controls.Menu {
     property string screenName: ""
     property var itemPool: ({})
     property var entryByKey: ({})
-    property real perfMenuOpenStartedAt: 0
+    readonly property bool iconsEnabled: screenName ? ContextMenuStore.iconsShownOn(screenName) : GlobalConfig.background.desktopIconsEnabled
+    readonly property bool iconsShown: (screenName ? GlobalConfig.forScreen(screenName) : GlobalConfig).background.wallpaperEnabled && (screenName ? GlobalConfig.forScreen(screenName) : GlobalConfig).background.desktopIconsEnabled
 
     function executeEntryByKey(key) {
         let entry = root.entryByKey[key];
@@ -26,20 +27,34 @@ Controls.Menu {
 
         root.expanded = false;
 
+        // In-shell state changes run right away; anything that opens a window
+        // or spawns a process waits for the menu to finish closing.
+        if (entry.action === "Paste") {
+            DesktopLayout.pasteRequested(root.screenName, root.attachTo.x, root.attachTo.y);
+            return;
+        }
+        if (entry.action === "AddWidget") {
+            DesktopLayout.addWidgetRequested(root.screenName, root.attachTo.x, root.attachTo.y);
+            return;
+        }
+        if (entry.action === "ArrangeIcons") {
+            DesktopLayout.viewOptionsRequested(root.screenName, root.attachTo.x, root.attachTo.y);
+            return;
+        }
+        if (entry.action === "ToggleDesktopIcons") {
+            ContextMenuStore.toggleIcons(root.screenName);
+            return;
+        }
+        if (entry.action === "Wallpapers.next()") {
+            Wallpapers.next();
+            return;
+        }
+
         execTimer.pendingAction = () => {
             if (entry.action) {
-                if (entry.action === "Wallpapers.next()") Wallpapers.next();
-                else if (entry.action === "Quickshell.reload()") Quickshell.reload();
+                if (entry.action === "Quickshell.reload()") Quickshell.reload();
                 else if (entry.action === "WindowFactory.create()") WindowFactory.create();
-                else if (entry.action === "ToggleDesktopIcons") {
-                    let newState = !GlobalConfig.background.desktopIconsEnabled;
-                    GlobalConfig.background.desktopIconsEnabled = newState;
-                    for (let i = 0; i < Quickshell.screens.length; i++) {
-                        let sConf = GlobalConfig.forScreen(Quickshell.screens[i].name);
-                        if (sConf) sConf.background.resetOption("desktopIconsEnabled");
-                    }
-                    GlobalConfig.save();
-                } else if (entry.action === "OpenRightClickMenu") {
+                else if (entry.action === "OpenRightClickMenu") {
                     WindowFactory.create(null, {
                         initialPageIdx: PageRegistry.indexForKey("desktop"),
                         initialSubPageIdx: 2
@@ -80,8 +95,27 @@ Controls.Menu {
                 root.itemPool[key] = item;
             }
 
-            item.text = entry.label;
-            item.icon = entry.icon || "application-x-executable";
+            if (entry.action === "ToggleDesktopIcons") {
+                item.text = Qt.binding(() => root.iconsEnabled ? qsTr("Hide Desktop Icons") : qsTr("Show Desktop Icons"));
+                item.icon = Qt.binding(() => root.iconsEnabled ? "visibility_off" : "visibility");
+                item.visible = true;
+            } else if (entry.action === "Paste") {
+                item.text = entry.label;
+                item.icon = entry.icon || "content_paste";
+                item.visible = Qt.binding(() => root.iconsShown && DesktopLayout.clipboardHasFiles);
+            } else if (entry.action === "AddWidget") {
+                item.text = entry.label;
+                item.icon = entry.icon || "widgets";
+                item.visible = Qt.binding(() => root.iconsShown);
+            } else if (entry.action === "ArrangeIcons") {
+                item.text = entry.label;
+                item.icon = entry.icon || "sort";
+                item.visible = Qt.binding(() => root.iconsShown);
+            } else {
+                item.text = entry.label;
+                item.icon = entry.icon || "widgets";
+                item.visible = true;
+            }
             newArr.push(item);
         }
         for (const k in root.itemPool) {
@@ -95,12 +129,6 @@ Controls.Menu {
         root.dynamicModel = newArr;
         const buildMs = Date.now() - buildStartedAt;
         console.log("[perf][DesktopContextMenu] build model source=" + sourceName + " items=" + newArr.length + " ms=" + buildMs);
-
-        if (root.perfMenuOpenStartedAt > 0) {
-            const openMs = Date.now() - root.perfMenuOpenStartedAt;
-            console.log("[perf][DesktopContextMenu] open latency ms=" + openMs + " source=" + sourceName);
-            root.perfMenuOpenStartedAt = 0;
-        }
     }
 
     function reloadMenu(forceDisk) {
@@ -110,19 +138,38 @@ Controls.Menu {
         }
     }
 
+    // The model is rebuilt only when the store's entries change, so opening
+    // the menu does not recreate every row.
+    function refresh() {
+        ContextMenuStore.ensureLoaded(false);
+    }
+
+    // Called when the menu is requested again while already open.
+    function reopen() {
+        refresh();
+        replayReveal();
+    }
+
     attachSideX: _flipX ? Controls.Menu.Left : Controls.Menu.Right
     attachSideY: _flipY ? Controls.Menu.Top : Controls.Menu.Bottom
     thisSideX: _flipX ? Controls.Menu.Right : Controls.Menu.Left
     thisSideY: _flipY ? Controls.Menu.Bottom : Controls.Menu.Top
     transparentBackground: true
+    revealHorizontal: true
+
+    // Every entry has to be reachable without scrolling, so the menu grows to its content.
+    // The window is the only real limit: past that the entries would be off-screen rather
+    // than a short flick away, and the menu flips above the cursor when it will not fit
+    // below. The floor keeps the old clamp if the window is not measured yet.
+    maxHeight: Math.max(320, root.height > 0 ? root.height - Tokens.padding.large : 560)
 
     rightClickReposition: true
     onRightClickedAt: (x, y) => ContextMenuStore.openDesktopContextMenu(x, y, root.screenName)
 
     onExpandedChanged: {
         if (expanded) {
-            root.perfMenuOpenStartedAt = Date.now();
-            reloadMenu(false);
+            DesktopLayout.refreshClipboard();
+            refresh();
         }
     }
 
@@ -133,7 +180,7 @@ Controls.Menu {
 
         property var pendingAction: null
 
-        interval: 250
+        interval: Tokens.anim.durations.small
         repeat: false
 
         onTriggered: {

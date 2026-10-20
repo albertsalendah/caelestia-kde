@@ -5,10 +5,31 @@ import Quickshell
 import Quickshell.Io
 import Caelestia.Config
 import Caelestia.Services
+import qs.components.controls
+import qs.services
 import qs.modules.nexus.common
 
 PageBase {
     id: root
+
+    readonly property list<MenuItem> iconSizeItems: [
+        MenuItem {
+            text: qsTr("Small")
+            value: 48
+        },
+        MenuItem {
+            text: qsTr("Medium")
+            value: 64
+        },
+        MenuItem {
+            text: qsTr("Large")
+            value: 80
+        },
+        MenuItem {
+            text: qsTr("Huge")
+            value: 96
+        }
+    ]
 
     title: qsTr("Desktop & Tiling")
 
@@ -26,14 +47,15 @@ PageBase {
             first: true
             text: qsTr("Show KDE Desktop")
             subtext: qsTr("Disable Caelestia desktop and use native Plasma 6 desktop instead")
+            reset: ({ node: GlobalConfig.background, setting: "wallpaperEnabled" })
             checked: !Config.background.wallpaperEnabled
-            onToggled: { 
-                GlobalConfig.background.wallpaperEnabled = !checked; 
+            onToggled: {
+                GlobalConfig.background.wallpaperEnabled = !checked;
                 for (let i = 0; i < Quickshell.screens.length; i++) {
                     let sConf = GlobalConfig.forScreen(Quickshell.screens[i].name);
                     if (sConf) sConf.background.resetOption("wallpaperEnabled");
                 }
-                GlobalConfig.save(); 
+                GlobalConfig.save();
             }
         }
 
@@ -42,14 +64,15 @@ PageBase {
             Layout.fillWidth: true
             text: qsTr("Show Desktop Icons")
             subtext: qsTr("Enable icons for Caelestia desktop")
+            reset: ({ node: GlobalConfig.background, setting: "desktopIconsEnabled" })
             checked: Config.background.desktopIconsEnabled
-            onToggled: { 
-                GlobalConfig.background.desktopIconsEnabled = checked; 
+            onToggled: {
+                GlobalConfig.background.desktopIconsEnabled = checked;
                 for (let i = 0; i < Quickshell.screens.length; i++) {
                     let sConf = GlobalConfig.forScreen(Quickshell.screens[i].name);
                     if (sConf) sConf.background.resetOption("desktopIconsEnabled");
                 }
-                GlobalConfig.save(); 
+                GlobalConfig.save();
             }
             enabled: Config.background.wallpaperEnabled
         }
@@ -59,6 +82,7 @@ PageBase {
             Layout.fillWidth: true
             text: qsTr("Material You Icons")
             subtext: qsTr("Override the KDE icon theme for desktop icons only")
+            reset: ({ node: GlobalConfig.background, setting: "materialYouIconsEnabled" })
             checked: Config.background.materialYouIconsEnabled
             onToggled: {
                 GlobalConfig.background.materialYouIconsEnabled = checked;
@@ -76,6 +100,7 @@ PageBase {
             Layout.fillWidth: true
             text: qsTr("Vibrant Icons")
             subtext: qsTr("Boost saturation of Material You icons for extra vibrancy")
+            reset: ({ node: GlobalConfig.background, setting: "materialYouIconsVibrant" })
             checked: Config.background.materialYouIconsVibrant
             onToggled: {
                 GlobalConfig.background.materialYouIconsVibrant = checked;
@@ -88,11 +113,33 @@ PageBase {
             enabled: Config.background.wallpaperEnabled && Config.background.desktopIconsEnabled && Config.background.materialYouIconsEnabled
         }
 
+        SelectRow {
+            Layout.topMargin: Tokens.spacing.extraSmall / 2 - parent.spacing
+            Layout.fillWidth: true
+            label: qsTr("Desktop Icon Size")
+            subtext: qsTr("Ctrl+scroll on the desktop also changes it")
+            menuItems: root.iconSizeItems
+            active: root.iconSizeItems.find(i => i.value === DesktopLayout.iconSize) ?? root.iconSizeItems[1]
+            enabled: Config.background.wallpaperEnabled && Config.background.desktopIconsEnabled
+            onSelected: item => DesktopLayout.setIconSize(item.value)
+        }
+
+        ToggleRow {
+            Layout.topMargin: Tokens.spacing.extraSmall / 2 - parent.spacing
+            Layout.fillWidth: true
+            text: qsTr("Arrange Icons Automatically")
+            subtext: qsTr("Keep desktop icons packed; dragging one reorders the rest")
+            checked: DesktopLayout.autoArrange
+            onToggled: DesktopLayout.setAutoArrange(checked)
+            enabled: Config.background.wallpaperEnabled && Config.background.desktopIconsEnabled
+        }
+
         ToggleRow {
             Layout.topMargin: Tokens.spacing.extraSmall / 2 - parent.spacing
             Layout.fillWidth: true
             text: qsTr("Magic Lamp Minimize")
             subtext: qsTr("Enable the magic lamp effect when minimizing windows")
+            reset: ({ node: GlobalConfig.general, setting: "magicLampEnabled" })
             checked: Config.general.magicLampEnabled
             onToggled: {
                 GlobalConfig.general.magicLampEnabled = checked;
@@ -122,7 +169,7 @@ PageBase {
         NavRow {
             icon: "extension"
             label: qsTr("Desktop Addons")
-            status: qsTr("Clock, Shapes, Lyrics, Visualiser")
+            status: qsTr("Visualiser, auto-hide, styling")
             onClicked: root.nState.openSubPage(1)
         }
 

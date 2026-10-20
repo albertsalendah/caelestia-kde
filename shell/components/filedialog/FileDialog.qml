@@ -5,15 +5,17 @@ import QtQuick.Layouts
 import Quickshell
 import qs.components
 import qs.services
+import qs.utils
 
 LazyLoader {
     id: loader
 
     property list<string> cwd: ["Home"]
-    property string filterLabel: "All files"
+    property string filterLabel: qsTr("All files")
     property list<string> filters: ["*"]
     property bool selectFolder: false
     property string title: selectFolder ? qsTr("Select a folder") : qsTr("Select a file")
+    property bool countedOpen: false
 
     signal accepted(path: string)
     signal rejected
@@ -28,6 +30,17 @@ LazyLoader {
 
     onAccepted: activeAsync = false
     onRejected: activeAsync = false
+
+    onActiveAsyncChanged: {
+        if (activeAsync !== countedOpen) {
+            Visibilities.openDialogs += activeAsync ? 1 : -1;
+            countedOpen = activeAsync;
+        }
+    }
+    Component.onDestruction: {
+        if (countedOpen)
+            Visibilities.openDialogs -= 1;
+    }
 
     FloatingWindow {
         id: root
@@ -49,6 +62,26 @@ LazyLoader {
 
         function rejected(): void {
             loader.rejected();
+        }
+
+        // Resolve the cursor and hand it up: the folder under it in folder mode, the
+        // folder being browsed when it is on a file, and the file otherwise. The view
+        // asks for this instead of resolving the selection itself.
+        function acceptSelection(): void {
+            const entry = folderContents.currentItem?.modelData;
+            if (!selectFolder) {
+                if (entry)
+                    accepted(entry.path);
+                return;
+            }
+
+            if (entry?.isDir) {
+                accepted(entry.path);
+                return;
+            }
+
+            const here = cwd[0] === "Home" ? Paths.home + (cwd.length > 1 ? `/${cwd.slice(1).join("/")}` : "") : cwd.join("/");
+            accepted(here);
         }
 
         implicitWidth: 1000
@@ -96,7 +129,6 @@ LazyLoader {
                 DialogButtons {
                     Layout.fillWidth: true
                     dialog: root
-                    folder: folderContents
                 }
             }
         }

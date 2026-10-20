@@ -15,7 +15,6 @@ Singleton {
 
     property string apiKey: GlobalConfig.services.wallhavenApiKey ?? ""
 
-    property bool loading: false
     property string lastQuery: ""
     property int currentPage: 1
     property int lastPage: 1
@@ -100,7 +99,6 @@ Singleton {
         if (!page || page < 1)
             page = 1;
 
-        loading = true;
         lastQuery = query;
         currentPage = page;
 
@@ -123,33 +121,15 @@ Singleton {
             params.colors = filters.colors;
 
         const url = buildUrl("/search", params);
-        Logger.log("Wallhaven search:", url);
+        Logger.log("Wallhaven search:", url.replace(/([?&])apikey=[^&]*/, "$1apikey=<redacted>"));
 
-        Requests.get(url, text => {
-            try {
-                const json = JSON.parse(text);
-                results = json.data || [];
-
-                if (json.meta) {
-                    lastPage = json.meta.last_page || 1;
-                    lastSeed = json.meta.seed || "";
-                }
-
-                loading = false;
-                searchComplete(results, json.meta || {});
-            } catch (e) {
-                loading = false;
-                console.error("Wallhaven parse error:", e);
-                searchComplete([], {});
-            }
-        });
+        runSearch(url);
     }
 
     function searchRandom(query: string): void {
         if (!query || query.trim() === "")
             return;
 
-        loading = true;
         lastQuery = query;
         currentPage = 1;
 
@@ -162,26 +142,9 @@ Singleton {
         };
 
         const url = buildUrl("/search", params);
-        Logger.log("Wallhaven random:", url);
+        Logger.log("Wallhaven random:", url.replace(/([?&])apikey=[^&]*/, "$1apikey=<redacted>"));
 
-        Requests.get(url, text => {
-            try {
-                const json = JSON.parse(text);
-                results = json.data || [];
-
-                if (json.meta) {
-                    lastPage = json.meta.last_page || 1;
-                    lastSeed = json.meta.seed || "";
-                }
-
-                loading = false;
-                searchComplete(results, json.meta || {});
-            } catch (e) {
-                loading = false;
-                console.error("Wallhaven random parse error:", e);
-                searchComplete([], {});
-            }
-        });
+        runSearch(url);
     }
 
     function searchNextPage(): void {
@@ -204,23 +167,27 @@ Singleton {
         }
     }
 
-    function loadPage(url: string): void {
+    function runSearch(url: string): void {
         Requests.get(url, text => {
             try {
                 const json = JSON.parse(text);
                 results = json.data || [];
+
                 if (json.meta) {
                     lastPage = json.meta.last_page || 1;
                     lastSeed = json.meta.seed || "";
                 }
-                loading = false;
+
                 searchComplete(results, json.meta || {});
             } catch (e) {
-                loading = false;
-                console.error("Wallhaven page load error:", e);
+                console.error("Wallhaven parse error:", e);
                 searchComplete([], {});
             }
-        });
+        }, () => searchComplete([], {}));
+    }
+
+    function loadPage(url: string): void {
+        runSearch(url);
     }
 
     function setFilter(key: string, value: string): void {

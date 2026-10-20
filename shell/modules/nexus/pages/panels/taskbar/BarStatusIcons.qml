@@ -79,6 +79,7 @@ PageBase {
             Layout.fillWidth: true
             text: qsTr("Wi-Fi")
             subtext: qsTr("Show the Wi-Fi icon alongside the network icon")
+            reset: ({ node: GlobalConfig.bar.status, setting: "showWifi" })
             checked: Config.bar.status.showWifi
             onToggled: GlobalConfig.bar.status.showWifi = checked
         }
@@ -92,6 +93,7 @@ PageBase {
             last: true
             text: qsTr("Popout on hover")
             subtext: qsTr("Show a details popout when hovering the status icons")
+            reset: ({ node: GlobalConfig.bar.popouts, setting: "statusIcons" })
             checked: Config.bar.popouts.statusIcons
             onToggled: GlobalConfig.bar.popouts.statusIcons = checked
         }

@@ -61,7 +61,7 @@ ColumnLayout {
                     Layout.alignment: Qt.AlignRight
                     text: Nmcli.activeEthernet ? qsTr("Connected") : qsTr("Not connected")
                     color: Nmcli.activeEthernet ? Colours.palette.m3primary : Colours.palette.m3onSurfaceVariant
-                    font: Tokens.font.label.small
+                    font: NexusStyle.secondaryFont
                 }
 
                 StyledText {
@@ -69,7 +69,7 @@ ColumnLayout {
                     visible: Nmcli.activeEthernet && Nmcli.ethernetDataUsage.length > 0
                     text: qsTr("Data usage: %1").arg(Nmcli.ethernetDataUsage)
                     color: Colours.palette.m3onSurfaceVariant
-                    font: Tokens.font.label.small
+                    font: NexusStyle.secondaryFont
                 }
             }
         }
@@ -145,7 +145,7 @@ ColumnLayout {
                         Layout.fillWidth: true
                         text: ethRow.isConnected ? ethRow.modelData.iface : qsTr("Not connected • %1").arg(ethRow.modelData.iface)
                         color: ethRow.isConnected ? Colours.palette.m3primary : Colours.palette.m3onSurfaceVariant
-                        font: Tokens.font.label.small
+                        font: NexusStyle.secondaryFont
                         elide: Text.ElideRight
                         animate: true
                     }
@@ -234,7 +234,7 @@ ColumnLayout {
             Layout.alignment: Qt.AlignRight
             text: ethDetail.label
             color: Colours.palette.m3onSurfaceVariant
-            font: Tokens.font.label.small
+            font: NexusStyle.secondaryFont
             elide: Text.ElideRight
             horizontalAlignment: Text.AlignRight
         }
@@ -243,7 +243,7 @@ ColumnLayout {
             Layout.alignment: Qt.AlignRight
             text: ethDetail.value
             color: Colours.palette.m3onSurfaceVariant
-            font: Tokens.font.label.small
+            font: NexusStyle.secondaryFont
             elide: Text.ElideRight
             horizontalAlignment: Text.AlignRight
         }

@@ -3,23 +3,10 @@ import qs.components
 import qs.services
 
 PerfStat {
-    icon: "memory"
-    accent: Colours.palette.m3primary
-
-    maxText: "100%/100°C"
+    icon: "desktop_windows"
+    accent: Colours.palette.m3secondary
     value: Gpu.percentage
-
-    valueText: {
-        const usage = isNaN(Gpu.percentage)
-        ? "..."
-        : `${Math.round(Gpu.percentage * 100)}%`
-
-        const temp = isNaN(Gpu.temperature) || Gpu.temperature <= 0
-        ? "..."
-        : `${Math.round(Gpu.temperature)}°C`
-
-        return `${usage}/${temp}`
-    }
+    valueText: isNaN(Gpu.percentage) ? "..." : Math.round(Gpu.percentage * 100)
 
     ServiceRef {
         service: Gpu

@@ -8,6 +8,7 @@ import Caelestia.Config
 import qs.components
 import qs.services
 import qs.utils
+import qs.modules.launcher.services
 import qs.modules.nexus.common
 
 PageBase {
@@ -25,7 +26,7 @@ PageBase {
         Repeater {
             id: list
 
-            model: [...DesktopEntries.applications.values].sort((a, b) => a.name.localeCompare(b.name))
+            model: Apps.alphaApps
 
             ConnectedRect {
                 id: appItem
@@ -76,7 +77,7 @@ PageBase {
                             visible: text
                             text: (appItem.modelData.comment || appItem.modelData.genericName) ?? ""
                             color: Colours.palette.m3onSurfaceVariant
-                            font: Tokens.font.label.small
+                            font: NexusStyle.secondaryFont
                             elide: Text.ElideRight
                         }
                     }

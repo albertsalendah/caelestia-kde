@@ -22,7 +22,8 @@ Item {
     property var closingWindows: []
     property alias indicatorContainer: indicatorContainer
     readonly property real overviewBorderThickness: Math.min(width, height) * 0.15
-    readonly property real indicatorSpace: indicatorContainer.height + Tokens.padding.large * 2
+    readonly property real indicatorScale: Math.max(0.5, Math.min(3, height / 768))
+    readonly property real indicatorSpace: indicatorContainer.height + (Tokens.padding.large * 2) * indicatorScale
     readonly property real verticalOffset: indicatorSpace - overviewBorderThickness
     readonly property int activeWsId: {
         const perOutput = Kwin.activeByOutput[root.screen.name];
@@ -102,8 +103,9 @@ Item {
             if (wId === activeWsId) {
                 if (listView.currentIndex !== i) {
                     listView.currentIndex = i;
-                    if (!root._initialized) listView.positionViewAtIndex(i, ListView.SnapPosition);
                 }
+                if (!root._initialized || root.opacity <= 0.01)
+                    listView.positionViewAtIndex(i, ListView.SnapPosition);
                 break;
             }
         }
@@ -117,6 +119,7 @@ Item {
             selectedIndex = -1;
             root.isDragging = false;
         } else {
+            root.syncPage();
             if (Visibilities.preOverviewActiveWindowAddress !== "") {
                 const targetAddress = Visibilities.preOverviewActiveWindowAddress;
                 let foundIndex = -1;
@@ -236,7 +239,9 @@ Item {
                 let changed = arr.length !== wsWindows.length;
                 if (!changed) {
                     for (let i = 0; i < arr.length; ++i) {
-                        if (arr[i].address !== wsWindows[i].address) {
+                        const a = arr[i];
+                        const b = wsWindows[i];
+                        if (a.address !== b.address || a.width !== b.width || a.height !== b.height || a.x !== b.x || a.y !== b.y || a.title !== b.title) {
                             changed = true;
                             break;
                         }
@@ -411,11 +416,10 @@ Item {
                                 }
                             }
                             Behavior on opacity {
-                                NumberAnimation {
+                                Anim {
                                     id: opacityAnim
 
-                                    duration: 250
-                                    easing.type: Easing.OutCubic
+                                    type: Anim.DefaultEffects
                                 }
                             }
                             Connections {
@@ -427,8 +431,16 @@ Item {
 
                                 target: opacityAnim
                             }
-                            Behavior on x { enabled: !dragHandler.active && root.opacity > 0.5; NumberAnimation { duration: 250; easing.type: Easing.OutQuad } }
-                            Behavior on y { enabled: !dragHandler.active && root.opacity > 0.5; NumberAnimation { duration: 250; easing.type: Easing.OutQuad } }
+                            Behavior on x {
+                                enabled: !dragHandler.active && root.opacity > 0.5
+
+                                Anim { type: Anim.FastSpatial }
+                            }
+                            Behavior on y {
+                                enabled: !dragHandler.active && root.opacity > 0.5
+
+                                Anim { type: Anim.FastSpatial }
+                            }
                             HoverHandler {
                                 id: hover
 
@@ -443,9 +455,8 @@ Item {
                                 }
                             }
 
-                            IconImage {
+                            CachingIconImage {
                                 anchors.centerIn: parent
-                                asynchronous: true
                                 implicitSize: Math.round(Math.min(activeWin.width, activeWin.height) * 0.62)
                                 opacity: activeWin.morphed ? 1 : 0
                                 source: WinIcons.sourceForClient(modelData)
@@ -662,7 +673,7 @@ Item {
             enabled: root._initialized
 
             NumberAnimation {
-                duration: listView.rawSwipeOffset === 0.0 ? 300 : 0
+                duration: listView.rawSwipeOffset === 0.0 ? Tokens.anim.duration(300) : 0
                 easing.type: listView.rawSwipeOffset === 0.0 ? Easing.OutCubic : Easing.Linear
             }
         }
@@ -672,16 +683,17 @@ Item {
 
         anchors.bottom: parent.bottom
         anchors.horizontalCenter: parent.horizontalCenter
-        anchors.bottomMargin:Tokens.padding.large
-        implicitWidth: workspaceIndicator.implicitWidth + Tokens.padding.large * 2
-        implicitHeight: workspaceIndicator.implicitHeight + Tokens.padding.medium * 2
-        radius: Tokens.rounding.large
+        anchors.bottomMargin: Tokens.padding.large * root.indicatorScale
+        implicitWidth: workspaceIndicator.implicitWidth + (Tokens.padding.large * 2) * root.indicatorScale
+        implicitHeight: workspaceIndicator.implicitHeight + (Tokens.padding.medium * 2) * root.indicatorScale
+        radius: Tokens.rounding.large * root.indicatorScale
         color: Colours.layer(Colours.palette.m3surfaceContainerHigh, 2)
 
         WorkspaceIndicator {
             id: workspaceIndicator
 
             anchors.centerIn: parent
+            baseScale: root.indicatorScale
             maxWidth: Math.max(200, root.width - 100)
             screenName: root.screen.name
             count: listView.count
@@ -781,7 +793,7 @@ Item {
         anchors.leftMargin: Tokens.padding.large
         implicitWidth: prevIcon.implicitWidth + Tokens.padding.large * 2
         implicitHeight: prevIcon.implicitHeight + Tokens.padding.large * 2
-        radius: height / 2
+        radius: Tokens.rounding.full
         color: Colours.tPalette.m3surfaceContainerHigh
         opacity: hoverPrev.hovered ? 1 : 0.6
         visible: listView.currentIndex > 0
@@ -807,7 +819,7 @@ Item {
         anchors.rightMargin: Tokens.padding.large
         implicitWidth: nextIcon.implicitWidth + Tokens.padding.large * 2
         implicitHeight: nextIcon.implicitHeight + Tokens.padding.large * 2
-        radius: height / 2
+        radius: Tokens.rounding.full
         color: Colours.tPalette.m3surfaceContainerHigh
         opacity: hoverNext.hovered ? 1 : 0.6
         visible: listView.currentIndex < listView.count - 1

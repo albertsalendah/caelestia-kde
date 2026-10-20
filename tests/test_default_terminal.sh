@@ -115,7 +115,8 @@ test_terminals_that_need_a_flag_get_it_before_the_command() {
 }
 
 test_both_places_that_run_a_command_in_a_terminal_use_the_helper() {
-    assert_contains "$(cat "$LAUNCH")" 'root.wrap(root.terminalCommand([`${Quickshell.shellDir}/assets/wrap_term_launch.sh`, ...entry.command]))' "terminal apps from the launcher"
+    assert_contains "$(cat "$LAUNCH")" 'root.launchInTerminal(entry.command, entry.workingDirectory)' "terminal apps from the launcher go through launchInTerminal"
+    assert_contains "$(cat "$LAUNCH")" 'root.wrap(root.terminalCommand([`${Quickshell.shellDir}/assets/wrap_term_launch.sh`, ...command]))' "which adds the flag the terminal needs, then the wrapper"
     assert_contains "$(cat "$CALC")" 'Launch.terminalCommand(["fish", "-C"' "and the calculator"
     assert_not_contains "$(cat "$CALC")" '[...GlobalConfig.general.apps.terminal, "fish"' "which must not build the command by hand"
 }

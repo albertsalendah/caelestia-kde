@@ -67,14 +67,14 @@ int main(int argc, char** argv) {
     }
 
     std::string preset_action;
-    if (argc > 1) {
-        std::string first = argv[1];
-        if (first == "--update") {
+    for (int argi = 1; argi < argc; ++argi) {
+        std::string arg = argv[argi];
+        if (arg == "--update") {
             preset_action = "update";
-        } else if (first == "--uninstall") {
+        } else if (arg == "--uninstall") {
             preset_action = "uninstall";
         } else {
-            g_bundle_dir = first;
+            g_bundle_dir = arg;
         }
     }
 
@@ -132,7 +132,7 @@ int main(int argc, char** argv) {
             std::string script = g_bundle_dir + (action == "update" ? "/update.sh" : "/uninstall.sh");
             run_external(script); // exits; does not return
         }
-        break; // install
+        break;
     }
 
     std::cerr << "[installer] phase 2: sudo_prompt" << std::endl;
@@ -143,13 +143,15 @@ int main(int argc, char** argv) {
     }
     check_signals();
 
-    if (!g_menu.is_null() && g_menu.contains("menu")) {
+    // parse_menu is the single typed traversal of menu.json: anything else the
+    // file contains is skipped there, so only a real array reaches this point.
+    if (!g_menu.is_null() && g_menu.contains("menu") && g_menu["menu"].is_array()) {
         std::cerr << "[installer] phase 3: configure + review" << std::endl;
-        UI::init_menu_defaults(g_menu["menu"]);
+        const std::vector<UI::MenuItem> root_menu = UI::parse_menu(g_menu["menu"]);
 
         bool begin = false;
         while (!begin && !g_quit) {
-            if (!UI::render_menu(g_menu["menu"], "CONFIGURATION")) {
+            if (!UI::render_menu(root_menu, "CONFIGURATION")) {
                 std::cerr << "[installer] user backed out of menu" << std::endl;
                 Term::restore();
                 return 0;
@@ -216,7 +218,6 @@ int main(int argc, char** argv) {
     Runner::execute();
 
     check_signals();
-    // Phase 5: Complete
     std::cerr << "[installer] phase 5: complete_screen" << std::endl;
     UI::complete_screen();
     Term::restore();
@@ -233,7 +234,6 @@ int main(int argc, char** argv) {
         std::filesystem::remove_all(cache_dir, remove_error);
     }
 
-    // Secure cleanup of sudo credentials
     Sudo::cleanup();
 
     if (g_logout) {

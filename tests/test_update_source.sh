@@ -55,7 +55,7 @@ run_script() {
     shift 2
     make_stubs "$tmp/stubs"
     : > "$tmp/git.log"
-    OUTPUT="$(env HOME="$tmp/home" XDG_RUNTIME_DIR="$tmp" STUB_LOG="$tmp/git.log" \
+    OUTPUT="$(env HOME="$tmp/home" XDG_RUNTIME_DIR="$tmp" STUB_LOG="$tmp/git.log" CAELESTIA_LIB_DIR="$REPO_ROOT/scripts/lib" \
         REAL_GIT="$(command -v git)" PATH="$tmp/stubs:$PATH" bash "$script" "$@" 2>&1)"
     STATUS=$?
 }

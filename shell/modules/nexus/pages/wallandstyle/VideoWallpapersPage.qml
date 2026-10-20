@@ -27,12 +27,14 @@ PageBase {
         ToggleRow {
             first: true
             text: qsTr("Pause video wallpapers")
+            reset: ({ node: GlobalConfig.background, setting: "videoWallpaperPaused" })
             checked: Config.background.videoWallpaperPaused
             onToggled: GlobalConfig.background.videoWallpaperPaused = checked
         }
 
         ToggleRow {
             text: qsTr("Enable video audio")
+            reset: ({ node: GlobalConfig.background, setting: "videoWallpaperSoundEnabled" })
             checked: Config.background.videoWallpaperSoundEnabled
             onToggled: GlobalConfig.background.videoWallpaperSoundEnabled = checked
         }
@@ -40,6 +42,7 @@ PageBase {
         ToggleRow {
             text: qsTr("Pause video on fullscreen")
             visible: root.isHyprland
+            reset: ({ node: GlobalConfig.background, setting: "videoWallpaperPauseOnFullscreen" })
             checked: Config.background.videoWallpaperPauseOnFullscreen
             onToggled: GlobalConfig.background.videoWallpaperPauseOnFullscreen = checked
         }
@@ -47,12 +50,14 @@ PageBase {
         ToggleRow {
             text: qsTr("Pause video on tiled windows")
             visible: root.isHyprland
+            reset: ({ node: GlobalConfig.background, setting: "videoWallpaperPauseOnTiled" })
             checked: Config.background.videoWallpaperPauseOnTiled
             onToggled: GlobalConfig.background.videoWallpaperPauseOnTiled = checked
         }
 
         ToggleRow {
             text: qsTr("Pause video on all displays")
+            reset: ({ node: GlobalConfig.background, setting: "videoWallpaperPauseOnAllDisplays" })
             checked: Config.background.videoWallpaperPauseOnAllDisplays
             onToggled: GlobalConfig.background.videoWallpaperPauseOnAllDisplays = checked
         }
@@ -60,6 +65,7 @@ PageBase {
         ToggleRow {
             last: true
             text: qsTr("Mute video when media plays")
+            reset: ({ node: GlobalConfig.background, setting: "videoWallpaperMuteOnMedia" })
             checked: Config.background.videoWallpaperMuteOnMedia
             onToggled: GlobalConfig.background.videoWallpaperMuteOnMedia = checked
         }

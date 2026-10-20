@@ -246,9 +246,12 @@ test_the_removal_is_wired_after_the_session_and_only_confirmed_through_the_dialo
     session="$(grep -n 'scripts/12-independent-session.sh' "$TUI_DIR/Runner.cpp" | head -1 | cut -d: -f1)"
     removal="$(grep -n 'scripts/13-remove-plasma.sh' "$TUI_DIR/Runner.cpp" | head -1 | cut -d: -f1)"
     [[ -n "$session" && -n "$removal" && "$session" -lt "$removal" ]] || fail "the removal step must come after the session step"
-    assert_contains "$runner" 'if (step.name == "Remove Plasma desktop") {' "the step has its own skip rule"
-    assert_contains "$runner" 'auto mode = g_answers.find("PLASMA_MODE");
-    return mode == g_answers.end() || mode->second != "replace";' "it is skipped unless the choice is replace (a missing answer is skipped too)"
+    local policy
+    policy="$(cat "$TUI_DIR/StepPolicy.cpp")"
+    assert_contains "$policy" 'if (step_name == "Remove Plasma desktop") {' "the step has its own skip rule"
+    assert_contains "$policy" 'const auto mode = answers.find("PLASMA_MODE");
+    return mode == answers.end() || mode->second != "replace";' "it is skipped unless the choice is replace (a missing answer is skipped too)"
+    assert_contains "$(cat "$TUI_DIR/StepPolicyTests.cpp")" 'expect_skipped(false, "Remove Plasma desktop", {{"PLASMA_MODE", "replace"}});' "and upstream's step-policy test covers it"
     assert_contains "$main" 'if (UI::review_screen() && UI::confirm_plasma_removal()) {' "the dialog comes after the review"
     assert_eq "1" "$(grep -c 'g_answers\["PLASMA_REMOVE_CONFIRMED"\] = "true";' "$TUI_DIR/UI.cpp")" "the confirmation is set in exactly one place"
     local dialog

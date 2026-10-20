@@ -7,8 +7,6 @@ blank-before-close-brace	modules/sidebar/AiAssistant.qml	no blank line expected 
 blank-before-close-brace	services/Audio.qml	no blank line expected before closing brace
 blank-before-close-brace	services/DiscordRPC.qml	no blank line expected before closing brace
 missing-section-separator	modules/screenshot/regionSelector/RegionSelection.qml	blank line expected between bindings and property declarations
-section-order	components/PolkitDialog.qml	bindings should appear before child objects (seen at line N)
-section-order	components/PolkitDialog.qml	property declarations should appear before bindings (seen at line N)
 section-order	components/controls/CustomSpinBox.qml	functions should appear before bindings (seen at line N)
 section-order	modules/background/BadAppleVideo.qml	property declarations should appear before functions (seen at line N)
 section-order	modules/background/DesktopIcons.qml	functions should appear before bindings (seen at line N)
@@ -151,3 +149,15 @@ section-order	shell.qml	functions should appear before bindings (seen at line N)
 section-order	shell.qml	property declarations should appear before bindings (seen at line N)
 section-order	shell.qml	property declarations should appear before child objects (seen at line N)
 section-order	utils/Paths.qml	property declarations should appear before functions (seen at line N)
+missing-section-separator	modules/bar/components/Notes.qml	blank line expected between id and bindings
+missing-section-separator	modules/nexus/pages/DisplayCanvas.qml	blank line expected between signal declarations and property declarations
+missing-section-separator	modules/nexus/pages/DisplayPage.qml	blank line expected between bindings and property declarations
+missing-section-separator	modules/nexus/pages/SplashPage.qml	blank line expected between bindings and property declarations
+section-order	modules/nexus/pages/DisplayCanvas.qml	property declarations should appear before signal declarations (seen at line N)
+section-order	modules/nexus/pages/DisplayPage.qml	functions should appear before bindings (seen at line N)
+section-order	modules/nexus/pages/DisplayPage.qml	property declarations should appear before bindings (seen at line N)
+section-order	modules/nexus/pages/PowerPage.qml	functions should appear before bindings (seen at line N)
+section-order	modules/nexus/pages/PowerPage.qml	property declarations should appear before bindings (seen at line N)
+section-order	modules/nexus/pages/SplashPage.qml	functions should appear before bindings (seen at line N)
+section-order	modules/nexus/pages/SplashPage.qml	property declarations should appear before bindings (seen at line N)
+section-order	modules/splash/shell.qml	bindings should appear before child objects (seen at line N)

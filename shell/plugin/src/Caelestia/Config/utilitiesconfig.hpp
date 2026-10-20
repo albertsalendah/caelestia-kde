@@ -19,6 +19,7 @@ class UtilitiesToasts : public settings::ObjectNode {
     CONFIG_GLOBAL_PROPERTY(bool, chargingChanged, true)
     CONFIG_GLOBAL_PROPERTY(bool, gameModeChanged, true)
     CONFIG_GLOBAL_PROPERTY(bool, dndChanged, true)
+    CONFIG_GLOBAL_PROPERTY(bool, dndWhileStreaming, true)
     CONFIG_GLOBAL_PROPERTY(bool, audioOutputChanged, true)
     CONFIG_GLOBAL_PROPERTY(bool, audioInputChanged, true)
     CONFIG_GLOBAL_PROPERTY(bool, capsLockChanged, true)
@@ -85,6 +86,7 @@ class UtilitiesConfig : public settings::ObjectNode {
     CONFIG_PROPERTY(bool, showKeepAwake, true)
     CONFIG_PROPERTY(bool, showScreenRecorder, true)
     CONFIG_PROPERTY(bool, showGifRecorder, true)
+    CONFIG_PROPERTY(bool, showQuickShare, true)
     CONFIG_PROPERTY(bool, showQuickToggles, true)
     CONFIG_PROPERTY(QVariantList, quickToggles,
         DEFAULT_ARG({
@@ -99,6 +101,8 @@ class UtilitiesConfig : public settings::ObjectNode {
             vmap({ { u"id"_s, u"wallpaper"_s }, { u"enabled"_s, true } }),
             vmap({ { u"id"_s, u"badapple"_s }, { u"enabled"_s, true } }),
         }))
+    CONFIG_PROPERTY(bool, quickTogglesCustomOrder, false)
+    CONFIG_PROPERTY(int, quickTogglesPerPage, 6)
 };
 
 } // namespace caelestia::config

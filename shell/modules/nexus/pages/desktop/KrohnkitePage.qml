@@ -56,7 +56,7 @@ PageBase {
             icon: "logout"
             type: TextButton.Filled
             onClicked: restartProcess.running = true
-            
+
             Process {
                 id: restartProcess
 
@@ -247,7 +247,7 @@ PageBase {
                         Layout.fillWidth: true
                         text: qsTr("Comma separated list of classes to not tile (e.g. quickshell,krunner)")
                         color: Colours.palette.m3onSurfaceVariant
-                        font: Tokens.font.label.small
+                        font: NexusStyle.secondaryFont
                         wrapMode: Text.Wrap
                     }
                 }
@@ -348,7 +348,7 @@ PageBase {
             checked: KrohnkiteConfig.tileLayoutEnabled
             onToggled: KrohnkiteConfig.tileLayoutEnabled = checked
         }
-        
+
         ToggleRow {
             text: qsTr("Cascade")
             subtext: qsTr("Windows overlap sequentially like a waterfall")

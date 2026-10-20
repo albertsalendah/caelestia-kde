@@ -1,4 +1,3 @@
-#include <functional>
 #include "UI.hpp"
 #include "Globals.hpp"
 #include "Term.hpp"
@@ -40,15 +39,6 @@ string distro_label(const string& id) {
 
 const char* navigate_hint() {
     return "Up/Down navigate  Enter select  Left/Esc back";
-}
-
-bool check_failed(const string& file, const string& target) {
-    ifstream f(file);
-    string line;
-    while (getline(f, line)) {
-        if (line.find(target) != string::npos) return true;
-    }
-    return false;
 }
 
 bool is_caelestia_installed() {
@@ -212,7 +202,6 @@ namespace UI {
             Draw::text_center(ty + 3, "Caelestia installer", "primary");
             Draw::text_center(ty + 6, "Detected distribution: " + distro_label(g_base_distro), "secondary");
 
-            // Startup problems sit under the distro line, if there is room above the hint.
             if (ty + 7 < y + h - 3)
                 Draw::problems(x + 2, ty + 7, w - 4, 2);
 
@@ -266,7 +255,6 @@ namespace UI {
             if (help_y < y + h - 2)
                 Draw::text(x + 4, help_y, Draw::fit(actions[selected].help, (size_t)(w - 8)), "secondary");
 
-            // Startup problems go above the footer, where nothing else is drawn.
             if (y + h - 4 > help_y + 1)
                 Draw::problems(x + 2, y + h - 4, w - 4, 2);
 
@@ -286,24 +274,6 @@ namespace UI {
             }
         }
         return "exit";
-    }
-
-    void init_menu_defaults(const json& items) {
-        std::function<void(const json&)> walk = [&](const json& arr) {
-            for (size_t i = 0; i < arr.size(); ++i) {
-                auto& item = arr[i];
-                if (item.contains("type") && item["type"] == "submenu" && item.contains("items")) {
-                    walk(item["items"]);
-                } else if (item.contains("id") && item.contains("default") &&
-                           g_answers.find(item["id"].get<string>()) == g_answers.end()) {
-                    if (item["default"].is_boolean())
-                        g_answers[item["id"].get<string>()] = item["default"].get<bool>() ? "true" : "false";
-                    else if (item["default"].is_string())
-                        g_answers[item["id"].get<string>()] = item["default"].get<string>();
-                }
-            }
-        };
-        walk(items);
     }
 
     bool sudo_prompt() {
@@ -326,7 +296,6 @@ namespace UI {
             Draw::text(left + 2, top + 2, "Root privileges are required to install packages.", "on_surface");
             Draw::text(left + 2, top + 3, "Password: ", Draw::bold + Draw::color("primary"));
 
-            // Masked password
             string masked(pw.length(), '*');
             masked.resize(30, ' ');
             Draw::text(left + 12, top + 3, masked, Draw::reset);
@@ -367,7 +336,7 @@ namespace UI {
             if (key == "enter") {
                 if (pw.empty()) continue;
                 if (submit(pw)) return true;
-            } else if (key == "backspace" || (key.length() == 1 && (key[0] == '\x7f' || key[0] == '\x08'))) { // Backspace
+            } else if (key == "backspace" || (key.length() == 1 && (key[0] == '\x7f' || key[0] == '\x08'))) {
                 if (!pw.empty()) pw.pop_back();
                 error_msg.clear();
             } else if (key == "escape") {
@@ -414,7 +383,6 @@ namespace UI {
 
             Draw::box(x, y, w, h, "REVIEW INSTALLATION", "primary", "on_surface");
 
-            // Build lines grouped by phase.
             struct Line { string text; string color; };
             vector<Line> lines;
             for (const auto& ph : Runner::phases) {
@@ -583,7 +551,7 @@ namespace UI {
             if (in) {
                 in.seekg(0, ios::end);
                 streamoff len = in.tellg();
-                const streamoff kMax = 1024 * 1024; // tail at most 1 MiB
+                const streamoff kMax = 1024 * 1024;
                 if (len > kMax)
                     in.seekg(len - kMax, ios::beg);
                 else
@@ -735,7 +703,6 @@ namespace UI {
         string cache_dir = xdg_cache_dir() + "/caelestia-kde";
         string steps_file = cache_dir + "/failed_steps.txt";
         string pkgs_file = cache_dir + "/failed_packages.txt";
-        string patches_file = cache_dir + "/failed_patches.txt";
         string log_path = cache_dir + "/install.log";
 
         while (true) {
@@ -749,15 +716,19 @@ namespace UI {
             int top = 1;
             const size_t content_width = w > 4 ? static_cast<size_t>(w - 4) : 0;
 
-            // Gather error status
             vector<string> failed_pkgs;
             ifstream pf(pkgs_file);
             string pkg;
             while (getline(pf, pkg)) {
                 if (!pkg.empty()) failed_pkgs.push_back(pkg);
             }
-            bool shell_failed = check_failed(steps_file, "Build Caelestia Shell");
-            bool has_errors = !failed_pkgs.empty() || shell_failed;
+            vector<string> failed_steps;
+            ifstream sf(steps_file);
+            string step;
+            while (getline(sf, step)) {
+                if (!step.empty()) failed_steps.push_back(step);
+            }
+            bool has_errors = !failed_pkgs.empty() || !failed_steps.empty();
 
             Draw::box(left, top, w, h, has_errors ? "INSTALLATION COMPLETED WITH WARNINGS" : "INSTALLATION COMPLETE", has_errors ? "warning" : "success", "on_surface");
 
@@ -779,8 +750,13 @@ namespace UI {
                 if (y < top + h - 4) {
                     Draw::text(left + 2, y++, "ATTENTION NEEDED", Draw::bold + Draw::color("error"));
                 }
-                if (shell_failed && y < top + h - 4) {
-                    Draw::text(left + 2, y++, Draw::fit("- Shell build failed (check missing dependencies in log).", content_width), "error");
+                if (!failed_steps.empty() && y < top + h - 4) {
+                    string step_str = "- Failed steps: ";
+                    for (size_t i = 0; i < failed_steps.size(); ++i) {
+                        if (i > 0) step_str += ", ";
+                        step_str += failed_steps[i];
+                    }
+                    Draw::text(left + 2, y++, Draw::fit(step_str, content_width), "error");
                 }
                 if (!failed_pkgs.empty() && y < top + h - 4) {
                     string pkg_str = "- Failed packages: ";
@@ -823,61 +799,84 @@ namespace UI {
                 break;
             } else if (key == "l" || key == "L") {
                 log_view(log_path);
-                // The loop redraws the summary after returning from the log.
             }
         }
     }
 }
 
 namespace UI {
-    bool render_menu(const json& all_items, const std::string& title) {
-        // Items that name a condition ("only_if") are shown only when it holds.
-        const json menu_items = Conditions::visible_items(all_items, Conditions::run_probe);
+    // The one typed parse of menu.json, and the one definition of a valid entry.
+    // It replaces the previous two traversals (default seeding and the per-menu
+    // meta build), which each had their own validity rules: a bad entry could be
+    // seeded by one pass and skipped by the other, planting an answer the menu
+    // never shows. Malformed entries are skipped, not fatal: menu.json is data,
+    // and one bad element must not abort the TUI with an unhandled exception.
+    std::vector<MenuItem> parse_menu(const json& items) {
+        std::vector<MenuItem> parsed;
+        if (!items.is_array())
+            return parsed;
+        parsed.reserve(items.size());
+        for (const auto& item : items) {
+            if (!item.is_object())
+                continue;
+            MenuItem m;
+            if (item.contains("type")) {
+                if (!item["type"].is_string())
+                    continue;
+                m.type = item["type"].get<string>();
+            }
+            m.title = item.contains("title") && item["title"].is_string() ? item["title"].get<string>() : "Unknown";
+            m.id = item.contains("id") && item["id"].is_string() ? item["id"].get<string>() : "";
+            m.help = item.contains("help") && item["help"].is_string() ? item["help"].get<string>() : "";
+            // The condition under which the item is shown (see Conditions.hpp); it is parsed and seeded either way.
+            m.only_if = item.contains("only_if") && item["only_if"].is_string() ? item["only_if"].get<string>() : "";
 
-        struct MenuItemMeta {
-            string type;
-            string title;
-            string id;
-            string help;
-            vector<string> options;
-            unordered_map<string, int> option_index;
-        };
-
-        int selected = 0;
-        int num_items = static_cast<int>(menu_items.size());
-        if (num_items == 0) return true;
-
-        // Seed defaults for this (sub)menu (idempotent: only fills gaps).
-        init_menu_defaults(menu_items);
-
-        vector<MenuItemMeta> meta;
-        meta.reserve(static_cast<size_t>(num_items));
-        for (int i = 0; i < num_items; ++i) {
-            auto& item = menu_items[i];
-            MenuItemMeta m;
-            m.type = item.contains("type") ? item["type"].get<string>() : "action";
-            m.title = item.contains("title") ? item["title"].get<string>() : "Unknown";
-            m.id = item.contains("id") ? item["id"].get<string>() : "";
-            m.help = item.contains("help") ? item["help"].get<string>() : "";
-
-            if (m.type == "select" && item.contains("options") && item["options"].is_array()) {
+            if (m.type == "submenu") {
+                if (!item.contains("items") || !item["items"].is_array())
+                    continue;
+                m.items = parse_menu(item["items"]);
+            } else if (m.type == "select" && item.contains("options") && item["options"].is_array()) {
                 auto& opts = item["options"];
                 m.options.reserve(opts.size());
-                for (size_t oi = 0; oi < opts.size(); ++oi) {
-                    string opt = opts[oi].get<string>();
-                    m.option_index[opt] = static_cast<int>(oi);
-                    m.options.push_back(opt);
-                }
-                if (!m.id.empty() && !m.options.empty() && g_answers[m.id].empty()) {
-                    g_answers[m.id] = m.options[0];
+                for (const auto& opt : opts) {
+                    if (!opt.is_string())
+                        continue;
+                    // Index by position in options, not by the raw JSON index: the
+                    // two spaces diverge as soon as a non-string entry is skipped.
+                    m.option_index[opt.get<string>()] = static_cast<int>(m.options.size());
+                    m.options.push_back(opt.get<string>());
                 }
             }
 
-            meta.push_back(std::move(m));
+            // Answers are seeded in the same pass that decides what exists, so a
+            // seeded answer is always one the menu can show.
+            if (m.type != "submenu" && !m.id.empty() && g_answers.find(m.id) == g_answers.end()) {
+                if (item.contains("default")) {
+                    if (item["default"].is_boolean())
+                        g_answers[m.id] = item["default"].get<bool>() ? "true" : "false";
+                    else if (item["default"].is_string())
+                        g_answers[m.id] = item["default"].get<string>();
+                }
+                if (m.type == "select" && g_answers[m.id].empty() && !m.options.empty())
+                    g_answers[m.id] = m.options.front();
+            }
+
+            parsed.push_back(std::move(m));
         }
+        return parsed;
+    }
+
+    bool render_menu(const std::vector<MenuItem>& all_items, const std::string& title) {
+        // Items that name a condition ("only_if") are shown only when it holds. They were parsed, and
+        // seeded with their defaults, in parse_menu either way, so the scripts always get a value.
+        const std::vector<MenuItem> items = Conditions::visible(all_items, Conditions::run_probe);
+        int selected = 0;
+        int num_items = static_cast<int>(items.size());
+        if (num_items == 0)
+            return false; // an empty or broken submenu must not count as "proceed with install"
 
         auto build_display = [&](int index) {
-            const auto& m = meta[index];
+            const MenuItem& m = items[index];
             string display;
             if (m.type == "submenu") {
                 display = m.title + " >";
@@ -926,8 +925,7 @@ namespace UI {
                 Draw::text(left + 4, start_y + i, line, color_name);
             }
 
-            // Help text for the selected item.
-            const string& help = meta[selected].help;
+            const string& help = items[selected].help;
             if (!help.empty()) {
                 Draw::text(left + 2, top + h - 2, Draw::fit(help, (size_t)(w - 4)), "muted");
             }
@@ -935,10 +933,9 @@ namespace UI {
             cout << Draw::sync_end() << flush;
 
             string key = Input::wait_key();
-            auto& item = menu_items[selected];
-            auto& selected_meta = meta[selected];
-            string type = selected_meta.type;
-            string id = selected_meta.id;
+            const MenuItem& m = items[selected];
+            string type = m.type;
+            string id = m.id;
 
             if (key == "KEY_up") {
                 if (selected > 0) selected--;
@@ -951,32 +948,30 @@ namespace UI {
                     if (id == "action_back") return false;
                     if (id == "action_review" || id == "action_proceed") return true;
                 } else if (type == "submenu") {
-                    if (item.contains("items")) {
-                        bool proceed = render_menu(item["items"], selected_meta.title);
-                        if (proceed) return true; // review chosen from a submenu bubbles up
-                    }
+                    bool proceed = render_menu(m.items, m.title);
+                    if (proceed) return true; // review chosen from a submenu bubbles up
                 } else if (type == "boolean") {
                     g_answers[id] = (g_answers[id] == "true") ? "false" : "true";
                 } else if (type == "select") {
-                    if (!selected_meta.options.empty()) {
+                    if (!m.options.empty()) {
                         int current_idx = 0;
-                        auto it = selected_meta.option_index.find(g_answers[id]);
-                        if (it != selected_meta.option_index.end()) current_idx = it->second;
-                        current_idx = (current_idx + 1) % static_cast<int>(selected_meta.options.size());
-                        g_answers[id] = selected_meta.options[static_cast<size_t>(current_idx)];
+                        auto it = m.option_index.find(g_answers[id]);
+                        if (it != m.option_index.end()) current_idx = it->second;
+                        current_idx = (current_idx + 1) % static_cast<int>(m.options.size());
+                        g_answers[id] = m.options[static_cast<size_t>(current_idx)];
                     }
                 }
             } else if (key == "KEY_left") {
                 if (type == "select") {
-                    if (!selected_meta.options.empty()) {
+                    if (!m.options.empty()) {
                         int current_idx = 0;
-                        auto it = selected_meta.option_index.find(g_answers[id]);
-                        if (it != selected_meta.option_index.end()) current_idx = it->second;
-                        current_idx = (current_idx - 1 + static_cast<int>(selected_meta.options.size())) % static_cast<int>(selected_meta.options.size());
-                        g_answers[id] = selected_meta.options[static_cast<size_t>(current_idx)];
+                        auto it = m.option_index.find(g_answers[id]);
+                        if (it != m.option_index.end()) current_idx = it->second;
+                        current_idx = (current_idx - 1 + static_cast<int>(m.options.size())) % static_cast<int>(m.options.size());
+                        g_answers[id] = m.options[static_cast<size_t>(current_idx)];
                     }
                 } else {
-                    return false; // back out of submenu
+                    return false;
                 }
             } else if (key == "escape") {
                 return false;

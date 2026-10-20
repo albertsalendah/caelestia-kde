@@ -42,8 +42,6 @@ qml_module(caelestia-services
         sessionmanager.hpp
         discordipc.cpp
         discordipc.hpp
-        hyprlandstate.cpp
-        hyprlandstate.hpp
         hyprdevices.cpp
         hyprdevices.hpp
         hyprextras.cpp
@@ -54,6 +52,8 @@ qml_module(caelestia-services
         emojidb.hpp
         brightnesswatcher.cpp
         brightnesswatcher.hpp
+        pipewirestreamwatcher.cpp
+        pipewirestreamwatcher.hpp
         clipboardmanager.cpp
         clipboardmanager.hpp
         schemeloader.cpp
@@ -90,6 +90,8 @@ qml_module(caelestia-services
         screenedges.hpp
         NmQt.cpp
         NmQt.hpp
+        HotspotController.cpp
+        HotspotController.hpp
     LIBRARIES
         Qt::Concurrent
         Qt::DBus
@@ -111,8 +113,6 @@ qml_module(caelestia-services
         caelestia-config
 )
 
-
-
 qt6_generate_wayland_protocol_client_sources(caelestia-services FILES
     ${CMAKE_CURRENT_SOURCE_DIR}/../protocols/zkde-screencast-unstable-v1.xml
     ${CMAKE_CURRENT_SOURCE_DIR}/../protocols/plasma-window-management.xml
@@ -126,3 +126,5 @@ set_source_files_properties(
     ${CMAKE_CURRENT_BINARY_DIR}/wayland-kde-output-management-v2-protocol.c
     PROPERTIES SKIP_PRECOMPILE_HEADERS ON
 )
+
+add_subdirectory(QuickShare)

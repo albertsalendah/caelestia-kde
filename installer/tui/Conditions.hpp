@@ -1,7 +1,7 @@
 #pragma once
 #include <functional>
 #include <string>
-#include "json.hpp"
+#include <vector>
 
 // Conditions an item in data/menu.json can name with "only_if": the item is shown only when the
 // condition holds. A hidden item still gets its default (UI::init_menu_defaults does not look at
@@ -16,9 +16,17 @@ namespace Conditions {
     // whether a shell command succeeded.
     bool holds(const std::string& only_if, const std::function<bool(const std::string&)>& probe);
 
-    // The items of a menu that are shown: those without an "only_if", and those whose condition
-    // holds.
-    nlohmann::json visible_items(const nlohmann::json& items, const std::function<bool(const std::string&)>& probe);
+    // The items of a menu that are shown: those with an empty only_if, and those whose condition
+    // holds. Item is anything with a string member only_if (UI::MenuItem).
+    template <typename Item>
+    std::vector<Item> visible(const std::vector<Item>& items, const std::function<bool(const std::string&)>& probe) {
+        std::vector<Item> shown;
+        for (const auto& item : items) {
+            if (item.only_if.empty() || holds(item.only_if, probe))
+                shown.push_back(item);
+        }
+        return shown;
+    }
 
     // Runs the command with sh -c, output discarded, and says whether it exited with status 0.
     // The answer is kept, so each command runs once however often a menu is drawn.

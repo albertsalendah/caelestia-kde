@@ -56,6 +56,8 @@ QtObject {
                 { label: qsTr("Taskbar"), pagePath: "panels/TaskbarPanel.qml", keywords: ["per-monitor", "position", "screen"], subPageIdx: 2 },
                 { label: qsTr("Dashboard"), pagePath: "panels/DashboardPanel.qml", subPageIdx: 1 },
                 { label: qsTr("Launcher"), pagePath: "panels/LauncherPanel.qml", subPageIdx: 3 },
+                { label: qsTr("App browser layout"), keywords: ["launcher", "layout", "simple", "compact", "categories", "favourites"], pagePath: "panels/LauncherPanel.qml", subPageIdx: 3 },
+                { label: qsTr("Truncated app names"), keywords: ["launcher", "name", "truncated", "long", "tooltip", "shrink", "flip"], pagePath: "panels/LauncherPanel.qml", subPageIdx: 3 },
                 { label: qsTr("Sidebar"), pagePath: "panels/SidebarPanel.qml", subPageIdx: 4 },
                 { label: qsTr("Quick Toggles Panel"), pagePath: "panels/UtilitiesPanel.qml", subPageIdx: 5 },
                 { label: qsTr("Overview"), pagePath: "panels/OverviewPanel.qml", keywords: ["overview", "animations", "blur"], subPageIdx: 16 },
@@ -68,8 +70,13 @@ QtObject {
                 { label: qsTr("Status icons"), keywords: ["indicators", "bar"], pagePath: "panels/taskbar/BarStatusIcons.qml", subPageIdx: 10 },
                 { label: qsTr("Clock"), keywords: ["date", "time"], pagePath: "panels/taskbar/BarClock.qml", subPageIdx: 11 },
                 { label: qsTr("Clock seconds"), keywords: ["clock", "time", "seconds", "show seconds"], pagePath: "panels/taskbar/BarClock.qml", subPageIdx: 11 },
-                { label: qsTr("Dock"), keywords: ["dock", "pinned", "apps"], pagePath: "panels/taskbar/BarDock.qml", subPageIdx: 12 },
+                { label: qsTr("Dock"), keywords: ["dock", "pinned", "apps", "grouping", "ungroup", "combine"], pagePath: "panels/taskbar/BarDock.qml", subPageIdx: 12 },
                 { label: qsTr("GitHub"), keywords: ["github", "contributions", "token"], pagePath: "panels/taskbar/BarGithub.qml", subPageIdx: 13 },
+                { label: qsTr("Media"), keywords: ["media", "music", "player", "spotify", "youtube", "now playing", "volume", "visualiser"], pagePath: "panels/taskbar/BarMedia.qml", subPageIdx: 19 },
+                { label: qsTr("Weather"), keywords: ["weather", "temperature", "units", "celsius", "fahrenheit", "city"], pagePath: "panels/taskbar/BarWeather.qml", subPageIdx: 20 },
+                { label: qsTr("Performance"), keywords: ["performance", "cpu", "gpu", "ram", "memory", "storage", "network", "battery", "pills", "stats"], pagePath: "panels/taskbar/BarPerformance.qml", subPageIdx: 21 },
+                { label: qsTr("Screen Capture"), keywords: ["screenshot", "recording", "region", "spectacle", "gif"], pagePath: "panels/taskbar/BarScreenCapture.qml", subPageIdx: 22 },
+                { label: qsTr("Keep Awake"), keywords: ["idle", "inhibit", "sleep", "caffeine", "coffee"], pagePath: "panels/taskbar/BarKeepAwake.qml", subPageIdx: 23 },
                 { label: qsTr("Per-element scaling offsets"), keywords: ["scale", "font scale", "preview"], pagePath: "panels/taskbar/BarPreviewScales.qml", subPageIdx: 14 },
                 { label: qsTr("Elements & Modules"), keywords: ["workspaces", "tray", "clock", "modules"], pagePath: "panels/taskbar/TaskbarElements.qml", subPageIdx: 15 },
                 { label: qsTr("Update indicator"), keywords: ["updates", "indicator"], pagePath: "panels/taskbar/BarUpdates.qml", subPageIdx: 17 },
@@ -92,7 +99,8 @@ QtObject {
                 { label: qsTr("VPN"), keywords: ["vpn", "tunnel", "secure"] },
                 { label: qsTr("IPv4"), keywords: ["ethernet", "ip address", "dhcp", "gateway"] },
                 { label: qsTr("All networks"), keywords: ["list", "available", "scan"], pagePath: "network/AllNetworksPage.qml", subPageIdx: 5 },
-                { label: qsTr("Saved networks"), keywords: ["remembered", "forget", "profiles"], pagePath: "network/SavedNetworksPage.qml", subPageIdx: 6 }
+                { label: qsTr("Saved networks"), keywords: ["remembered", "forget", "profiles"], pagePath: "network/SavedNetworksPage.qml", subPageIdx: 6 },
+                { label: qsTr("Hotspot"), keywords: ["hotspot", "tethering", "access point", "share connection"], pagePath: "network/HotspotPage.qml", subPageIdx: 7 }
             ]
         },
         {
@@ -146,7 +154,8 @@ QtObject {
                 { label: qsTr("Utilities Panel"), subPageIdx: 5, keywords: ["keep awake", "screenshot", "record"] },
                 { label: qsTr("Quick Toggles"), subPageIdx: 6, keywords: ["toggles", "dashboard", "switches"] },
                 { label: qsTr("Game Mode"), pagePath: "services/GameModePage.qml", subPageIdx: 1, keywords: ["hyprland overrides", "performance", "games"] },
-                { label: qsTr("Auto-enable rules"), keywords: ["game mode", "rules", "target windows"], pagePath: "services/GameModeTargetsPage.qml", subPageIdx: 2 }
+                { label: qsTr("Auto-enable rules"), keywords: ["game mode", "rules", "target windows"], pagePath: "services/GameModeTargetsPage.qml", subPageIdx: 2 },
+                { label: qsTr("Quick Share"), pagePath: "services/QuickSharePage.qml", subPageIdx: 7, keywords: ["bluetooth", "nearby", "file sharing", "send file", "receive file", "android"] }
             ]
         },
         {
@@ -194,6 +203,7 @@ QtObject {
             category: "shell",
             settings: [
                 { label: qsTr("Background Services"), keywords: ["daemons", "systemd", "tuning"] },
+                { label: qsTr("Visualiser Input"), keywords: ["visualiser", "microphone", "cava", "audio"] },
                 { label: qsTr("Rich Presence"), keywords: ["discord", "steamgriddb", "activity"], pagePath: "services/ArpcPage.qml", subPageIdx: 1 }
             ]
         },
@@ -279,12 +289,10 @@ QtObject {
             category: "system",
             settings: [
                 { label: qsTr("Device Info"), keywords: ["hardware", "specs", "cpu", "ram"] },
-                { label: qsTr("OS Version"), keywords: ["caelestia", "quickshell", "release"] }
+                { label: qsTr("OS Version"), keywords: ["caelestia", "quickshell", "release"] },
+                { label: qsTr("Uninstall Caelestia"), keywords: ["remove", "delete", "uninstall", "purge"] }
             ]
         },
-        // AI
-        // Last, to stay aligned with PageCompRegistry.pageComps — this list is
-        // indexed by position, so entries cannot be reordered independently.
         {
             label: qsTr("AI Assistant"),
             key: "ai",
@@ -299,4 +307,19 @@ QtObject {
             ]
         }
     ]
+
+    // Sub page index of the first entry pointing at the given page, or -1 when
+    // no entry does. Callers that jump to a sub page should look it up instead
+    // of hardcoding the number: inserting a sub page anywhere in the registry
+    // shifts every index after it, which silently repoints shortcuts.
+    function subPageIdxFor(pagePath: string): int {
+        for (let i = 0; i < pages.length; i++) {
+            const settings = pages[i].settings || [];
+            for (let j = 0; j < settings.length; j++) {
+                if (settings[j].pagePath === pagePath)
+                    return settings[j].subPageIdx;
+            }
+        }
+        return -1;
+    }
 }

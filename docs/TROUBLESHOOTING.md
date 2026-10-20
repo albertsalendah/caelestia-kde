@@ -16,6 +16,7 @@ This document catalogs known failure modes, error conditions, and edge cases dis
 6. [Network & Proxy Issues](#6-network--proxy-issues)
 7. [KDE & Plasma Specific Issues](#7-kde--plasma-specific-issues)
    1. [Installer Window Rules](#77-installer-window-rules)
+   2. [Quick Share Cannot Receive Files](#78-quick-share-cannot-receive-files)
 8. [Post-Install Issues](#8-post-install-issues)
 9. [Uninstall Issues](#9-uninstall-issues)
 10. [Update Issues](#10-update-issues)
@@ -52,6 +53,8 @@ The shell build (`08-build-shell.sh`) requires **Qt 6.9+** and several system li
 | KF6WindowSystem | KWindowSystem not found | `kwindowsystem` | `kf6-kwindowsystem-devel` |
 | KGlobalAccel | kglobalaccel not found | `kglobalaccel` | `kf6-kglobalaccel-devel` |
 | KPipeWire | pipewire integration | `kpipewire` | `kf6-kpipewire-devel` |
+| Protobuf | Quick Share: `find_package(Protobuf)` | `protobuf` | `protobuf-devel` |
+| OpenSSL | Quick Share: `find_package(OpenSSL)` | `openssl` | `openssl-devel` |
 
 #### Library Dependencies (pkg_check_modules)
 
@@ -304,6 +307,55 @@ same question with an exit status (3 means enabled but not loaded).
 
 ---
 
+### 3.9 Copy/Paste Crashes Krita or Inkscape (cliphist.service)
+
+Krita crashes when a selection is copied and pasted inside the document, while
+pasting an image copied from another application works. Inkscape crashes on
+copy/paste of anything. Stopping the clipboard service stops the crashes:
+
+```bash
+systemctl --user stop cliphist.service   # the crash should go away with it
+systemctl --user start cliphist.service
+pgrep -a wl-clip-persist                 # confirms the helper below is running
+```
+
+The unit runs three helpers: two `wl-paste --watch cliphist store` watchers and
+`wl-clip-persist`. The watchers only read the clipboard, so they cannot disturb
+it. `wl-clip-persist` does: it reads **every** MIME type of a new selection into
+memory and then re-offers the clipboard itself, so the application that copied no
+longer owns the selection.
+
+Applications that put a process-private payload on the clipboard expect to read
+it back out of their own clipboard object. Krita serialises raw `KisNode*`
+pointers into `application/x-krita-node-internal-pointer` and hands the payload
+straight back to `dynamic_cast` on paste as long as the pid in it is its own
+(`KisMimeData::tryLoadInternalNodes`); Inkscape does the same for
+`image/x-inkscape-svg`. Once `wl-clip-persist` re-offers the payload, the
+pointers are stale and the paste dies in `__dynamic_cast`.
+
+The unit therefore passes `--all-mime-type-regex` to `wl-clip-persist`, which
+makes it leave alone any selection event that offers one of those private
+formats. `wl-clip-persist` handles an event only when **every** MIME type it
+offers matches the filter, so a selection carrying both a private format and,
+say, `text/plain` is skipped whole: the watchers still add it to the clipboard
+history, but it no longer survives the application it was copied from.
+Selections offering only public formats persist as before; the install keeps that
+list in `~/.local/bin/caelestia-cliphist`, next to the flag that reads it.
+
+On an install older than the fix, or if you run your own clipboard setup, pass
+the same flag yourself:
+
+```bash
+wl-clip-persist --clipboard regular \
+    --all-mime-type-regex '(?i)^(?!(?:application/x-krita-|image/x-inkscape-svg)).+'
+```
+
+Any other application that crashes when pasting its own content while the
+service runs belongs to the same class: report it so its format can be added to
+the filter.
+
+---
+
 ## 4. Runtime Issues — Lock Screen
 
 ### 4.1 Lock Screen Greeter Diagnostic
@@ -326,7 +378,7 @@ ls -la ~/.local/share/plasma/shells/caelestia.desktop/contents/lockscreen/LockSc
 | Symptom | Cause | Solution |
 |---|---|---|
 | Stock Breeze lock screen appears | `ShellPackage` reset after KDE update or theme switch. | Caelestia autostart (`caelestia-autostart.sh`) automatically self-heals this at next login if `caelestia.desktop` is present. To restore immediately in session: `kwriteconfig6 --file plasmashellrc --group "Shell" --key "ShellPackage" "caelestia.desktop" && kwriteconfig6 --file kscreenlockerrc --group "Greeter" --key "Theme" --delete`. |
-| Lock screen fails or crashes | Greeter files missing or corrupted in `~/.local/share/plasma/shells/`. | Re-deploy via `BUNDLE_DIR=. ./scripts/02-packages.sh` or `cp -r src/kde/shells/caelestia.desktop ~/.local/share/plasma/shells/`. |
+| Lock screen fails or crashes | Greeter files missing or corrupted in `~/.local/share/plasma/shells/`. | Re-deploy via `BUNDLE_DIR=. ./scripts/08-build-shell.sh` or `cp -r src/kde/shells/caelestia.desktop ~/.local/share/plasma/shells/`. |
 | Lock screen shows wallpaper error | Legacy `PlasmaApplicationWallpaper` left in `kscreenlockerrc`. | Reset WallpaperPlugin: `kwriteconfig6 --file kscreenlockerrc --group Greeter --key WallpaperPlugin "org.kde.image"`. |
 | Profile picture missing | `~/.face` does not exist and no system user avatar set. | Place your avatar image at `~/.face` or configure an avatar in KDE System Settings → Users. |
 
@@ -361,50 +413,34 @@ Some KDE versions (6.1 vs 6.2) may use slightly different config keys.
 
 ### 5.3 Wrong Number of Virtual Desktops
 
-The installer configures exactly **5 desktops**. If you had a different count before:
-- Re-run `scripts/09-system-tweaks.sh` to re-apply
-- The uninstaller resets desktop count to `1`
+The installer configures **5 desktops** when it runs, and only then: a system update never touches the count. A count you chose yourself — anything other than KWin's default of `1` — is left alone even on an install.
+
+- To apply the 5 desktops again, set the count back to `1` (or remove `Number` from the `[Desktops]` group) and run the installer: `bash scripts/setup.sh`, or `caelestia install` on a packaged install
+- The uninstaller resets the desktop count to `1`
 
 ### 5.4 Keyboard Shortcut Conflicts
 
 Caelestia's `GlobalShortcut` system uses `kglobalacceld`. When it registers a shortcut that conflicts with another app, it "steals" the binding and records it in:
 
 ```text
-~/.config/caelestia/stolen-shortcuts.json
+${XDG_CONFIG_HOME:-~/.config}/caelestia/stolen-shortcuts.json
 ```
 
 **If shortcuts are missing or wrong:**
 ```bash
-rm -f ~/.config/caelestia/stolen-shortcuts.json
+rm -f "${XDG_CONFIG_HOME:-$HOME/.config}/caelestia/stolen-shortcuts.json"
 systemctl --user status plasma-kglobalaccel.service
 ```
 
+A file an older version left at `~/.config/caelestia/` because it ignored `XDG_CONFIG_HOME` is not read any more. If you set `XDG_CONFIG_HOME` somewhere other than `~/.config`, remove that leftover by hand.
+
 If `keyd` is active and manages Meta+1..5, the tweak script skips KWin bindings for those combos to avoid conflicts.
-
-### 5.5 Terminal Sequence Bleeding (Garbled Output)
-
-If ANSI escape sequences leak from the `caelestia` CLI into your terminal:
-
-```bash
-cat $XDG_CACHE_HOME/caelestia-kde/failed_patches.txt
-```
-
-If `Caelestia CLI Theme Sequence Patch` appears in the failed list, re-run:
-```bash
-bash scripts/09-system-tweaks.sh
-```
-
----
 
 ## 6. Network & Proxy Issues
 
-### 6.1 Pacman Mirror Ranking Fails
+### 6.1 Package Repository Problems
 
-On CachyOS, the installer uses the native `cachyos-rate-mirrors` command, which ranks both Arch and CachyOS repositories. Other Arch-based systems use `reflector` as a fallback. Fedora refreshes its configured DNF metadata and Debian-based systems refresh their configured APT indexes; neither needs mirror-list rewriting during installation. Failure modes:
-- **Offline:** Mirror ranking fails and the existing mirror lists are kept
-- **cachyos-rate-mirrors unavailable:** CachyOS mirror ranking is skipped and the existing mirror lists are kept
-- **reflector not installed:** On non-Cachy Arch systems, it is auto-installed via `pacman -Sy reflector`; if that fails, ranking is skipped
-- **DNF or APT refresh fails:** Fedora/Debian package installation continues and reports the package-manager error later if the configured sources remain unavailable
+The installer does not change mirror lists or refresh package repositories as a separate step. If package installation fails, check that your distribution's configured repositories are reachable and refresh them using the distribution's normal tools before retrying.
 
 ### 6.2 Git / Submodule Failures
 
@@ -510,6 +546,53 @@ sudo /usr/share/sddm/themes/caelestia/scripts/sync.sh   # SDDM
 Both greeters read their configuration when they start, so a change is visible at
 the next logout rather than immediately.
 
+**After switching display managers:**
+
+The step above picks its branch when it runs, so switching the machine over leaves
+the greeter it is no longer using configured. Which manager the machine boots is read
+from `/etc/systemd/system/display-manager.service` first, so the two units still being
+enabled does not send it down the wrong branch. Switch the services over, re-run the
+step, and reboot:
+
+```bash
+sudo systemctl disable plasmalogin.service    # the manager being switched away from
+sudo systemctl enable sddm.service
+caelestia login-screen                        # configure the manager that boots now
+```
+
+`caelestia login-screen` runs the same step the installer runs, for the display
+manager the machine boots. It installs the theme in the variant that is already
+there, so an install made with `SDDM_THEME_VARIANT=mini` stays on mini.
+
+**The login screen hangs, or the greeter crash-loops:**
+
+SDDM 0.21 and newer run the greeter binary the theme asks for: `QtVersion=6` in the
+theme's `metadata.desktop` runs `sddm-greeter-qt6`, and any other value - the key
+being absent included - runs the Qt 5 greeter. Arch and CachyOS build that greeter
+into the `sddm` package with `qt5-declarative` only an optional dependency, so it
+dies on `libQt5Quick.so.5: cannot open shared object file` with exit code 127, and
+SDDM respawns it instead of drawing a login screen. Caelestia's theme is Qt 6, and
+the installer selects it only after checking that the greeter it asks for exists;
+when that check fails the theme is installed but left unselected, and the output
+names the greeter that is missing.
+
+```bash
+# What the theme asks for, and whether that greeter is installed
+grep -rn '^QtVersion' /usr/share/sddm/themes/*/metadata.desktop
+command -v sddm-greeter-qt6
+
+# What the greeter last said (the theme it was told to load, and why it stopped)
+journalctl -b -u sddm --no-pager | tail -n 40
+```
+
+A machine that is already stuck on the crashing greeter comes back from a TTY
+(`Ctrl+Alt+F3`) or by booting with `systemd.unit=multi-user.target`. Stop SDDM, make
+the theme and the greeter agree, then start it again. A theme that asks for Qt 6 needs
+`sddm-greeter-qt6`, which an SDDM older than 0.21 does not have: upgrade it, or select
+a theme that matches the greeter in `[Theme] Current`. Installing `qt5-declarative` is
+the other way out on Arch and CachyOS: it makes the Qt 5 greeter work for the Qt 5
+themes that ask for it, which is what that optional dependency is for.
+
 ### 7.6 Installer Window Rules
 
 The installer writes three groups into `~/.config/kwinrulesrc`. `caelestia-opacity`
@@ -565,6 +648,84 @@ windows created after the removal start clean.
 The installer always applies the rules; `APPLY_WINDOW_RULES=false` is an override
 for running the step by hand (`APPLY_WINDOW_RULES=false bash ./scripts/setup.sh`).
 `WINDOW_OPACITY` changes the percentage the opacity rule writes.
+
+### 7.7 Quick Share Cannot Receive Files
+
+Before anything else, both devices have to be on the same network. A nearby device
+finds this machine through an mDNS advertisement Avahi publishes on the local link and
+connects to the address it resolves, so a phone on mobile data, on another Wi-Fi
+network, or on the same SSID behind AP/client isolation never reaches it, and a VPN on
+this machine resolves the name to an address the other device cannot route. Nothing
+here can see the other device's network, so the shell cannot tell those apart from
+something broken on this machine — and discovery over Bluetooth survives the wrong
+network, which is why a device that cannot be reached still appears in the list.
+
+Sending works and receiving does not: the other device is visible and asks to send,
+but no incoming-file notification appears and the transfer times out. Two things
+outside the shell have to be true for an incoming connection to arrive, and both fail
+silently from the shell's side — a connection that is never allowed looks exactly like
+a device that never tried.
+
+The first is the Avahi daemon. It carries the mDNS advertisement a nearby device
+resolves this machine through, so without it there is nothing to connect to. The
+second is the firewall. The transfer listener binds a fixed port so that a rule can be
+written for it ahead of time; that port has one definition,
+`shell/scripts/quickshare-port`, which the plugin build bakes into the listener and the
+install step reads to open the same port on the firewall. It reaches the setup helper
+as `--port`. A listener on a random port could only be opened while the shell runs,
+which needs administrator rights on every start.
+
+`scripts/06-services.sh` does both during a source install. A package install leaves
+them to the shell, because a package must not enable a system daemon or open a port
+behind the user's back. There, the first time Quick Share is switched on the shell
+checks the system through
+`<qmlconfdir>/scripts/quickshare_setup.sh --status`, and if something is missing asks
+through `pkexec` to put it right. The same helper is behind **Quick Share setup** on
+the Quick Share settings page (Nexus → Services → Quick Share), which is the way back
+if the check was declined, if the firewall changed later, or if the report reads
+`SETUP=unknown` because the rule set cannot be read without root. The row says what it
+knows: where the report cannot see the port, it reports that the port could not be
+checked again rather than claiming a success it cannot confirm.
+
+To see what the machine reports:
+
+```bash
+bash ~/.config/quickshell/caelestia/scripts/quickshare_setup.sh --status --port 65000
+```
+
+The report is four lines. `AVAHI` is `active`, `inactive`, `absent` or `unknown`,
+`FIREWALL` names the manager in charge (`none`, `firewalld` or `ufw`), `PORT` is
+`allowed`, `blocked` or `unknown`, and `SETUP` is `ok`, `needed` or `unknown`. Only
+`needed` is acted on automatically; ufw reports `PORT=unknown` because reading its
+rule set needs root, and guessing there would raise a password prompt for nothing.
+
+To do it by hand, run the helper as root:
+
+```bash
+sudo bash ~/.config/quickshell/caelestia/scripts/quickshare_setup.sh --port 65000
+```
+
+It is idempotent: it enables and starts `avahi-daemon.service` (falling back to
+`avahi-daemon.socket`, which is what Debian uses) and adds the transfer port plus mDNS
+to whichever of firewalld or ufw is running. What it does not touch is a hand-rolled
+`nftables` or `iptables` rule set, which is invisible without root — those have to
+allow inbound TCP 65000 and UDP 5353 themselves. Equivalently, by manager:
+
+```bash
+systemctl enable --now avahi-daemon.service                       # the daemon
+
+firewall-cmd --permanent --add-port=65000/tcp                     # firewalld, with
+firewall-cmd --permanent --add-service=mdns                       # mDNS for discovery
+firewall-cmd --reload
+
+ufw allow 65000/tcp                                               # ufw
+ufw allow 5353/udp
+```
+
+Port 65000 rather than anything lower because it sits above Linux's default ephemeral
+range (32768–60999), so the listener never collides with the local port of an outgoing
+connection. If it is taken by something else, Quick Share reports that it could not
+listen and stays off.
 
 ---
 
@@ -680,11 +841,33 @@ told apart from that release, so it is installed as the release its `version.env
 
 ## 9. Uninstall Issues
 
-### 9.1 No Backups Available
+### 9.1 Uninstalling from the Shell
+
+Settings > About > Uninstall Caelestia opens the uninstaller in a terminal, where it
+asks for confirmation of its own. The button finds the script by looking where a
+checkout is expected, in this order:
+
+1. `$CAELESTIA_DIR/uninstall.sh`
+2. `~/caelestia-kde/uninstall.sh`
+3. `$(cat ~/.config/quickshell/caelestia/.checkout)/uninstall.sh`
+4. `~/.config/caelestia-update/repo/uninstall.sh`
+5. `~/.cache/caelestia-update-repo/uninstall.sh`
+
+The third is the checkout the running shell was installed from, recorded by the
+installer. It is what makes a clone that is not named `~/caelestia-kde` - a manual
+`git clone` anywhere else - still uninstallable from here; reinstall or update once
+for an install that predates that recording. It is tried after `~/caelestia-kde`
+because that is where an install's backups live, and the uninstaller restores from
+its own checkout's `backups/`.
+
+A packaged install has no script, so the row names the command that removes it instead
+(`sudo pacman -Rns caelestia-kde`, or the `dnf`/`apt-get` equivalent).
+
+### 9.2 No Backups Available
 
 Backups are stored in `$BUNDLE_DIR/backups/YYYYMMDD_HHMMSS/`. If you moved or deleted the repository, backups are gone.
 
-### 9.2 konsave Restore Fails
+### 9.3 konsave Restore Fails
 
 If the `.knsv` archive is corrupted or konsave can't be installed:
 - Falls back to manual restore of individual config files
@@ -693,37 +876,42 @@ If the `.knsv` archive is corrupted or konsave can't be installed:
 **Expected warning when restoring a Caelestia backup:**
 > *"The selected backup contains Caelestia configurations. Restoring this backup will NOT revert to a clean KDE desktop!"*
 
-### 9.3 Shell RC Files Not Cleaned
+### 9.4 Shell RC Files Not Cleaned
 
 The uninstaller uses state files (`shellrc/bashrc.state`, etc.) to determine whether to restore or remove shell config files. If these are missing (older installer version), a fallback `sed` cleanup removes `QML2_IMPORT_PATH` and `CAELESTIA_LIB_DIR` lines.
 
-### 9.4 Package Removal Leaves Dependencies
+### 9.5 The Login Shell Is Not Changed Back
+
+The installer only changes the login shell to `fish` when it can record the previous one in `backups/YYYYMMDD_HHMMSS/previous_shell.txt`. The uninstaller only reverses that with the same file. With no backup there is no record that the shell was ever changed, so it is left exactly as it is and the run reports:
+
+> *"No shell backup was recorded, so the login shell (/usr/bin/fish) is left as it is."*
+
+### 9.6 Package Removal Leaves Dependencies
 
 Package removal is optional. It uses `yay -Rns` / `dnf remove` which does NOT remove:
-- Dependencies pulled in automatically (unless `-s` handles it)
+- Dependencies pulled in automatically (unless `-s` handles them)
 - Packages installed outside the defined lists
 - `base-devel` or build tools that existed before install
 
-### 9.5 Legacy Input Group Membership
+### 9.6 Legacy Input Group Membership
 
 Installs from before the `/dev/uinput` rule moved to `TAG+="uaccess"` added the
 user to the `input` group. The installer removes that membership when it finds the
 old `/etc/udev/rules.d/80-uinput.rules`, and the uninstaller runs
 `sudo gpasswd -d $USER input`. Either way it takes effect on next login.
 
-### 9.6 Failed Patches Tracking
+### 9.7 What the Uninstaller Keeps
 
-Failed patches are logged to:
-```text
-$XDG_CACHE_HOME/caelestia-kde/failed_patches.txt
-```
+The uninstaller removes the install and its last traces, but keeps what is the
+user's own:
 
-Possible entries:
-- `Caelestia CLI Hyprctl Mock Patch`
-- `Caelestia CLI Record/Dolphin Patch`
-- `Caelestia CLI Theme Sequence Patch`
-
-These are **cosmetic** — the shell works without them, but certain features (screenshot, recording, terminal colors) may be degraded.
+- `~/.config/caelestia/shell.json`, `keybinds.json` and `cli.json` - the shell's
+  settings, so a reinstall keeps them. `stolen-shortcuts.json` and
+  `stolen-screen-edges.json` are removed: they are crash recovery that only the
+  running shell can act on, and with the shell gone they would strand the KDE
+  shortcuts it took.
+- `~/.config/caelestia-update/` and `~/.cache/caelestia-update-repo` - the updater's
+  checkout and cache. Remove them yourself with the command in [10.1](#101-fixing-caelestia-updater-recommended).
 
 ---
 
@@ -787,9 +975,6 @@ kreadconfig6 --file kscreenlockerrc --group Greeter --key WallpaperPlugin
 # View failed packages log
 cat $XDG_CACHE_HOME/caelestia-kde/failed_packages.txt 2>/dev/null
 
-# View failed patches log
-cat $XDG_CACHE_HOME/caelestia-kde/failed_patches.txt 2>/dev/null
-
 # View installer build log
 cat /tmp/caelestia_build.log 2>/dev/null | tail -60
 
@@ -836,3 +1021,4 @@ systemctl --user restart plasma-plasmashell
 | Installer compiles but flashes/exits | Check `/tmp/caelestia_installer_err.log` |
 | Recording not working | Verify `gpu-screen-recorder` is installed |
 | Screenshot not working | Verify `spectacle` is installed |
+| Krita/Inkscape crashes on copy/paste | `systemctl --user stop cliphist.service` stops the crash; update Caelestia so `wl-clip-persist` runs with the `--all-mime-type-regex` filter (see 3.9) |

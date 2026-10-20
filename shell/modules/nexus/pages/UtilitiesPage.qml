@@ -63,5 +63,18 @@ PageBase {
             status: qsTr("Auto-enable rules and performance overrides")
             onClicked: root.nState.openSubPage(1)
         }
+
+        SectionHeader {
+            text: qsTr("File sharing")
+        }
+
+        NavRow {
+            first: true
+            last: true
+            icon: "near_me"
+            label: qsTr("Quick Share")
+            status: qsTr("Send files to nearby devices")
+            onClicked: root.nState.openSubPage(7)
+        }
     }
 }

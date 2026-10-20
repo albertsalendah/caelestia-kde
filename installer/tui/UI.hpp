@@ -2,6 +2,7 @@
 #include <cstddef>
 #include <map>
 #include <string>
+#include <unordered_map>
 #include <vector>
 #include "json.hpp"
 
@@ -13,9 +14,22 @@ namespace UI {
 
     std::string action_select();
 
-    void init_menu_defaults(const nlohmann::json& menu_items);
+    // The typed shape every menu consumer reads. menu.json is parsed into this
+    // exactly once, in one pass that also seeds the answers.
+    struct MenuItem {
+        std::string type = "action";
+        std::string title;
+        std::string id;
+        std::string help;
+        std::string only_if; // shown only when this Conditions::holds; empty means always
+        std::vector<std::string> options;
+        std::unordered_map<std::string, int> option_index; // option -> index into options
+        std::vector<MenuItem> items;                       // parsed children of a submenu
+    };
 
-    bool render_menu(const nlohmann::json& menu_items, const std::string& title);
+    std::vector<MenuItem> parse_menu(const nlohmann::json& menu_items);
+
+    bool render_menu(const std::vector<MenuItem>& items, const std::string& title);
 
     bool review_screen();
     bool confirm_plasma_removal();

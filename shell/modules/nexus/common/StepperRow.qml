@@ -13,12 +13,14 @@ ConnectedRect {
 
     property alias label: label.text
     property string subtext
+    property var reset
     property real value
     property real from: 0
     property real to: 99
     property real stepSize: 1
 
     signal moved(value: real)
+
 
     Layout.fillWidth: true
     implicitHeight: rowLayout.implicitHeight + rowLayout.anchors.margins * 2
@@ -29,7 +31,8 @@ ConnectedRect {
         anchors.fill: parent
         anchors.margins: Tokens.padding.medium
         anchors.leftMargin: Tokens.padding.largeIncreased
-        anchors.rightMargin: Tokens.padding.largeIncreased
+        // Match SliderRow/ToggleRow so reset icons line up in one column.
+        anchors.rightMargin: Tokens.padding.medium
         spacing: Tokens.spacing.medium
 
         ColumnLayout {
@@ -49,7 +52,7 @@ ConnectedRect {
                 visible: root.subtext
                 text: root.subtext
                 color: Colours.palette.m3onSurfaceVariant
-                font: Tokens.font.label.small
+                font: NexusStyle.secondaryFont
                 elide: Text.ElideRight
             }
         }
@@ -86,6 +89,11 @@ ConnectedRect {
                 value: root.value
                 onValueModified: v => root.moved(v)
             }
+        }
+
+        SettingResetButton {
+            Layout.alignment: Qt.AlignVCenter
+            options: root.reset
         }
     }
 }

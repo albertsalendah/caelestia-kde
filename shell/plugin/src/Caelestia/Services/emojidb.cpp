@@ -14,14 +14,15 @@
 
 #include <algorithm>
 
+#include "../Config/common.hpp"
+
 Q_LOGGING_CATEGORY(lcEmojiDb, "caelestia.services.emojidb", QtInfoMsg)
 
 namespace caelestia::services {
 
 EmojiDb::EmojiDb(QObject* parent)
     : QObject(parent) {
-    const auto configDir = qEnvironmentVariable("XDG_CONFIG_HOME", QDir::homePath() + QStringLiteral("/.config"));
-    m_freqPath = configDir + QStringLiteral("/caelestia/emoji-frequencies.json");
+    m_freqPath = caelestia::config::configFile(QStringLiteral("emoji-frequencies.json"));
 
     loadEmojis();
     loadFrequencies();
@@ -35,7 +36,7 @@ int EmojiDb::count() const {
     return static_cast<int>(m_emojis.size());
 }
 
-bool EmojiDb::loadKdeDict(const QString& path) {
+bool EmojiDb::loadKdeDict(const QString& path, QHash<QString, int>& charMap) {
     QFile file(path);
     if (!file.open(QIODevice::ReadOnly))
         return false;
@@ -77,24 +78,26 @@ bool EmojiDb::loadKdeDict(const QString& path) {
         }
 
         entry.nameLower = (entry.name + u' ' + tags.join(u' ')).toLower();
-        m_emojis.append(std::move(entry));
+
+        auto it = charMap.find(entry.ch);
+        if (it != charMap.end()) {
+            m_emojis[*it] = std::move(entry);
+        } else {
+            charMap.insert(entry.ch, static_cast<int>(m_emojis.size()));
+            m_emojis.append(std::move(entry));
+        }
     }
 
-    return m_emojis.size() > initialSize;
+    return m_emojis.size() > initialSize || count > 0;
 }
 
-bool EmojiDb::loadTextFile(const QString& path) {
+bool EmojiDb::loadTextFile(const QString& path, QHash<QString, int>& charMap) {
     QFile f(path);
     if (!f.open(QIODevice::ReadOnly | QIODevice::Text))
         return false;
 
     QTextStream in(&f);
     const qsizetype initialSize = m_emojis.size();
-    QSet<QString> existingChars;
-    existingChars.reserve(m_emojis.size());
-    for (const auto& e : m_emojis) {
-        existingChars.insert(e.ch);
-    }
 
     while (!in.atEnd()) {
         const auto line = in.readLine();
@@ -106,15 +109,15 @@ bool EmojiDb::loadTextFile(const QString& path) {
             continue;
 
         const QString ch = line.left(spaceIdx);
-        if (existingChars.contains(ch))
+        if (charMap.contains(ch))
             continue;
 
         EmojiEntry entry;
         entry.ch = ch;
         entry.name = line.mid(spaceIdx + 1).trimmed();
         entry.nameLower = entry.name.toLower();
+        charMap.insert(ch, static_cast<int>(m_emojis.size()));
         m_emojis.append(std::move(entry));
-        existingChars.insert(ch);
     }
 
     return m_emojis.size() > initialSize;
@@ -122,23 +125,33 @@ bool EmojiDb::loadTextFile(const QString& path) {
 
 void EmojiDb::loadEmojis() {
     m_emojis.clear();
+    QHash<QString, int> charMap;
 
     const QString kdeDir = QStringLiteral("/usr/share/plasma/emoji");
     if (QDir(kdeDir).exists()) {
         const QString localeName = QLocale::system().name();
         const QString lang = localeName.section(u'_', 0, 0);
 
-        const QStringList kdeCandidates = {
-            kdeDir + u'/' + localeName + QStringLiteral(".dict"),
-            kdeDir + u'/' + lang + QStringLiteral(".dict"),
+        QStringList kdeLoadOrder = {
             kdeDir + QStringLiteral("/en.dict"),
         };
 
-        for (const auto& path : kdeCandidates) {
-            if (QFile::exists(path) && loadKdeDict(path)) {
+        if (lang != QStringLiteral("en")) {
+            const QString langDict = kdeDir + u'/' + lang + QStringLiteral(".dict");
+            if (!kdeLoadOrder.contains(langDict))
+                kdeLoadOrder.append(langDict);
+        }
+
+        if (localeName != lang && localeName != QStringLiteral("en")) {
+            const QString localeDict = kdeDir + u'/' + localeName + QStringLiteral(".dict");
+            if (!kdeLoadOrder.contains(localeDict))
+                kdeLoadOrder.append(localeDict);
+        }
+
+        for (const auto& path : kdeLoadOrder) {
+            if (QFile::exists(path) && loadKdeDict(path, charMap)) {
                 m_loaded = true;
-                qCInfo(lcEmojiDb) << "Loaded" << m_emojis.size() << "emojis from KDE dictionary:" << path;
-                break;
+                qCInfo(lcEmojiDb) << "Loaded" << m_emojis.size() << "emojis after KDE dictionary:" << path;
             }
         }
     }
@@ -159,7 +172,7 @@ void EmojiDb::loadEmojis() {
 
     for (const auto& path : textCandidates) {
         if (!path.isEmpty() && QFile::exists(path)) {
-            if (loadTextFile(path)) {
+            if (loadTextFile(path, charMap)) {
                 m_loaded = true;
                 qCInfo(lcEmojiDb) << "Loaded extra emojis from text file:" << path;
             }
@@ -172,7 +185,23 @@ void EmojiDb::loadEmojis() {
         return;
     }
 
+    buildTrigramIndex();
     emit loadedChanged();
+}
+
+void EmojiDb::buildTrigramIndex() {
+    m_trigramIndex.clear();
+    m_trigramIndex.reserve(m_emojis.size() * 8);
+    for (int i = 0; i < m_emojis.size(); ++i) {
+        const QString& name = m_emojis[i].nameLower;
+        const int len = name.size();
+        for (int j = 0; j + 2 < len; ++j) {
+            const QString trigram = name.mid(j, 3);
+            m_trigramIndex[trigram].append(i);
+        }
+    }
+    qCInfo(lcEmojiDb) << "Trigram index built:" << m_trigramIndex.size() << "unique trigrams for" << m_emojis.size()
+                      << "emojis.";
 }
 
 void EmojiDb::loadFrequencies() {
@@ -265,11 +294,48 @@ QVariantList EmojiDb::search(const QString& text, int limit) const {
     if (text.isEmpty())
         return getSortedItems({});
 
-    const auto lower = text.toLower();
+    const QString lower = text.toLower();
+    const int queryLen = lower.size();
     QVariantList result;
     result.reserve(std::min(limit, static_cast<int>(m_emojis.size())));
 
-    for (const auto& e : m_emojis) {
+    if (queryLen < 3 || m_trigramIndex.isEmpty()) {
+        for (const auto& e : m_emojis) {
+            if (e.nameLower.contains(lower)) {
+                result.append(QVariantMap{
+                    { QStringLiteral("ch"), e.ch },
+                    { QStringLiteral("name"), e.name },
+                    { QStringLiteral("nameLower"), e.nameLower },
+                });
+                if (result.size() >= limit)
+                    break;
+            }
+        }
+        return result;
+    }
+
+    QSet<int> candidates;
+    bool first = true;
+    for (int i = 0; i + 2 < queryLen; ++i) {
+        const QString trigram = lower.mid(i, 3);
+        const auto it = m_trigramIndex.constFind(trigram);
+        if (it == m_trigramIndex.constEnd()) {
+            return {};
+        }
+        const QVector<int>& postings = it.value();
+        if (first) {
+            candidates = QSet<int>(postings.begin(), postings.end());
+            first = false;
+        } else {
+            QSet<int> posting_set(postings.begin(), postings.end());
+            candidates.intersect(posting_set);
+            if (candidates.isEmpty())
+                return {};
+        }
+    }
+
+    for (int idx : std::as_const(candidates)) {
+        const auto& e = m_emojis[idx];
         if (e.nameLower.contains(lower)) {
             result.append(QVariantMap{
                 { QStringLiteral("ch"), e.ch },

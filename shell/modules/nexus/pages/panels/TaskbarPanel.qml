@@ -79,6 +79,7 @@ PageBase {
             first: true
             text: qsTr("Persistent")
             subtext: qsTr("Keep the bar visible at all times")
+            reset: ({ node: GlobalConfig.bar, setting: "persistent" })
             checked: GlobalConfig.bar.persistent
             onToggled: GlobalConfig.bar.persistent = checked
         }
@@ -87,6 +88,7 @@ PageBase {
             text: qsTr("Dodge windows")
             subtext: qsTr("Retract the bar while a window covers it, and let windows sit underneath")
             enabled: GlobalConfig.bar.persistent
+            reset: ({ node: GlobalConfig.bar, setting: "dodgeWindows" })
             checked: GlobalConfig.bar.dodgeWindows
             onToggled: GlobalConfig.bar.dodgeWindows = checked
         }
@@ -95,6 +97,7 @@ PageBase {
             text: qsTr("Dodge focused window only")
             subtext: qsTr("Ignore background windows over the bar, and dodge only what you are using")
             enabled: GlobalConfig.bar.persistent && GlobalConfig.bar.dodgeWindows
+            reset: ({ node: GlobalConfig.bar, setting: "dodgeFocusedOnly" })
             checked: GlobalConfig.bar.dodgeFocusedOnly
             onToggled: GlobalConfig.bar.dodgeFocusedOnly = checked
         }
@@ -114,6 +117,7 @@ PageBase {
         ToggleRow {
             text: qsTr("Show on hover")
             subtext: qsTr("Reveal the bar when the cursor reaches the screen edge")
+            reset: ({ node: GlobalConfig.bar, setting: "showOnHover" })
             checked: GlobalConfig.bar.showOnHover
             onToggled: GlobalConfig.bar.showOnHover = checked
         }
@@ -122,6 +126,7 @@ PageBase {
             last: true
             label: qsTr("Drag threshold")
             subtext: qsTr("Pixels dragged before the bar reveals")
+            reset: ({ node: GlobalConfig.bar, setting: "dragThreshold" })
             value: GlobalConfig.bar.dragThreshold
             from: 0
             to: 200
@@ -170,6 +175,7 @@ PageBase {
             first: true
             label: qsTr("Bar scale")
             subtext: qsTr("Scales taskbar thickness and component sizing")
+            reset: ({ node: GlobalConfig.bar, setting: "scale" })
             value: GlobalConfig.bar.scale
             from: 0.6
             to: 1.6
@@ -180,6 +186,7 @@ PageBase {
         StepperRow {
             label: qsTr("Preview scale")
             subtext: qsTr("Scales taskbar hover previews")
+            reset: ({ node: GlobalConfig.bar, setting: "previewScale" })
             value: GlobalConfig.bar.previewScale
             from: 0.5
             to: 1.6
@@ -190,6 +197,7 @@ PageBase {
         ToggleRow {
             text: qsTr("Live window previews")
             subtext: qsTr("Live thumbnails in hover/overview/alt-tab. Disable if screen sharing or camera in other apps (e.g. Vesktop) freezes")
+            reset: ({ node: GlobalConfig.bar, setting: "livePreviews" })
             checked: GlobalConfig.bar.livePreviews
             onToggled: GlobalConfig.bar.livePreviews = checked
         }
@@ -197,6 +205,7 @@ PageBase {
         ToggleRow {
             text: qsTr("Scale with bar size")
             subtext: qsTr("Multiply the preview scale with the bar scale")
+            reset: ({ node: GlobalConfig.bar, setting: "previewScaleWithBar" })
             checked: GlobalConfig.bar.previewScaleWithBar
             onToggled: GlobalConfig.bar.previewScaleWithBar = checked
         }
@@ -204,6 +213,7 @@ PageBase {
         StepperRow {
             label: qsTr("Font scaling offset")
             subtext: qsTr("Scales the text size across taskbar popouts")
+            reset: ({ node: GlobalConfig.bar, setting: "fontScaleOffset" })
             value: GlobalConfig.bar.fontScaleOffset
             from: -1.0; to: 1.0; stepSize: 0.05
             onMoved: v => GlobalConfig.bar.fontScaleOffset = v
@@ -245,13 +255,15 @@ PageBase {
             first: true
             text: qsTr("Workspaces")
             subtext: qsTr("Scroll over the workspace indicator to switch workspaces")
+            reset: ({ node: GlobalConfig.bar.scrollActions, setting: "workspaces" })
             checked: GlobalConfig.bar.scrollActions.workspaces
             onToggled: GlobalConfig.bar.scrollActions.workspaces = checked
         }
 
         ToggleRow {
             text: qsTr("Volume")
-            subtext: qsTr("Scroll on the top half of the bar to adjust volume")
+            subtext: qsTr("Scroll on the left half of a horizontal bar (top half if vertical) to adjust volume")
+            reset: ({ node: GlobalConfig.bar.scrollActions, setting: "volume" })
             checked: GlobalConfig.bar.scrollActions.volume
             onToggled: GlobalConfig.bar.scrollActions.volume = checked
         }
@@ -259,7 +271,8 @@ PageBase {
         ToggleRow {
             last: true
             text: qsTr("Brightness")
-            subtext: qsTr("Scroll on the bottom half of the bar to adjust brightness")
+            subtext: qsTr("Scroll on the right half of a horizontal bar (bottom half if vertical) to adjust brightness")
+            reset: ({ node: GlobalConfig.bar.scrollActions, setting: "brightness" })
             checked: GlobalConfig.bar.scrollActions.brightness
             onToggled: GlobalConfig.bar.scrollActions.brightness = checked
         }

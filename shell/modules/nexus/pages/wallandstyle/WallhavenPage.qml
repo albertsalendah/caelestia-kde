@@ -10,5 +10,6 @@ PageBase {
 
     WallhavenTab {
         anchors.fill: parent
+        showFrame: false
     }
 }
