@@ -24,6 +24,7 @@ re-attach the fork's part.
 | `installer/tui/UI.cpp`, `UI.hpp`, `Runner.cpp`, `StepPolicy.cpp`, `main.cpp` | the `only_if` menu filter (`Conditions`), the Plasma removal dialog (`PlasmaRemoval`), the step "Remove Plasma desktop" and its skip rule |
 | `installer/data/menu.json` | the Packages, Applications and "Theming for other apps" menus, `PLASMA_MODE` |
 | `scripts/04-deploy-kde.sh` | the cliphist unit is wanted by `graphical-session.target` |
+| `scripts/setup.sh` | the compiled installer is reused only when its stamp (`tui.version` plus a hash of `installer/tui` and `installer/data`) matches the sources: `installer_stamp`, `compiled_installer_is_current` |
 | `scripts/06-services.sh`, `07-kde-apps.sh`, `08-build-shell.sh` | Bluetooth, ydotoold clean-up, KDE apps and the KDE Connect firewall rules, stale `m3shapes` record |
 | `src/bin/caelestia-update`, `caelestia-check-updates`, `shell/services/UpdateChecker.qml` | an install made from a fork follows that fork's repository and branch (`resolve_update_source`) and the opt-in system upgrade (`CAELESTIA_UPDATE_SYSTEM`) |
 | `shell/modules/nexus/pages/UpdatesPage.qml`, `Launch.qml` | the system upgrade switch; Konsole-style terminals get their `-e` |

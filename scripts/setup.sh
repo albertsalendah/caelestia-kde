@@ -103,9 +103,36 @@ if ! normalize_line_endings_first; then
 fi
 
 BIN="$BUNDLE_DIR/caelestia-install"
+STAMP="$BUNDLE_DIR/installer/build/.tui_stamp"
 
 tui_version() {
     tr -d '[:space:]' < "$BUNDLE_DIR/installer/data/tui.version" 2>/dev/null || true
+}
+
+# What the compiled installer in installer/build was built from. tui.version alone is not enough:
+# it is bumped by hand and rarely (upstream deleted a step without bumping it), so a binary built
+# before a merge or a patch kept being reused and ran steps the sources no longer have. The stamp
+# is the version plus a hash of every file the installer is built from (names and contents, so it
+# is the same under any folder name, with or without git, and sees uncommitted edits). A machine
+# where no hash tool exists falls back to the version alone.
+installer_stamp() {
+    local version hash=""
+    version="$(tui_version)"
+    if command -v sha256sum >/dev/null 2>&1; then
+        hash="$(cd "$BUNDLE_DIR" 2>/dev/null \
+            && find installer/tui installer/data -type f -print0 2>/dev/null \
+            | LC_ALL=C sort -z | xargs -0 sha256sum 2>/dev/null | sha256sum | cut -c1-16)"
+    fi
+    if [[ -n "$hash" ]]; then
+        printf '%s-%s\n' "$version" "$hash"
+    else
+        printf '%s\n' "$version"
+    fi
+}
+
+# True when installer/build holds a binary built from the sources as they are now.
+compiled_installer_is_current() {
+    [[ -x "$BIN" && -f "$STAMP" ]] && [[ "$(cat "$STAMP" 2>/dev/null)" == "$(installer_stamp)" ]]
 }
 
 release_tag() {
@@ -217,10 +244,9 @@ else
     else
         echo "[INFO]  No prebuilt installer applies to this checkout (v$(tui_version)) - compiling locally."
     fi
-    STAMP="$BUNDLE_DIR/installer/build/.tui_stamp"
-    if [[ -x "$BIN" && -f "$STAMP" ]] && [[ "$(cat "$STAMP" 2>/dev/null)" == "$(tui_version)" ]]; then
+    if compiled_installer_is_current; then
         stop_spinner
-        echo "[OK]    Reusing compiled installer binary (matches TUI version)."
+        echo "[OK]    Reusing compiled installer binary (built from these installer sources)."
     else
         MISSING_PKGS=()
         if ! command -v g++ >/dev/null 2>&1; then MISSING_PKGS+=("g++"); fi
@@ -271,7 +297,7 @@ else
             echo "[FATAL] Failed to copy the compiled Caelestia installer to $BIN." >&2
             exit 1
         }
-        echo "$(tui_version)" > "$STAMP"
+        installer_stamp > "$STAMP"
     fi
 fi
 
