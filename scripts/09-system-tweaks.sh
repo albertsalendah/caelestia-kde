@@ -4,6 +4,7 @@ set -euo pipefail
 source "$(dirname "${BASH_SOURCE[0]}")/lib/log.sh"
 source "$(dirname "${BASH_SOURCE[0]}")/lib/privileges.sh"
 source "$(dirname "${BASH_SOURCE[0]}")/lib/virtual-desktops.sh"
+source "$(dirname "${BASH_SOURCE[0]}")/lib/independent-session.sh"
 
 # Wrapped so a test can say which programs exist without touching PATH.
 has_command() {
@@ -16,6 +17,10 @@ echo "  Caelestia  Live System Tweaks"
 echo ""
 
 tweak_disable_kde_osd() {
+    if independent_session_applies; then
+        skip "Independent session: the KDE popups stay as they are (Plasma sessions keep theirs, Caelestia draws its own)."
+        return 0
+    fi
     info "Disabling KDE OSD popups (volume/brightness)..."
 
     kwriteconfig6 --file plasmarc --group "OSD" --key "Enabled" "false" 2>/dev/null || true
@@ -47,6 +52,10 @@ tweak_five_desktops() {
 }
 
 tweak_remove_panels() {
+    if independent_session_applies; then
+        skip "Independent session: the Plasma panels stay (Plasma sessions keep theirs)."
+        return 0
+    fi
     if ! first_install; then
         skip "Not a first install - leaving Plasma panels alone."
         return 0
@@ -113,6 +122,10 @@ EOF
 }
 
 tweak_no_splash_screen() {
+    if independent_session_applies; then
+        skip "Independent session: the Plasma startup splash stays as it is."
+        return 0
+    fi
     info "Turning off the Plasma startup splash..."
 
     kwriteconfig6 --file ksplashrc --group KSplash --key Engine "none" 2>/dev/null || true
