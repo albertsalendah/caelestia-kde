@@ -4,12 +4,40 @@ set -euo pipefail
 
 source "$(dirname "${BASH_SOURCE[0]}")/lib/log.sh"
 source "$(dirname "${BASH_SOURCE[0]}")/lib/install-kind.sh"
+source "$(dirname "${BASH_SOURCE[0]}")/lib/independent-session.sh"
 
 BUNDLE_DIR="${BUNDLE_DIR:-$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)}"
 
 AUTOSTART_DIR="$HOME/.config/autostart"
 mkdir -p "$AUTOSTART_DIR"
 mkdir -p "$HOME/.local/bin"
+
+# The text the wrapper carries to keep the Caelestia lock screen selected. It writes plasmashellrc
+# and kscreenlockerrc, which every Plasma session reads too, so it is only for installs where the
+# shell runs on top of Plasma. With the independent session the lock screen is chosen by the
+# session itself (PLASMA_DEFAULT_SHELL in caelestia-wm-session) and those files are left alone.
+lockscreen_heal_block() {
+    if independent_session_applies; then
+        cat << 'HEAL'
+# Lock screen: the Caelestia session selects its own lock screen (PLASMA_DEFAULT_SHELL, set by
+# caelestia-wm-session). plasmashellrc and kscreenlockerrc belong to the Plasma sessions and are
+# not touched here.
+HEAL
+        return 0
+    fi
+    cat << 'HEAL'
+# Self-heal Caelestia lock screen if KDE updates or kconf_update reset it
+if [ -f "$HOME/.local/share/plasma/shells/caelestia.desktop/contents/lockscreen/LockScreen.qml" ] || [ -f "/usr/share/plasma/shells/caelestia.desktop/contents/lockscreen/LockScreen.qml" ]; then
+    if command -v kreadconfig6 >/dev/null 2>&1 && command -v kwriteconfig6 >/dev/null 2>&1; then
+        current_shell="$(kreadconfig6 --file plasmashellrc --group "Shell" --key "ShellPackage" 2>/dev/null || true)"
+        if [ "$current_shell" != "caelestia.desktop" ]; then
+            kwriteconfig6 --file plasmashellrc --group "Shell" --key "ShellPackage" "caelestia.desktop" 2>/dev/null || true
+        fi
+        kwriteconfig6 --file kscreenlockerrc --group "Greeter" --key "Theme" --delete 2>/dev/null || true
+    fi
+fi
+HEAL
+}
 
 echo
 echo ""
@@ -48,6 +76,7 @@ else
     fi
 
     echo "  Creating Caelestia Shell autostart entry..."
+    LOCKSCREEN_HEAL="$(lockscreen_heal_block)"
     cat > "$HOME/.local/bin/caelestia-autostart.sh" << EOF
 #!/bin/bash
 # Where this install's files are. environment.d carries the same values for a
@@ -75,16 +104,7 @@ if [[ -z "\${HYPRLAND_INSTANCE_SIGNATURE:-}" ]]; then
         export QT_LOGGING_RULES="quickshell.hyprland.ipc.warning=false"
     fi
 fi
-# Self-heal Caelestia lock screen if KDE updates or kconf_update reset it
-if [ -f "\$HOME/.local/share/plasma/shells/caelestia.desktop/contents/lockscreen/LockScreen.qml" ] || [ -f "/usr/share/plasma/shells/caelestia.desktop/contents/lockscreen/LockScreen.qml" ]; then
-    if command -v kreadconfig6 >/dev/null 2>&1 && command -v kwriteconfig6 >/dev/null 2>&1; then
-        current_shell="\$(kreadconfig6 --file plasmashellrc --group "Shell" --key "ShellPackage" 2>/dev/null || true)"
-        if [ "\$current_shell" != "caelestia.desktop" ]; then
-            kwriteconfig6 --file plasmashellrc --group "Shell" --key "ShellPackage" "caelestia.desktop" 2>/dev/null || true
-        fi
-        kwriteconfig6 --file kscreenlockerrc --group "Greeter" --key "Theme" --delete 2>/dev/null || true
-    fi
-fi
+${LOCKSCREEN_HEAL}
 # No --daemonize: the unit supervises this process and sends its stdout/stderr to
 # the journal. Detaching would replace that with /dev/null, and every app launched
 # from the shell inherits those descriptors - which is how the shell was handing

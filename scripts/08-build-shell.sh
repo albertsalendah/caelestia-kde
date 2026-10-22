@@ -11,6 +11,7 @@ source "$(dirname "${BASH_SOURCE[0]}")/lib/download.sh"
 source "$(dirname "${BASH_SOURCE[0]}")/lib/toolchain.sh"
 source "$(dirname "${BASH_SOURCE[0]}")/lib/update-state.sh"
 source "$(dirname "${BASH_SOURCE[0]}")/lib/update-source.sh"
+source "$(dirname "${BASH_SOURCE[0]}")/lib/independent-session.sh"
 
 export BUNDLE_DIR="${BUNDLE_DIR:-$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)}"
 SHELL_DIR="$BUNDLE_DIR/shell"
@@ -229,6 +230,15 @@ install_lockscreen_greeter() {
 }
 
 configure_lockscreen_greeter() {
+    # plasmashellrc is read by every Plasma session: with this package selected there, a Plasma
+    # session starts plasmashell with a shell that has a lock screen and nothing else (no panel,
+    # no layout). The independent session selects it for itself instead (PLASMA_DEFAULT_SHELL in
+    # caelestia-wm-session), so nothing is written here.
+    if independent_session_applies; then
+        skip "Independent session: the lock screen package is selected by that session only; plasmashellrc stays Plasma's."
+        return 0
+    fi
+
     if ! command -v kwriteconfig6 >/dev/null 2>&1; then
         warn "KDE config tools (kwriteconfig6) not found. Skipping KDE Lock Screen configuration."
         return 1

@@ -38,7 +38,7 @@ cleanup() {
     # its automatic restart must find the file gone.
     rm -f "$XDG_RUNTIME_DIR/caelestia-session-active"
     systemctl --user stop caelestia-session.target 2>/dev/null || true
-    systemctl --user unset-environment WAYLAND_DISPLAY DISPLAY 2>/dev/null || true
+    systemctl --user unset-environment WAYLAND_DISPLAY DISPLAY PLASMA_DEFAULT_SHELL 2>/dev/null || true
 }
 trap cleanup EXIT
 trap 'exit 143' TERM
@@ -75,6 +75,16 @@ set -u
 # 1. Share this login's environment with systemd user services and D-Bus-activated
 #    programs. KWin needs XDG_SESSION_ID / XDG_VTNR / XDG_SEAT to take over the display.
 dbus-update-activation-environment --systemd --all || systemctl --user import-environment
+
+# 1b. The lock screen of this session is Caelestia's. kscreenlocker takes its look from the Plasma
+#     shell package named by PLASMA_DEFAULT_SHELL (plasmashellrc, which every Plasma session
+#     reads, is left alone). Only the systemd user manager gets it, not D-Bus activation, so a
+#     Plasma session chosen next never sees it; the exit trap removes it.
+if [ -f "$HOME/.local/share/plasma/shells/caelestia.desktop/metadata.json" ] \
+    || [ -f /usr/share/plasma/shells/caelestia.desktop/metadata.json ]; then
+    systemctl --user set-environment PLASMA_DEFAULT_SHELL=caelestia.desktop \
+        || say "could not select the Caelestia lock screen"
+fi
 
 # 2. Start the session (KWin, then graphical-session.target, then caelestia-shell.service).
 #    The shell unit has a condition on this file (caelestia-shell.service.d), so it has to exist

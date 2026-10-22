@@ -354,7 +354,12 @@ run_program() {
     PROG_DIR="$(new_tmpdir)"
     PROG_RUN="$PROG_DIR/run"
     mkdir -p "$PROG_RUN" "$PROG_DIR/bin" "$PROG_DIR/home"
-    stub_bin "$PROG_DIR/bin" systemctl "case \"\$*\" in
+    if [[ "${PACKAGE:-}" == "yes" ]]; then
+        mkdir -p "$PROG_DIR/home/.local/share/plasma/shells/caelestia.desktop"
+        : > "$PROG_DIR/home/.local/share/plasma/shells/caelestia.desktop/metadata.json"
+    fi
+    stub_bin "$PROG_DIR/bin" systemctl "echo \"\$*\" >> '$PROG_DIR/calls'
+case \"\$*\" in
     '--user start caelestia-session.target')
         if [ -e '$PROG_RUN/caelestia-session-active' ]; then echo present >> '$PROG_DIR/marker-at-start'; else echo absent >> '$PROG_DIR/marker-at-start'; fi
         [ '$mode' = up ] ;;
@@ -377,6 +382,28 @@ test_the_marker_exists_when_the_session_starts_and_is_gone_when_it_ends() {
     assert_eq "present" "$(cat "$PROG_DIR/marker-at-start" 2>/dev/null)" "the shell's condition must already be met when the target starts"
     assert_file_missing "$PROG_RUN/caelestia-session-active" "and a Plasma session chosen next must not find it"
     assert_eq "absent" "$(cat "$PROG_DIR/marker-at-stop" 2>/dev/null)" "it must be gone before the target stops, so the shell's automatic restart finds it gone"
+    rm -rf "$PROG_DIR"
+}
+
+test_the_session_selects_its_lock_screen_before_kwin_starts_and_clears_it_after() {
+    PACKAGE=yes run_program up
+    local calls first_set start
+    calls="$(cat "$PROG_DIR/calls")"
+
+    assert_contains "$calls" "--user set-environment PLASMA_DEFAULT_SHELL=caelestia.desktop" "the lock screen package is selected for this session"
+    first_set="$(grep -n -- '--user set-environment PLASMA_DEFAULT_SHELL' "$PROG_DIR/calls" | head -1 | cut -d: -f1)"
+    start="$(grep -n -- '--user start caelestia-session.target' "$PROG_DIR/calls" | head -1 | cut -d: -f1)"
+    if [[ -z "$first_set" || -z "$start" || "$first_set" -ge "$start" ]]; then
+        fail "it must be set before the session starts (set at line '$first_set', start at line '$start')"
+    fi
+    assert_contains "$calls" "--user unset-environment WAYLAND_DISPLAY DISPLAY PLASMA_DEFAULT_SHELL" "and it is gone when the session ends, so a Plasma session chosen next does not inherit it"
+    rm -rf "$PROG_DIR"
+}
+
+test_without_the_lock_screen_package_nothing_is_selected() {
+    PACKAGE=no run_program up
+
+    assert_not_contains "$(cat "$PROG_DIR/calls")" "set-environment PLASMA_DEFAULT_SHELL" "a package that is not installed must not be pointed at"
     rm -rf "$PROG_DIR"
 }
 
