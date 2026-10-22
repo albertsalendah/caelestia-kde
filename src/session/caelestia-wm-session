@@ -33,11 +33,12 @@ cleanup() {
     # signal on to the splash itself.
     [ -n "$splash_pid" ] && kill "$splash_pid" 2>/dev/null
     [ -n "$splash_watch_pid" ] && kill "$splash_watch_pid" 2>/dev/null
+    # The shell starts only while this file exists (caelestia-shell.service.d), so a Plasma
+    # session chosen next does not get it. Removed first: the shell exits when KWin goes, and
+    # its automatic restart must find the file gone.
+    rm -f "$XDG_RUNTIME_DIR/caelestia-session-active"
     systemctl --user stop caelestia-session.target 2>/dev/null || true
     systemctl --user unset-environment WAYLAND_DISPLAY DISPLAY 2>/dev/null || true
-    # The shell starts only while this file exists (caelestia-shell.service.d), so a Plasma
-    # session chosen next does not get it.
-    rm -f "$XDG_RUNTIME_DIR/caelestia-session-active"
 }
 trap cleanup EXIT
 trap 'exit 143' TERM

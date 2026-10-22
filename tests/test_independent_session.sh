@@ -301,12 +301,31 @@ test_uninstall_removes_the_plasma_entry_file_only_when_it_is_ours() {
 
 # --- the shell starts in the Caelestia session only -------------------------------------------
 
-test_the_shell_unit_gets_a_condition_that_only_this_session_meets() {
+test_the_shell_unit_gets_a_check_that_only_this_session_meets() {
     local conf
     conf="$(cat "$SESSION_SRC/caelestia-shell-session-only.conf")"
 
-    assert_contains "$conf" $'\n[Unit]\n' "it should be a unit drop-in"
-    assert_contains "$conf" $'\nConditionPathExists=%t/caelestia-session-active' "with a condition on the file the session program creates, in the runtime directory"
+    assert_contains "$conf" $'\n[Service]\n' "ExecCondition belongs in the [Service] section"
+    assert_contains "$conf" $'\nExecCondition=/usr/bin/test -e %t/caelestia-session-active' "a command on the file the session program creates, in the runtime directory"
+    if grep -q '^ConditionPathExists' "$SESSION_SRC/caelestia-shell-session-only.conf"; then
+        fail "a Condition is not re-checked on Restart=on-failure, which is how the shell came back in a Plasma session"
+    fi
+}
+
+# The command systemd runs, with %t replaced by a runtime directory of our own: it has to say
+# "go" (0) while the session's file exists and "skip quietly" (exactly 1, not a failure) without it.
+test_the_check_command_passes_in_the_session_and_skips_quietly_outside_it() {
+    local rt cmd status
+    rt="$(new_tmpdir)"
+    cmd="$(grep '^ExecCondition=' "$SESSION_SRC/caelestia-shell-session-only.conf" | sed -e 's/^ExecCondition=//' -e "s|%t|$rt|g")"
+
+    : > "$rt/caelestia-session-active"
+    sh -c "$cmd"; status=$?
+    assert_status 0 "$status" "with the session's file the shell may start"
+
+    rm -f "$rt/caelestia-session-active"
+    sh -c "$cmd"; status=$?
+    assert_status 1 "$status" "without it systemd must see exit 1 (skipped), not a failure"
 }
 
 test_the_step_installs_the_shell_drop_in_next_to_the_session_units() {
@@ -339,6 +358,8 @@ run_program() {
     '--user start caelestia-session.target')
         if [ -e '$PROG_RUN/caelestia-session-active' ]; then echo present >> '$PROG_DIR/marker-at-start'; else echo absent >> '$PROG_DIR/marker-at-start'; fi
         [ '$mode' = up ] ;;
+    '--user stop caelestia-session.target')
+        if [ -e '$PROG_RUN/caelestia-session-active' ]; then echo present >> '$PROG_DIR/marker-at-stop'; else echo absent >> '$PROG_DIR/marker-at-stop'; fi ;;
     '--user show-environment') echo WAYLAND_DISPLAY=wayland-0 ;;
     '--user is-active --quiet caelestia-kwin.service') exit 1 ;;
 esac"
@@ -355,6 +376,7 @@ test_the_marker_exists_when_the_session_starts_and_is_gone_when_it_ends() {
 
     assert_eq "present" "$(cat "$PROG_DIR/marker-at-start" 2>/dev/null)" "the shell's condition must already be met when the target starts"
     assert_file_missing "$PROG_RUN/caelestia-session-active" "and a Plasma session chosen next must not find it"
+    assert_eq "absent" "$(cat "$PROG_DIR/marker-at-stop" 2>/dev/null)" "it must be gone before the target stops, so the shell's automatic restart finds it gone"
     rm -rf "$PROG_DIR"
 }
 
