@@ -1053,6 +1053,19 @@ pty_is_ssh() {
     return 1
 }
 
+# True when a process on the terminal NAME was started by Konsole (it sets KONSOLE_VERSION for
+# what it runs). Konsole keeps the colours of its own profile: raw sequences would paint over
+# them for that tab only, and a new tab would look different again.
+pty_is_konsole() {
+    local name="${1##*/}" proc_dir="${CAELESTIA_PROC_DIR:-/proc}" pid
+    for pid in $(ps -t "$name" -o pid= 2>/dev/null); do
+        if tr '\0' '\n' < "$proc_dir/$pid/environ" 2>/dev/null | grep -q '^KONSOLE_VERSION='; then
+            return 0
+        fi
+    done
+    return 1
+}
+
 apply_terms() {
     local file="$1" sequence pty name comm
     [[ -s "$file" ]] || return 0
@@ -1062,6 +1075,7 @@ apply_terms() {
         [[ -w "$pty" ]] || continue
         name="${pty##*/}"
         pty_is_ssh "$name" && continue
+        pty_is_konsole "$name" && continue
         comm="$(ps -t "$name" -o comm= 2>/dev/null | head -n 1 | tr -d ' ')" || continue
         case "$comm" in
             sh|bash|zsh|fish|dash|ksh|mksh|nu|elvish|xonsh)
@@ -1141,7 +1155,9 @@ apply_to_desktop() {
         apply_kde
     fi
 
-    if enabled enableKonsole; then
+    # Off unless asked for: it rewrites every Konsole profile's colour scheme, so Konsole would
+    # stop keeping its own colours. theme.enableKonsole=true in cli.json turns it on.
+    if enabled enableKonsole false; then
         apply_konsole
     fi
 

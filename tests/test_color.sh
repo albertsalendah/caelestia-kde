@@ -720,8 +720,24 @@ test_the_applied_name_rotates_so_a_change_is_an_apply() {
         "both names carry the palette that was just generated"
 }
 
+test_konsole_keeps_its_own_colours_unless_asked() {
+    setup_sandbox
+    mkdir -p "$XDG_DATA_HOME/konsole"
+    printf '[General]\nName=Profile 1\n[Appearance]\nColorScheme=Breeze\n' \
+        > "$XDG_DATA_HOME/konsole/Profile 1.profile"
+
+    run_color wallpaper -f "$(wallpaper_image one.png)"
+    assert_status 0 "$STATUS" "setting a wallpaper should succeed"
+
+    assert_file_missing "$XDG_DATA_HOME/konsole/Matugen.colorscheme" "no scheme is written for Konsole by default"
+    assert_not_contains "$(cat "$KDE_CALLS")" "konsole" "and no Konsole profile is touched"
+    assert_contains "$(cat "$XDG_DATA_HOME/konsole/Profile 1.profile")" "ColorScheme=Breeze" "the profile keeps its own scheme"
+    assert_contains "$(cat "$KDE_CALLS")" "apply Matugen" "the rest of the desktop still follows the palette"
+}
+
 test_konsole_gets_a_scheme_in_its_own_format() {
     setup_sandbox
+    set_cli_config '{"theme": {"enableKonsole": true}}'
     mkdir -p "$XDG_DATA_HOME/konsole"
     printf '[General]\nName=Profile 1\n[Appearance]\nColorScheme=Breeze\n' \
         > "$XDG_DATA_HOME/konsole/Profile 1.profile"

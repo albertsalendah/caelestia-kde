@@ -23,6 +23,8 @@ re-attach the fork's part.
 |---|---|
 | `installer/tui/UI.cpp`, `UI.hpp`, `Runner.cpp`, `StepPolicy.cpp`, `main.cpp` | the `only_if` menu filter (`Conditions`), the Plasma removal dialog (`PlasmaRemoval`), the step "Remove Plasma desktop" and its skip rule |
 | `installer/data/menu.json` | the Packages, Applications and "Theming for other apps" menus, `PLASMA_MODE` |
+| `src/bin/caelestia-color`, `src/dots-extra/fish/config.fish`, `src/matugen/README.md` | terminals reached over SSH and Konsole are not sent the palette; `theme.enableKonsole` is off unless set, so Konsole keeps its own colours |
+| `scripts/09-system-tweaks.sh` | the OSD, panel and splash tweaks are skipped with the independent session (`scripts/lib/independent-session.sh`) |
 | `scripts/04-deploy-kde.sh` | the cliphist unit is wanted by `graphical-session.target` |
 | `scripts/setup.sh` | the compiled installer is reused only when its stamp (`tui.version` plus a hash of `installer/tui` and `installer/data`) matches the sources: `installer_stamp`, `compiled_installer_is_current` |
 | `scripts/06-services.sh`, `07-kde-apps.sh`, `08-build-shell.sh` | Bluetooth, ydotoold clean-up, KDE apps and the KDE Connect firewall rules, stale `m3shapes` record |

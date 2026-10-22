@@ -69,10 +69,10 @@ keeps the table that says which template writes where. A target is enabled by a 
 | --- | --- |
 | `theme.enableKde` | `~/.local/share/color-schemes/Matugen.colors` |
 | `theme.enableKvantum` | `~/.config/Kvantum/matugen/matugen.kvconfig` and `.svg`, and selecting that theme |
-| `theme.enableKonsole` | `~/.local/share/konsole/Matugen.colorscheme`, and pointing the profiles at it |
+| `theme.enableKonsole` (off unless set to `true`) | `~/.local/share/konsole/Matugen.colorscheme`, and pointing the profiles at it |
 | `theme.enableQt` | `~/.config/qt5ct/colors/matugen.conf`, the same for qt6ct |
 | `theme.enableGtk` | `~/.config/gtk-3.0/colors.css`, `~/.config/gtk-4.0/colors.css` |
-| `theme.enableTerm` | `~/.cache/caelestia/terminal-sequences`, then every shell pty |
+| `theme.enableTerm` | `~/.cache/caelestia/terminal-sequences`, then every shell pty, except those of Konsole and of SSH logins |
 | `theme.enableBtop` | `~/.config/btop/themes/matugen.theme` |
 | `theme.enableCava` | `~/.config/cava/themes/matugen` |
 | `theme.enableDiscord` | the two Vesktop themes |
