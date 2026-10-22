@@ -12,7 +12,9 @@ TUI_DIR="$REPO_ROOT/installer/tui"
 # A fake pacman that logs every call to $LOG and answers from the environment:
 #   INSTALLED   packages that -Qq finds (space separated)
 #   REMOVE_STATUS   exit status of the real removal (-Rn --noconfirm), default 0
-#   PRINT_STATUS    exit status of the dry run (-Rn --print), default 0; 1 prints a refusal
+#   PRINT_STATUS    exit status of the dry run (-R --print), default 0; 1 prints a refusal
+# Like the real pacman it refuses -Rn (--nosave) together with --print: the dry run once used that
+# combination and failed on the first real machine, which a stub that accepted it never showed.
 make_pacman() {
     stub_bin "$1" pacman 'echo "pacman $*" >> "$LOG"
 case "$1" in
@@ -21,9 +23,14 @@ case "$1" in
     -D) exit 0 ;;
     -Rn)
         case "$2" in
+            --print) echo "error: invalid option: '"'"'--nosave'"'"' and '"'"'--print'"'"' may not be used together" >&2; exit 1 ;;
+            *) exit "${REMOVE_STATUS:-0}" ;;
+        esac ;;
+    -R)
+        case "$2" in
             --print) if [ "${PRINT_STATUS:-0}" != 0 ]; then echo "error: failed to prepare transaction (could not satisfy dependencies)" >&2; echo ":: cachyos-kde-settings: requires plasma-desktop" >&2; exit 1; fi
                      shift 4; for p in "$@"; do echo "$p"; done ;;
-            *) exit "${REMOVE_STATUS:-0}" ;;
+            *) echo "error: no targets or options for a removal this step makes" >&2; exit 1 ;;
         esac ;;
 esac'
 }

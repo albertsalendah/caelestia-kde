@@ -95,7 +95,9 @@ plasma_removal_plan() {
         return 0
     fi
     local output status=0
-    output="$(pacman -Rn --print --print-format '%n' "${candidates[@]}" 2>&1)" || status=$?
+    # Not -Rn: pacman refuses --nosave together with --print. --nosave only decides what happens to
+    # modified config files, so the list is the same one the real removal (-Rn) acts on.
+    output="$(pacman -R --print --print-format '%n' "${candidates[@]}" 2>&1)" || status=$?
     if ((status != 0)); then
         echo "BLOCKED $(printf '%s' "$output" | grep -v '^$' | head -n 3 | tr '\n' ' ')"
         return 0
