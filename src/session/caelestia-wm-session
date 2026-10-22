@@ -35,6 +35,9 @@ cleanup() {
     [ -n "$splash_watch_pid" ] && kill "$splash_watch_pid" 2>/dev/null
     systemctl --user stop caelestia-session.target 2>/dev/null || true
     systemctl --user unset-environment WAYLAND_DISPLAY DISPLAY 2>/dev/null || true
+    # The shell starts only while this file exists (caelestia-shell.service.d), so a Plasma
+    # session chosen next does not get it.
+    rm -f "$XDG_RUNTIME_DIR/caelestia-session-active"
 }
 trap cleanup EXIT
 trap 'exit 143' TERM
@@ -48,7 +51,7 @@ unset WAYLAND_DISPLAY DISPLAY
 systemctl --user unset-environment WAYLAND_DISPLAY DISPLAY 2>/dev/null || true
 # The shell writes this file when it is up (shell.qml), and the login splash waits for it. One
 # left over from an earlier login would end the splash at once.
-rm -f "$XDG_RUNTIME_DIR/caelestia-shell-ready"
+rm -f "$XDG_RUNTIME_DIR/caelestia-shell-ready" "$XDG_RUNTIME_DIR/caelestia-session-active"
 
 # 0b. Source the Plasma environment scripts, as Plasma's startup does: system directories
 #     first, then the user's, so the user wins. The installer's caelestia.sh lives here (PATH,
@@ -73,6 +76,9 @@ set -u
 dbus-update-activation-environment --systemd --all || systemctl --user import-environment
 
 # 2. Start the session (KWin, then graphical-session.target, then caelestia-shell.service).
+#    The shell unit has a condition on this file (caelestia-shell.service.d), so it has to exist
+#    before graphical-session.target is reached. The exit trap removes it.
+: > "$XDG_RUNTIME_DIR/caelestia-session-active"
 if ! systemctl --user start caelestia-session.target; then
     say "caelestia-session.target failed to start. See: journalctl --user -b -u caelestia-kwin"
     exit 1

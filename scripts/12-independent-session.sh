@@ -7,6 +7,9 @@
 #   /usr/local/bin/caelestia-wm-session                    the session program
 #   /usr/local/lib/systemd/user/caelestia-kwin.service     KWin as a user service
 #   /usr/local/lib/systemd/user/caelestia-session.target   the session target
+#   /usr/local/lib/systemd/user/caelestia-shell.service.d/10-caelestia-session-only.conf
+#                                                          the shell starts in this session only,
+#                                                          not in a Plasma session
 #   /usr/local/share/wayland-sessions/caelestia.desktop    the login-screen entry
 #   /etc/sddm.conf.d/zz-wayland-greeter.conf               SDDM only: a Wayland greeter
 #   /usr/local/share/wayland-sessions/plasma.desktop       SDDM only, and only with no Plasma desktop
@@ -37,6 +40,7 @@ SRC_DIR="$BUNDLE_DIR/src/session"
 ROOT="${CAELESTIA_SESSION_ROOT:-}"
 PROGRAM="$ROOT/usr/local/bin/caelestia-wm-session"
 UNIT_DIR="$ROOT/usr/local/lib/systemd/user"
+SHELL_DROPIN="$UNIT_DIR/caelestia-shell.service.d/10-caelestia-session-only.conf"
 ENTRY="$ROOT/usr/local/share/wayland-sessions/caelestia.desktop"
 GREETER_DROPIN="$ROOT/etc/sddm.conf.d/zz-wayland-greeter.conf"
 PLASMA_ENTRY="$ROOT/usr/local/share/wayland-sessions/plasma.desktop"
@@ -59,7 +63,7 @@ if [[ "${BASE_DISTRO:-}" != "arch" ]]; then
 fi
 
 for file in caelestia-wm-session caelestia-kwin.service caelestia-session.target \
-            caelestia.desktop zz-wayland-greeter.conf plasma.desktop; do
+            caelestia.desktop zz-wayland-greeter.conf plasma.desktop caelestia-shell-session-only.conf; do
     [[ -f "$SRC_DIR/$file" ]] || die "Missing $SRC_DIR/$file"
 done
 
@@ -106,6 +110,7 @@ info "Login manager: $LOGIN_MANAGER"
 install_file "$SRC_DIR/caelestia-wm-session"      "$PROGRAM"                           0755
 install_file "$SRC_DIR/caelestia-kwin.service"    "$UNIT_DIR/caelestia-kwin.service"   0644
 install_file "$SRC_DIR/caelestia-session.target"  "$UNIT_DIR/caelestia-session.target" 0644
+install_file "$SRC_DIR/caelestia-shell-session-only.conf" "$SHELL_DROPIN"            0644
 install_file "$SRC_DIR/caelestia.desktop"         "$ENTRY"                             0644
 ok "Session files installed under /usr/local."
 

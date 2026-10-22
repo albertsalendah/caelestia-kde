@@ -299,4 +299,72 @@ test_uninstall_removes_the_plasma_entry_file_only_when_it_is_ours() {
     assert_contains "$(cat "$STEP")" "grep -q '^X-Caelestia-Managed=true\$' \"\$1\"" "and so should the step"
 }
 
+# --- the shell starts in the Caelestia session only -------------------------------------------
+
+test_the_shell_unit_gets_a_condition_that_only_this_session_meets() {
+    local conf
+    conf="$(cat "$SESSION_SRC/caelestia-shell-session-only.conf")"
+
+    assert_contains "$conf" $'\n[Unit]\n' "it should be a unit drop-in"
+    assert_contains "$conf" $'\nConditionPathExists=%t/caelestia-session-active' "with a condition on the file the session program creates, in the runtime directory"
+}
+
+test_the_step_installs_the_shell_drop_in_next_to_the_session_units() {
+    setup_machine
+    local dropin="$MACHINE/root/usr/local/lib/systemd/user/caelestia-shell.service.d/10-caelestia-session-only.conf"
+    STUB_LOGIN_MANAGER=plasmalogin run_step > /dev/null
+
+    assert_file_exists "$dropin"
+    assert_eq "$(cat "$SESSION_SRC/caelestia-shell-session-only.conf")" "$(cat "$dropin")" "the installed drop-in should be the shipped one"
+    rm -rf "$MACHINE"
+}
+
+test_uninstall_removes_the_shell_drop_in_and_its_folder() {
+    local uninstall
+    uninstall="$(cat "$REPO_ROOT/uninstall.sh")"
+
+    assert_contains "$uninstall" '    /usr/local/lib/systemd/user/caelestia-shell.service.d/10-caelestia-session-only.conf' "uninstall.sh should remove the file"
+    assert_contains "$uninstall" 'rmdir /usr/local/share/wayland-sessions /usr/local/lib/systemd/user/caelestia-shell.service.d /usr/local/lib/systemd/user' "and the folder, which has to go before its parent"
+}
+
+# Runs the real session program against stubs. The stub for systemctl records, when the session
+# target is started, whether the marker file exists. $1: "up" lets the target start, "down" makes
+# the start fail.
+run_program() {
+    local mode="$1"
+    PROG_DIR="$(new_tmpdir)"
+    PROG_RUN="$PROG_DIR/run"
+    mkdir -p "$PROG_RUN" "$PROG_DIR/bin" "$PROG_DIR/home"
+    stub_bin "$PROG_DIR/bin" systemctl "case \"\$*\" in
+    '--user start caelestia-session.target')
+        if [ -e '$PROG_RUN/caelestia-session-active' ]; then echo present >> '$PROG_DIR/marker-at-start'; else echo absent >> '$PROG_DIR/marker-at-start'; fi
+        [ '$mode' = up ] ;;
+    '--user show-environment') echo WAYLAND_DISPLAY=wayland-0 ;;
+    '--user is-active --quiet caelestia-kwin.service') exit 1 ;;
+esac"
+    stub_bin "$PROG_DIR/bin" dbus-update-activation-environment 'exit 0'
+    stub_bin "$PROG_DIR/bin" logger 'exit 0'
+    env -i PATH="$PROG_DIR/bin:/usr/bin:/bin" HOME="$PROG_DIR/home" XDG_RUNTIME_DIR="$PROG_RUN" \
+        XDG_CONFIG_DIRS="$PROG_DIR/none" \
+        "$(command -v bash)" "$SESSION_SRC/caelestia-wm-session" > "$PROG_DIR/out" 2>&1
+    PROG_STATUS=$?
+}
+
+test_the_marker_exists_when_the_session_starts_and_is_gone_when_it_ends() {
+    run_program up
+
+    assert_eq "present" "$(cat "$PROG_DIR/marker-at-start" 2>/dev/null)" "the shell's condition must already be met when the target starts"
+    assert_file_missing "$PROG_RUN/caelestia-session-active" "and a Plasma session chosen next must not find it"
+    rm -rf "$PROG_DIR"
+}
+
+test_a_session_that_fails_to_start_leaves_no_marker() {
+    run_program down
+
+    assert_status 1 "$PROG_STATUS" "a failed start should end the program"
+    assert_eq "present" "$(cat "$PROG_DIR/marker-at-start" 2>/dev/null)" "the marker is made before the start"
+    assert_file_missing "$PROG_RUN/caelestia-session-active" "but it must not outlive the failed start"
+    rm -rf "$PROG_DIR"
+}
+
 run_tests

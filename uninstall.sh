@@ -733,6 +733,7 @@ SESSION_FILES=(
     /usr/local/bin/caelestia-wm-session
     /usr/local/lib/systemd/user/caelestia-kwin.service
     /usr/local/lib/systemd/user/caelestia-session.target
+    /usr/local/lib/systemd/user/caelestia-shell.service.d/10-caelestia-session-only.conf
     /usr/local/share/wayland-sessions/caelestia.desktop
     /etc/sddm.conf.d/zz-wayland-greeter.conf
 )
@@ -749,7 +750,7 @@ if [[ -f "$PLASMA_ENTRY" ]] && grep -q '^X-Caelestia-Managed=true$' "$PLASMA_ENT
     caelestia_sudo rm -f "$PLASMA_ENTRY"
     ok "Removed the file that hid the Plasma login entry: $PLASMA_ENTRY"
 fi
-caelestia_sudo rmdir /usr/local/share/wayland-sessions /usr/local/lib/systemd/user 2>/dev/null || true
+caelestia_sudo rmdir /usr/local/share/wayland-sessions /usr/local/lib/systemd/user/caelestia-shell.service.d /usr/local/lib/systemd/user 2>/dev/null || true
 
 SESSION_SDDM_FLAG="${XDG_STATE_HOME:-$HOME/.local/state}/caelestia/session-enabled-sddm"
 if [[ -f "$SESSION_SDDM_FLAG" ]]; then
