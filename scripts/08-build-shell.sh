@@ -10,6 +10,7 @@ source "$(dirname "${BASH_SOURCE[0]}")/lib/packages.sh"
 source "$(dirname "${BASH_SOURCE[0]}")/lib/download.sh"
 source "$(dirname "${BASH_SOURCE[0]}")/lib/toolchain.sh"
 source "$(dirname "${BASH_SOURCE[0]}")/lib/update-state.sh"
+source "$(dirname "${BASH_SOURCE[0]}")/lib/update-source.sh"
 
 export BUNDLE_DIR="${BUNDLE_DIR:-$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)}"
 SHELL_DIR="$BUNDLE_DIR/shell"
@@ -686,7 +687,10 @@ else
     warn "Failed to copy yet-another-monochrome-icon-set."
 fi
 
-record_installed_revision "$BUNDLE_DIR" "$HOME/.config/quickshell/caelestia" || true
+if record_installed_revision "$BUNDLE_DIR" "$HOME/.config/quickshell/caelestia"; then
+    # An install made from a fork follows the branch it was made from.
+    record_fork_branch "$BUNDLE_DIR" "$HOME/.config/quickshell/caelestia" || true
+fi
 
 # Outside the deploy guard on purpose: CAELESTIA_SKIP_DEPLOY is about the config files this
 # step deploys, and this is the assets an older install left behind.

@@ -35,3 +35,19 @@ fork_update_branch() {
 
     printf '%s\n' "$branch"
 }
+
+# record_fork_branch BUNDLE CONFIG: for a clone of a fork, records the branch it is on in
+# CONFIG/.update_branch, which is the branch the updaters follow for that install (an install
+# made from a fork follows its own branch, and says "not recorded" and stops without one).
+# record_installed_revision only records main and dev, upstream's channels, so without this a
+# fresh install from a fork branch had nothing to update from. Does nothing for a clone of
+# upstream (its channel rules stay as they are), a clone with no origin, or a clone that is not
+# on a branch (the record that is there is left alone).
+record_fork_branch() {
+    local bundle="$1" config="$2" branch
+
+    clone_is_fork "$bundle" || return 0
+    branch="$(fork_update_branch "$bundle" 2>/dev/null)" || return 0
+    mkdir -p -- "$config" || return 1
+    printf '%s\n' "$branch" > "$config/.update_branch"
+}
