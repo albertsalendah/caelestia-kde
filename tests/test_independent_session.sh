@@ -63,6 +63,31 @@ test_the_greeter_drop_in_keeps_the_theme_variable_it_replaces() {
     assert_contains "$conf" 'GreeterEnvironment=QML_XHR_ALLOW_FILE_READ=1,QT_WAYLAND_SHELL_INTEGRATION=layer-shell' "and keep the variable the theme's own drop-in sets, which a later file would replace"
 }
 
+# The value of KEY in [SECTION] of an ini file.
+ini_value() {
+    awk -v want="[$2]" -v key="$3" '
+        /^\[/ { in_section = ($0 == want); next }
+        in_section && index($0, key "=") == 1 { print substr($0, length(key) + 2); exit }
+    ' "$1"
+}
+
+test_the_greeter_drop_in_lists_the_session_folder_the_caelestia_entry_lives_in() {
+    local dirs
+    dirs="$(ini_value "$SESSION_SRC/zz-wayland-greeter.conf" Wayland SessionDir)"
+
+    assert_eq "/usr/local/share/wayland-sessions,/usr/share/wayland-sessions" "$dirs" \
+        "SDDM packages that list /usr/share/wayland-sessions only would hide the Caelestia entry; the stock Plasma entry stays listed"
+    assert_eq "" "$(ini_value "$SESSION_SRC/zz-wayland-greeter.conf" General SessionDir)" "the key belongs to [Wayland], where SDDM reads it"
+}
+
+test_sddm_gets_the_drop_in_with_the_session_folders() {
+    setup_machine
+    STUB_LOGIN_MANAGER=sddm run_step > /dev/null
+
+    assert_eq "$(cat "$SESSION_SRC/zz-wayland-greeter.conf")" "$(cat "$MACHINE/root/etc/sddm.conf.d/zz-wayland-greeter.conf")" "the installed drop-in is the shipped one"
+    rm -rf "$MACHINE"
+}
+
 test_the_plasma_entry_file_hides_an_entry_and_says_it_is_ours() {
     local entry
     entry="$(cat "$SESSION_SRC/plasma.desktop")"
