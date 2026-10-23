@@ -178,13 +178,23 @@ Open Nexus (`Super`, then `>Settings`).
 - Appearance: wallpaper, colors, fonts, and the wallpaper slideshow
 - Panels: every bar element, dashboard, launcher, sidebar and overview
 - Desktop: window rules, the context menu, Krohnkite
+- Display: arrange monitors by dragging them, turn one on or off, choose the primary monitor or mirror
+  it onto another, and set resolution, refresh rate, scale, orientation and brightness. It applies the
+  change through KWin and asks you to keep it, or goes back
+- Power: for plugged in, on battery and low battery, when to dim the screen, turn it off and suspend,
+  the power profile, and what closing the lid and pressing the power button do. It writes
+  `~/.config/powerdevilrc` and asks `powerdevil` to reload it
+- Splash: a login splash (Caelestia's own, with or without the logo, or a Plasma splash theme; a
+  minimum time and a preview) and the boot splash, where you list the Plymouth themes, preview one and
+  apply it, which rebuilds the boot image and asks for your password (take a Snapper snapshot first)
 - Shortcuts: rebind any built-in shortcut, or add a command shortcut
 - Plugins: browse the store, or install a plugin you built yourself
 
 Set the wallpaper from Appearance. The stock KDE wallpaper manager does not drive
 the color scheme, so using it leaves the shell on stale colors.
 
-Settings are written to `~/.config/caelestia/shell.json`.
+Settings are written to `~/.config/caelestia/shell.json`. The login splash settings are in
+`~/.config/caelestia-splashrc`; `uninstall.sh` leaves both in place.
 
 ## Troubleshooting
 
