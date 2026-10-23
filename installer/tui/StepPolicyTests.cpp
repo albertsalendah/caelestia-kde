@@ -30,9 +30,6 @@ int main() {
   expect_skipped(false, "Install SDDM theme", {{"INSTALL_SDDM", "true"}});
   expect_skipped(true, "Install optional components", Answers{});
   expect_skipped(false, "Install optional components", {{"INSTALL_ZED", "true"}});
-  expect_skipped(true, "Remove Plasma desktop", Answers{});
-  expect_skipped(true, "Remove Plasma desktop", {{"PLASMA_MODE", "alongside"}});
-  expect_skipped(false, "Remove Plasma desktop", {{"PLASMA_MODE", "replace"}});
   expect_skipped(false, "Build Caelestia shell", Answers{});
 
   if (failures > 0) {

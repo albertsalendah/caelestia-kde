@@ -17,12 +17,6 @@ bool is_skipped(const std::string &step_name,
   if (step_name == "Install SDDM theme") {
     return !answer_is_true(answers, "INSTALL_SDDM");
   }
-  if (step_name == "Remove Plasma desktop") {
-    // Asked about after the review, so only the choice counts here; the script
-    // itself refuses unless the removal was confirmed.
-    const auto mode = answers.find("PLASMA_MODE");
-    return mode == answers.end() || mode->second != "replace";
-  }
   if (step_name == "Install optional components") {
     static const char *optional_answers[] = {
         "INSTALL_VSCODE", "INSTALL_ZED", "INSTALL_SPICETIFY",

@@ -84,7 +84,7 @@ test_a_new_installer_source_changes_the_stamp() {
     local dir before
     dir="$(new_tmpdir)/b"; seed_bundle "$dir"
     before="$(stamp_of "$dir")"
-    printf 'int more() { return 0; }\n' > "$dir/installer/tui/Conditions.cpp"
+    printf 'int more() { return 0; }\n' > "$dir/installer/tui/Extra.cpp"
     assert_ne "$before" "$(stamp_of "$dir")" "an added source file must change the stamp"
 }
 

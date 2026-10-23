@@ -146,8 +146,6 @@ vector<Step> steps = {
      "PENDING", "finalize"},
     {"Install optional components", "scripts/11-optional-apps.sh", "PENDING",
      "finalize"},
-    {"Remove Plasma desktop", "scripts/13-remove-plasma.sh", "PENDING",
-     "finalize"},
 };
 
 bool step_is_skipped(const Step &step) {

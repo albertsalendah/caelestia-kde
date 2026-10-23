@@ -21,7 +21,6 @@ namespace UI {
         std::string title;
         std::string id;
         std::string help;
-        std::string only_if; // shown only when this Conditions::holds; empty means always
         std::vector<std::string> options;
         std::unordered_map<std::string, int> option_index; // option -> index into options
         std::vector<MenuItem> items;                       // parsed children of a submenu
@@ -32,7 +31,6 @@ namespace UI {
     bool render_menu(const std::vector<MenuItem>& items, const std::string& title);
 
     bool review_screen();
-    bool confirm_plasma_removal();
 
     void log_view(const std::string& log_path);
 

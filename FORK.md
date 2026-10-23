@@ -21,8 +21,8 @@ re-attach the fork's part.
 
 | File | What the fork adds |
 |---|---|
-| `installer/tui/UI.cpp`, `UI.hpp`, `Runner.cpp`, `StepPolicy.cpp`, `main.cpp` | the `only_if` menu filter (`Conditions`), the Plasma removal dialog (`PlasmaRemoval`), the step "Remove Plasma desktop" and its skip rule |
-| `installer/data/menu.json` | the Packages, Applications and "Theming for other apps" menus, `PLASMA_MODE` |
+| `installer/tui/Runner.cpp` | the step "Install independent session" (`scripts/12-independent-session.sh`), the only fork change left in the installer's C++ |
+| `installer/data/menu.json` | the Packages, Applications and "Theming for other apps" menus |
 | `src/bin/caelestia-color`, `src/dots-extra/fish/config.fish`, `src/matugen/README.md` | terminals reached over SSH and Konsole are not sent the palette; `theme.enableKonsole` is off unless set, so Konsole keeps its own colours |
 | `scripts/08-build-shell.sh`, `scripts/10-autostart.sh` | with the independent session `plasmashellrc` and `kscreenlockerrc` are not written (the lock screen package is selected by the Caelestia session through `PLASMA_DEFAULT_SHELL`); other installs keep the old self-heal |
 | `scripts/09-system-tweaks.sh` | the OSD, panel and splash tweaks are skipped with the independent session (`scripts/lib/independent-session.sh`) |
@@ -35,7 +35,7 @@ re-attach the fork's part.
 | `PageDictionary.qml`, `PageCompRegistry.qml` | the Display, Power and Splash pages (matched by position in both lists) |
 
 Everything else the fork adds lives in files of its own: `scripts/12-independent-session.sh`,
-`13-remove-plasma.sh`, `scripts/lib/plasma-removal.sh`, `src/session/`, the Display, Power and
+`scripts/lib/independent-session.sh`, `src/session/`, the Display, Power and
 Splash pages and services, `shell/modules/splash/`, and the tests that go with them.
 
 ## Dropped on purpose

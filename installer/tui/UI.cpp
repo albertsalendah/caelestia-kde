@@ -5,8 +5,6 @@
 #include "Draw.hpp"
 #include "Runner.hpp"
 #include "Sudo.hpp"
-#include "Conditions.hpp"
-#include "PlasmaRemoval.hpp"
 #include <chrono>
 #include <cstdio>
 #include <cstdlib>
@@ -431,105 +429,6 @@ namespace UI {
         return false;
     }
 
-    // Asks before the Plasma desktop is removed. Called after the review, only when the choice
-    // is "replace": shows what pacman would remove and lets the person confirm, keep Plasma
-    // (install alongside) or go back. Returns false to go back to the configuration.
-    bool confirm_plasma_removal() {
-        auto mode = g_answers.find("PLASMA_MODE");
-        if (mode == g_answers.end() || mode->second != "replace")
-            return true;
-        // The choice is only offered where Plasma is installed, but a stale answer must not remove anything.
-        if (!Conditions::run_probe(Conditions::plasma_probe_command())) {
-            g_answers["PLASMA_MODE"] = "alongside";
-            return true;
-        }
-
-        const PlasmaRemoval::Plan plan = PlasmaRemoval::load_plan(g_bundle_dir);
-        const bool can_remove = plan.kind == PlasmaRemoval::Plan::Kind::Packages;
-        vector<string> options;
-        if (can_remove)
-            options.push_back("Remove these packages");
-        options.push_back("Keep Plasma (install alongside)");
-        options.push_back("Back to configuration");
-
-        size_t selected = 0;
-        while (!g_quit) {
-            if (g_resized) { Term::get_size(); g_resized = false; }
-            cout << Draw::sync_start() << Draw::clear();
-
-            int w = g_term_width - 6;
-            if (w > 100) w = 100;
-            int h = g_term_height - 2;
-            if (w < 40 || h < 14) {
-                cout << Draw::sync_end() << flush;
-                return false;
-            }
-            int x = (g_term_width - w) / 2;
-            int y = 1;
-            Draw::box(x, y, w, h, "REMOVE THE PLASMA DESKTOP", "warning", "warning");
-
-            vector<pair<string, string>> lines;
-            switch (plan.kind) {
-            case PlasmaRemoval::Plan::Kind::Packages:
-                lines.push_back({"Caelestia is installed first. Afterwards these packages are removed:", "bold_on_surface"});
-                for (const auto& name : plan.packages)
-                    lines.push_back({"  " + name, "on_surface"});
-                break;
-            case PlasmaRemoval::Plan::Kind::Nothing:
-                lines.push_back({"None of the Plasma desktop packages are installed: there is nothing to remove.", "on_surface"});
-                break;
-            case PlasmaRemoval::Plan::Kind::Blocked:
-                lines.push_back({"Plasma cannot be removed. pacman says:", "error"});
-                lines.push_back({"  " + plan.reason, "on_surface"});
-                break;
-            case PlasmaRemoval::Plan::Kind::Unsupported:
-                lines.push_back({"Removing Plasma is supported on Arch only.", "on_surface"});
-                break;
-            }
-            if (can_remove) {
-                lines.push_back({"", ""});
-                lines.push_back({"Not removed: the session's own packages (kwin, plasma-workspace, powerdevil, ...)", "muted"});
-                lines.push_back({"and any dependencies left behind.", "muted"});
-                lines.push_back({"A Snapper snapshot is taken first when Snapper is set up; otherwise take your own backup.", "muted"});
-                lines.push_back({"Afterwards log out and choose the Caelestia session: a running Plasma session stops working.", "muted"});
-            }
-
-            int ly = y + 2;
-            const int last_row = y + h - 3 - (int)options.size();
-            for (const auto& ln : lines) {
-                if (ly >= last_row) break;
-                if (!ln.first.empty())
-                    Draw::text(x + 2, ly, Draw::fit(ln.first, (size_t)(w - 4)), ln.second);
-                ly++;
-            }
-
-            int oy = y + h - 2 - (int)options.size();
-            for (size_t i = 0; i < options.size(); ++i) {
-                const bool on = i == selected;
-                Draw::text(x + 2, oy + (int)i, (on ? "> " : "  ") + options[i], on ? "bold_primary" : "on_surface");
-            }
-            cout << Draw::sync_end() << flush;
-
-            string key = Input::wait_key();
-            if (key == "KEY_up" && selected > 0) selected--;
-            else if (key == "KEY_down" && selected + 1 < options.size()) selected++;
-            else if (key == "escape" || key == "KEY_left") return false;
-            else if (key == "enter") {
-                const string& choice = options[selected];
-                if (choice == "Remove these packages") {
-                    g_answers["PLASMA_REMOVE_CONFIRMED"] = "true";
-                    return true;
-                }
-                if (choice == "Keep Plasma (install alongside)") {
-                    g_answers["PLASMA_MODE"] = "alongside";
-                    return true;
-                }
-                return false;
-            }
-        }
-        return false;
-    }
-
     // Parses and redraws one frame of the log view. Non-blocking: call it repeatedly while
     // up; a size check skips re-reading an unchanged log.
     void log_view_tick(const std::string& log_path, LogViewState& s) {
@@ -828,8 +727,6 @@ namespace UI {
             m.title = item.contains("title") && item["title"].is_string() ? item["title"].get<string>() : "Unknown";
             m.id = item.contains("id") && item["id"].is_string() ? item["id"].get<string>() : "";
             m.help = item.contains("help") && item["help"].is_string() ? item["help"].get<string>() : "";
-            // The condition under which the item is shown (see Conditions.hpp); it is parsed and seeded either way.
-            m.only_if = item.contains("only_if") && item["only_if"].is_string() ? item["only_if"].get<string>() : "";
 
             if (m.type == "submenu") {
                 if (!item.contains("items") || !item["items"].is_array())
@@ -866,10 +763,7 @@ namespace UI {
         return parsed;
     }
 
-    bool render_menu(const std::vector<MenuItem>& all_items, const std::string& title) {
-        // Items that name a condition ("only_if") are shown only when it holds. They were parsed, and
-        // seeded with their defaults, in parse_menu either way, so the scripts always get a value.
-        const std::vector<MenuItem> items = Conditions::visible(all_items, Conditions::run_probe);
+    bool render_menu(const std::vector<MenuItem>& items, const std::string& title) {
         int selected = 0;
         int num_items = static_cast<int>(items.size());
         if (num_items == 0)

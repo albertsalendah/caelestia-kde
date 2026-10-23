@@ -156,7 +156,7 @@ int main(int argc, char** argv) {
                 Term::restore();
                 return 0;
             }
-            if (UI::review_screen() && UI::confirm_plasma_removal()) {
+            if (UI::review_screen()) {
                 begin = true;
             }
         }
