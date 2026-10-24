@@ -67,8 +67,8 @@ PageBase {
 
         StepperRow {
             last: true
-            label: qsTr("Recent clips in popout")
-            subtext: qsTr("How many of the latest clips the popout lists")
+            label: qsTr("Rows visible in popout")
+            subtext: qsTr("How many clips the popout shows before its list scrolls")
             reset: ({ node: GlobalConfig.bar.status, setting: "clipboardEntries" })
             value: Config.bar.status.clipboardEntries
             from: 1

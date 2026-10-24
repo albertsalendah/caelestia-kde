@@ -192,7 +192,8 @@ Open Nexus (`Super`, then `>Settings`).
   apply it, which rebuilds the boot image and asks for your password (take a Snapper snapshot first)
 - Clipboard (under Utilities): how many entries the history keeps, whether clearing it asks first, and a
   clipboard icon among the status icons (off by default). Hover or click the icon for a popout with the
-  latest clips: click one to copy it, or clear the history from the header
+  history, which scrolls: click a clip to copy it, or clear the history from the header. Images show a
+  thumbnail and copied files show their names
 - Shortcuts: rebind any built-in shortcut, or add a command shortcut
 - Plugins: browse the store, or install a plugin you built yourself
 

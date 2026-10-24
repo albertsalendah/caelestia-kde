@@ -3,15 +3,20 @@ pragma ComponentBehavior: Bound
 import QtQuick
 import QtQuick.Layouts
 import Quickshell
+import Quickshell.Io
 import Caelestia
 import Caelestia.Config
 import qs.components
 import qs.components.controls
+import qs.components.images
 import qs.services
 import qs.modules.launcher.services
+import "../../../utils/scripts/clipfiles.js" as ClipFiles
 
-// Clipboard popout: the most recent clips from the history the launcher also
-// shows. A click copies a clip, the header button clears the history.
+// Clipboard popout: the clipboard history the launcher also shows, newest
+// first, in a list that scrolls. A click copies a clip, the header button
+// clears the history. Text is one line, images show a thumbnail and copied
+// files show their names, which scroll sideways when they do not fit.
 ColumnLayout {
     id: root
 
@@ -24,8 +29,13 @@ ColumnLayout {
     // confirm setting is on.
     property bool confirming: false
 
-    readonly property int maxClips: Math.max(1, Config.bar.status.clipboardEntries)
-    readonly property var recent: Clipboard.getSortedItems().slice(0, root.maxClips)
+    readonly property int visibleRows: Math.max(1, Config.bar.status.clipboardEntries)
+    readonly property var clips: Clipboard.getSortedItems()
+    readonly property real rowHeight: 40 * scaleOffset
+    readonly property real imageRowHeight: 76 * scaleOffset
+    readonly property real rowSpacing: Tokens.spacing.small * scaleOffset
+    // The list grows to this many text rows and scrolls after that.
+    readonly property real maxListHeight: visibleRows * rowHeight + (visibleRows - 1) * rowSpacing
 
     function copyClip(clip: var): void {
         root.popouts.hasCurrent = false;
@@ -91,7 +101,7 @@ ColumnLayout {
         }
 
         IconButton {
-            visible: root.recent.length > 0 && !root.confirming
+            visible: root.clips.length > 0 && !root.confirming
             icon: "delete_sweep"
             font: Tokens.font.icon.medium
             type: IconButton.Tonal
@@ -118,7 +128,8 @@ ColumnLayout {
             y: Tokens.padding.medium * root.scaleOffset
             spacing: Tokens.spacing.small * root.scaleOffset
 
-            RowLayout {
+            // The question has a line of its own so it never runs into the buttons.
+            ColumnLayout {
                 Layout.fillWidth: true
                 visible: root.confirming
                 spacing: Tokens.spacing.small * root.scaleOffset
@@ -126,33 +137,51 @@ ColumnLayout {
                 StyledText {
                     Layout.fillWidth: true
                     text: qsTr("Clear all clipboard history?")
+                    wrapMode: Text.WordWrap
                     font.pointSize: Tokens.font.body.medium.pointSize * root.fontScale
                 }
 
-                TextButton {
-                    text: qsTr("Cancel")
-                    type: TextButton.Text
-                    onClicked: root.confirming = false
-                }
+                RowLayout {
+                    Layout.alignment: Qt.AlignRight
+                    spacing: Tokens.spacing.small * root.scaleOffset
 
-                TextButton {
-                    text: qsTr("Clear")
-                    type: TextButton.Tonal
-                    onClicked: root.clearNow()
+                    TextButton {
+                        text: qsTr("Cancel")
+                        type: TextButton.Text
+                        onClicked: root.confirming = false
+                    }
+
+                    TextButton {
+                        text: qsTr("Clear")
+                        type: TextButton.Tonal
+                        onClicked: root.clearNow()
+                    }
                 }
             }
 
             StyledText {
                 Layout.fillWidth: true
-                visible: root.recent.length === 0
+                visible: root.clips.length === 0
                 text: Clipboard.available ? qsTr("Nothing copied yet") : qsTr("Clipboard history needs cliphist")
                 color: Colours.palette.m3onSurfaceVariant
                 font.pointSize: Tokens.font.body.small.pointSize * root.fontScale
             }
 
-            Repeater {
+            ListView {
+                id: clipList
+
+                Layout.fillWidth: true
+                visible: root.clips.length > 0
+                implicitHeight: Math.min(contentHeight, root.maxListHeight)
+                clip: true
+                boundsBehavior: Flickable.StopAtBounds
+                spacing: root.rowSpacing
                 model: ScriptModel {
-                    values: root.recent
+                    values: root.clips
+                }
+
+                StyledScrollBar.vertical: StyledScrollBar {
+                    flickable: clipList
                 }
 
                 delegate: StyledRect {
@@ -160,38 +189,164 @@ ColumnLayout {
 
                     required property var modelData
 
-                    Layout.fillWidth: true
-                    implicitHeight: rowLayout.implicitHeight + Tokens.padding.small * 2 * root.scaleOffset
+                    readonly property bool isImage: modelData.isImage ?? false
+                    readonly property bool isPinned: modelData.isPinned ?? false
+                    // cliphist cuts its preview, so a file clip is read in full when it
+                    // can be (a pinned clip has no cliphist entry to read).
+                    property string fullText: ""
+                    readonly property string clipText: fullText.length > 0 ? fullText : (modelData.preview ?? "")
+                    readonly property bool isFiles: !isImage && ClipFiles.isFileClip(modelData.preview ?? "")
+                    readonly property var fileNames: isFiles ? ClipFiles.fileNames(clipText) : []
+                    property string imagePath: ""
+
+                    function updateImage(): void {
+                        if (!clipRow.isImage)
+                            clipRow.imagePath = "";
+                        else if (clipRow.isPinned)
+                            clipRow.imagePath = clipRow.modelData.imagePath ?? "";
+                        else if (Clipboard.isImageCached(clipRow.modelData.id))
+                            clipRow.imagePath = Clipboard.getImagePath(clipRow.modelData.id);
+                        else
+                            clipRow.imagePath = "";
+                    }
+
+                    function refresh(): void {
+                        clipRow.fullText = "";
+                        clipRow.updateImage();
+                        if (clipRow.isFiles && !clipRow.isPinned)
+                            decodeProc.running = true;
+                    }
+
+                    width: clipList.width
+                    height: isImage ? root.imageRowHeight : root.rowHeight
                     radius: Tokens.rounding.small * root.scaleOffset
                     color: "transparent"
 
-                    StateLayer {
-                        radius: clipRow.radius
-                        onClicked: root.copyClip(clipRow.modelData)
+                    onModelDataChanged: refresh()
+                    Component.onCompleted: refresh()
+
+                    Connections {
+                        function onImageReady(id: int, path: string): void {
+                            if (clipRow.isImage && id === clipRow.modelData.id)
+                                clipRow.imagePath = path;
+                        }
+
+                        target: Clipboard
+                    }
+
+                    Process {
+                        id: decodeProc
+
+                        command: ["cliphist", "decode", String(clipRow.modelData.id)]
+                        stdout: StdioCollector {
+                            onStreamFinished: clipRow.fullText = text
+                        }
                     }
 
                     RowLayout {
-                        id: rowLayout
-
-                        anchors.left: parent.left
-                        anchors.right: parent.right
-                        anchors.verticalCenter: parent.verticalCenter
+                        anchors.fill: parent
                         anchors.leftMargin: Tokens.padding.small * root.scaleOffset
                         anchors.rightMargin: Tokens.padding.small * root.scaleOffset
                         spacing: Tokens.spacing.small * root.scaleOffset
 
                         MaterialIcon {
-                            text: clipRow.modelData.isPinned ? "keep" : clipRow.modelData.isImage ? "image" : "content_paste"
+                            visible: !clipRow.isImage
+                            text: clipRow.isPinned ? "keep" : clipRow.isFiles ? (clipRow.fileNames.length > 1 ? "file_copy" : "description") : "content_paste"
                             color: Colours.palette.m3onSurfaceVariant
                             fontStyle.pointSize: Tokens.font.icon.medium.pointSize * root.fontScale
                         }
 
+                        // Image: a thumbnail, as the launcher shows.
+                        StyledRect {
+                            visible: clipRow.isImage
+                            Layout.preferredWidth: 96 * root.scaleOffset
+                            Layout.preferredHeight: root.imageRowHeight - Tokens.padding.small * 2 * root.scaleOffset
+                            radius: Tokens.rounding.small * root.scaleOffset
+                            color: Colours.tPalette.m3surfaceContainerHigh
+                            clip: true
+
+                            CachingImage {
+                                anchors.fill: parent
+                                path: clipRow.imagePath
+                            }
+                        }
+
+                        // Files: one chip per file, in a strip that moves sideways.
+                        Flickable {
+                            id: filesFlick
+
+                            Layout.fillWidth: true
+                            Layout.fillHeight: true
+                            visible: clipRow.isFiles
+                            clip: true
+                            interactive: false
+                            boundsBehavior: Flickable.StopAtBounds
+                            contentWidth: chipRow.implicitWidth
+                            contentHeight: height
+
+                            Row {
+                                id: chipRow
+
+                                height: filesFlick.height
+                                spacing: Tokens.spacing.small * root.scaleOffset
+
+                                Repeater {
+                                    model: clipRow.fileNames
+
+                                    delegate: StyledRect {
+                                        id: chip
+
+                                        required property string modelData
+
+                                        anchors.verticalCenter: parent.verticalCenter
+                                        implicitWidth: Math.min(chipText.implicitWidth, 170 * root.scaleOffset) + Tokens.padding.medium * 2 * root.scaleOffset
+                                        implicitHeight: chipText.implicitHeight + Tokens.padding.small * 2 * root.scaleOffset
+                                        radius: Tokens.rounding.full
+                                        color: Colours.tPalette.m3surfaceContainerHigh
+
+                                        StyledText {
+                                            id: chipText
+
+                                            anchors.centerIn: parent
+                                            width: Math.min(implicitWidth, 170 * root.scaleOffset)
+                                            text: chip.modelData
+                                            elide: Text.ElideRight
+                                            font.pointSize: Tokens.font.body.small.pointSize * root.fontScale
+                                        }
+                                    }
+                                }
+                            }
+                        }
+
+                        // Text, and the label next to an image: one line with an ellipsis.
                         StyledText {
                             Layout.fillWidth: true
+                            visible: !clipRow.isFiles
                             text: clipRow.modelData.preview
                             elide: Text.ElideRight
                             maximumLineCount: 1
-                            font.pointSize: Tokens.font.body.medium.pointSize * root.fontScale
+                            color: clipRow.isImage ? Colours.palette.m3onSurfaceVariant : Colours.palette.m3onSurface
+                            font.pointSize: (clipRow.isImage ? Tokens.font.body.small : Tokens.font.body.medium).pointSize * root.fontScale
+                        }
+                    }
+
+                    // On top of the content, so a click anywhere on the row copies it
+                    // and the file strip never takes the click.
+                    StateLayer {
+                        z: 1
+                        radius: clipRow.radius
+                        onClicked: root.copyClip(clipRow.modelData)
+                        onWheel: wheel => {
+                            // Sideways scrolling (a touchpad, or Shift with the wheel) moves
+                            // the file strip when it overflows; anything else is left to
+                            // the list.
+                            const dx = wheel.angleDelta.x !== 0 ? wheel.angleDelta.x : (wheel.modifiers & Qt.ShiftModifier ? wheel.angleDelta.y : 0);
+                            const room = filesFlick.contentWidth - filesFlick.width;
+                            if (!clipRow.isFiles || dx === 0 || room <= 0) {
+                                wheel.accepted = false;
+                                return;
+                            }
+                            filesFlick.contentX = Math.max(0, Math.min(room, filesFlick.contentX - dx));
                         }
                     }
                 }
