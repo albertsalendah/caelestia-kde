@@ -202,6 +202,7 @@ ColumnLayout {
                     readonly property bool isFiles: !isImage && ClipFiles.isFileClip(modelData.preview ?? "")
                     readonly property var fileEntries: isFiles ? ClipFiles.fileEntries(clipText) : []
                     property string imagePath: ""
+                    readonly property real stripRoom: Math.max(0, filesFlick.contentWidth - filesFlick.width)
 
                     function updateImage(): void {
                         if (!clipRow.isImage)
@@ -355,6 +356,28 @@ ColumnLayout {
                         }
                     }
 
+                    // Dragging a file strip sideways moves it. The handler sits beside the
+                    // click layer and takes the drag over from it, which also stops that
+                    // drag from counting as a click.
+                    DragHandler {
+                        id: stripDrag
+
+                        property real startX: 0
+
+                        target: null
+                        enabled: clipRow.isFiles && clipRow.stripRoom > 0
+                        xAxis.enabled: true
+                        yAxis.enabled: false
+                        onActiveChanged: {
+                            if (active)
+                                startX = filesFlick.contentX;
+                        }
+                        onTranslationChanged: {
+                            if (active)
+                                filesFlick.contentX = Math.max(0, Math.min(clipRow.stripRoom, startX - translation.x));
+                        }
+                    }
+
                     // On top of the content, so a click anywhere on the row copies it
                     // and the file strip never takes the click.
                     StateLayer {
@@ -362,16 +385,14 @@ ColumnLayout {
                         radius: clipRow.radius
                         onClicked: root.copyClip(clipRow.modelData)
                         onWheel: wheel => {
-                            // Sideways scrolling (a touchpad, or Shift with the wheel) moves
-                            // the file strip when it overflows; anything else is left to
-                            // the list.
-                            const dx = wheel.angleDelta.x !== 0 ? wheel.angleDelta.x : (wheel.modifiers & Qt.ShiftModifier ? wheel.angleDelta.y : 0);
-                            const room = filesFlick.contentWidth - filesFlick.width;
-                            if (!clipRow.isFiles || dx === 0 || room <= 0) {
+                            // The wheel moves a file strip that overflows. At either end, and
+                            // on every other kind of row, the step goes on to the list.
+                            const next = ClipFiles.scrollStrip(filesFlick.contentX, clipRow.stripRoom, ClipFiles.wheelDelta(wheel.angleDelta.x, wheel.angleDelta.y));
+                            if (!clipRow.isFiles || next < 0) {
                                 wheel.accepted = false;
                                 return;
                             }
-                            filesFlick.contentX = Math.max(0, Math.min(room, filesFlick.contentX - dx));
+                            filesFlick.contentX = next;
                         }
                     }
                 }

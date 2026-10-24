@@ -97,3 +97,21 @@ function fileNames(text) {
         return entry.name;
     });
 }
+
+// The sideways scroll of the file strip. A wheel step reports its distance in
+// angleDelta; a touchpad swipe sideways fills x, an ordinary wheel only y. Both
+// move the strip: positive towards the start, negative towards the end.
+function wheelDelta(angleX, angleY) {
+    return angleX !== 0 ? angleX : angleY;
+}
+
+// Where the strip goes for a wheel step of dx, when it can scroll "room" pixels
+// in all. -1 means it cannot move that way (nothing to scroll, or already at the
+// end the step points to), and the step belongs to the list around it instead.
+function scrollStrip(contentX, room, dx) {
+    if (room <= 0 || dx === 0)
+        return -1;
+    if ((dx > 0 && contentX <= 0) || (dx < 0 && contentX >= room))
+        return -1;
+    return Math.max(0, Math.min(room, contentX - dx));
+}

@@ -132,11 +132,13 @@ test_file_clips_show_names_and_scroll_sideways_only_when_they_overflow() {
         "the whole clip is read, as cliphist's preview is cut"
     assert_file_contains "$POPOUT" 'if (clipRow.isFiles && !clipRow.isPinned)' \
         "a pinned clip has no cliphist entry to read"
-    assert_file_contains "$POPOUT" 'const room = filesFlick.contentWidth - filesFlick.width;' \
+    assert_file_contains "$POPOUT" 'readonly property real stripRoom: Math.max(0, filesFlick.contentWidth - filesFlick.width)' \
         "the strip moves only by the width it overflows"
-    assert_file_contains "$POPOUT" 'if (!clipRow.isFiles || dx === 0 || room <= 0) {' \
-        "no overflow: the wheel goes to the list"
-    assert_file_contains "$POPOUT" 'wheel.accepted = false;' "and is handed on"
+    assert_file_contains "$POPOUT" 'ClipFiles.scrollStrip(filesFlick.contentX, clipRow.stripRoom, ClipFiles.wheelDelta(wheel.angleDelta.x, wheel.angleDelta.y))' \
+        "the wheel, plain or sideways, goes through the tested scroll rules"
+    assert_file_contains "$POPOUT" 'if (!clipRow.isFiles || next < 0) {' "and anything the strip cannot take goes to the list"
+    assert_file_contains "$POPOUT" 'wheel.accepted = false;' "which is handed on"
+    assert_file_contains "$POPOUT" 'filesFlick.contentX = next;' "otherwise the strip moves"
     assert_file_contains "$POPOUT" 'z: 1' "the click layer is above the strip so a click always copies"
     assert_contains "$(cat "$POPOUT")" 'anchors.fill: parent
                                 interactive: false' \
@@ -161,13 +163,25 @@ test_each_file_shows_a_picture_or_the_icon_for_its_kind() {
         "a clip of hundreds of files does not make hundreds of thumbnails"
 }
 
+test_a_file_strip_can_be_dragged_and_a_drag_is_not_a_click() {
+    local drag
+    drag="$(sed -n '/DragHandler {/,/^                    }/p' "$POPOUT")"
+    assert_contains "$drag" 'target: null' "the handler moves nothing by itself"
+    assert_contains "$drag" 'enabled: clipRow.isFiles && clipRow.stripRoom > 0' "only a strip that overflows"
+    assert_contains "$drag" 'xAxis.enabled: true' "sideways"
+    assert_contains "$drag" 'yAxis.enabled: false' "and never up or down, which belongs to the list"
+    assert_contains "$drag" 'startX = filesFlick.contentX;' "the drag starts from where the strip is"
+    assert_contains "$drag" 'startX - translation.x' "and follows the pointer"
+    assert_contains "$drag" 'Math.min(clipRow.stripRoom,' "without leaving the strip"
+}
+
 test_file_names_are_read_from_urls_and_from_cut_previews() {
     command -v node >/dev/null 2>&1 || { skip_test "node is not installed"; return 0; }
     local out
     out="$(node -e '
 const fs = require("fs");
 const src = fs.readFileSync(process.argv[1], "utf8").replace(/^\.pragma library\n/, "");
-const L = new Function(src + "; return {isFileClip, fileNames, fileEntries, kindOf, iconFor};")();
+const L = new Function(src + "; return {isFileClip, fileNames, fileEntries, kindOf, iconFor, wheelDelta, scrollStrip};")();
 const show = (v) => JSON.stringify(v);
 console.log(show(L.isFileClip("file:///home/a/b.txt")));
 console.log(show(L.isFileClip("hello file:///x")));
@@ -179,6 +193,8 @@ console.log(show(L.fileNames("file://host/share/x.txt")));
 console.log(show(L.fileNames("file:///a/b.txt notes/planning.md file:///c.txt")));
 console.log(show(L.fileNames("not files")));
 console.log(show(L.fileNames("file:///")));
+console.log(show([L.scrollStrip(0, 300, 120), L.scrollStrip(0, 300, -120), L.scrollStrip(300, 300, -120), L.scrollStrip(250, 300, -120), L.scrollStrip(100, 300, 120), L.scrollStrip(10, 0, -120), L.scrollStrip(100, 300, 0), L.scrollStrip(300, 300, 120), L.scrollStrip(10, 0, 120)]));
+console.log(show([L.wheelDelta(0, 120), L.wheelDelta(-40, 120), L.wheelDelta(0, 0)]));
 console.log(show(L.fileEntries("file:///h/Clip%20One.MP4 file:///h/pic.png")));
 console.log(show(["a.PNG","b.jpeg","c.mkv","d.mp3","e.pdf","f.tar","g.md","h.bin",".bashrc",".png","Makefile","x.",""].map(L.kindOf)));
 console.log(show(["image","video","audio","pdf","archive","text","file","nothing"].map(L.iconFor)));
@@ -195,6 +211,8 @@ false
 ["b.txt","c.txt"]
 []
 ["/"]
+[-1,120,-1,300,0,-1,-1,180,-1]
+[120,-40,0]
 [{"name":"Clip One.MP4","url":"file:///h/Clip%20One.MP4","kind":"video"},{"name":"pic.png","url":"file:///h/pic.png","kind":"image"}]
 ["image","image","video","audio","pdf","archive","text","file","file","file","file","file","file"]
 ["image","movie","audio_file","picture_as_pdf","folder_zip","description","draft","draft"]

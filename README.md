@@ -193,8 +193,9 @@ Open Nexus (`Super`, then `>Settings`).
 - Clipboard (under Utilities): how many entries the history keeps, whether clearing it asks first, and a
   clipboard icon among the status icons (off by default). The icon opens a popout with the history, which
   scrolls: click a clip to copy it, or clear the history from the header. Images show a thumbnail; copied
-  files show a thumbnail (or the icon for their kind) and name each. "Open on hover" chooses between
-  hovering the icon and clicking it (a clicked popout stays until you click elsewhere or press Escape).
+  files show a thumbnail (or the icon for their kind) and name each. A long strip of files scrolls with the
+  mouse wheel over it (at either end the wheel goes on to the list), by dragging it, or with a touchpad
+  swipe. "Open on hover" chooses between hovering the icon and clicking it (a clicked popout stays until you click elsewhere or press Escape).
   Meta+V opens the same popout, pinned; the launcher's clipboard list is the fallback when no bar can show it
 - Shortcuts: rebind any built-in shortcut, or add a command shortcut
 - Plugins: browse the store, or install a plugin you built yourself
