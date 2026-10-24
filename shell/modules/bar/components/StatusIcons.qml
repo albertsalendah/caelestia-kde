@@ -69,6 +69,7 @@ StyledRect {
         case "battery":
         case "peripheralBattery":
         case "notifications":
+        case "clipboard":
             return true;
         default:
             return false;
@@ -82,6 +83,16 @@ StyledRect {
         if (from < 0 || to < 0 || from === to)
             return;
         GlobalConfig.bar.statusIcons.move(from, to);
+    }
+
+    function openPopout(name: string, item: Item): void {
+        const popouts = root.popouts;
+        if (!popouts)
+            return;
+
+        popouts.currentName = name;
+        popouts.currentCenter = root.isHorizontal ? item.mapToItem(null, item.width / 2, 0).x : item.mapToItem(null, 0, item.height / 2).y;
+        popouts.hasCurrent = true;
     }
 
     function openContextMenu(): void {
@@ -223,6 +234,7 @@ StyledRect {
                                 case "peripheralBattery": return peripheralBatteryComp;
                                 case "nightlight": return nightlightComp;
                                 case "notifications": return notificationsComp;
+                                case "clipboard": return clipboardComp;
                                 default: return null;
                             }
                         }
@@ -266,6 +278,8 @@ StyledRect {
                             } else if (name === "notifications") {
                                 const vis = Visibilities.getForActive();
                                 vis.sidebar = !vis.sidebar;
+                            } else if (name === "clipboard") {
+                                root.openPopout("clipboard", delegateContainer);
                             }
                         }
                     }
@@ -562,6 +576,16 @@ StyledRect {
                     return "notifications_unread";
                 return "notifications";
             }
+            color: root.colour
+        }
+    }
+
+    Component {
+        id: clipboardComp
+
+        MaterialIcon {
+            animate: true
+            text: "content_paste"
             color: root.colour
         }
     }

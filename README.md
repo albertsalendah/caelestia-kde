@@ -190,6 +190,9 @@ Open Nexus (`Super`, then `>Settings`).
 - Splash: a login splash (Caelestia's own, with or without the logo, or a Plasma splash theme; a
   minimum time and a preview) and the boot splash, where you list the Plymouth themes, preview one and
   apply it, which rebuilds the boot image and asks for your password (take a Snapper snapshot first)
+- Clipboard (under Utilities): how many entries the history keeps, whether clearing it asks first, and a
+  clipboard icon among the status icons (off by default). Hover or click the icon for a popout with the
+  latest clips: click one to copy it, or clear the history from the header
 - Shortcuts: rebind any built-in shortcut, or add a command shortcut
 - Plugins: browse the store, or install a plugin you built yourself
 

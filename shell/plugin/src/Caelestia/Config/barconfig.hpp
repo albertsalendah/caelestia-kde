@@ -130,6 +130,7 @@ class BarStatus : public settings::ObjectNode {
     CONFIG_PROPERTY(bool, showLockStatus, true)
     CONFIG_PROPERTY(bool, showNotifications, true)
     CONFIG_PROPERTY(bool, showNightLight, true)
+    CONFIG_PROPERTY(int, clipboardEntries, 8)
 };
 
 class BarClock : public settings::ObjectNode {
@@ -279,6 +280,7 @@ class BarConfig : public settings::ObjectNode {
             LIST_ENTRY(battery, true),
             LIST_ENTRY(peripheralBattery, false),
             LIST_ENTRY(nightlight, true),
+            LIST_ENTRY(clipboard, false),
             LIST_ENTRY(notifications, true),
         }))
     CONFIG_SUBOBJECT(BarClock, clock)

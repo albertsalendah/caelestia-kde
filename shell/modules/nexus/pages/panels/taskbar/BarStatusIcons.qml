@@ -19,6 +19,7 @@ PageBase {
             battery: qsTr("Battery"),
             peripheralBattery: qsTr("Peripheral battery"),
             nightlight: qsTr("Night light"),
+            clipboard: qsTr("Clipboard"),
             notifications: qsTr("Notifications")
         })
     readonly property var addableIcons: {

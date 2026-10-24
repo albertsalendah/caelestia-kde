@@ -268,6 +268,13 @@ Item {
         }
 
         Popout {
+            name: "clipboard"
+            sourceComponent: ClipHistory {
+                popouts: root.popouts
+            }
+        }
+
+        Popout {
             name: "kblayout"
             sourceComponent: KbLayout {
                 popouts: root.popouts

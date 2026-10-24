@@ -150,7 +150,7 @@ QtObject {
             category: "controls",
             settings: [
                 { label: qsTr("On-screen Sliders"), subPageIdx: 3, keywords: ["volume", "microphone", "brightness", "osd"] },
-                { label: qsTr("Clipboard"), subPageIdx: 4, keywords: ["history", "copied", "paste", "maximum entries", "history size"] },
+                { label: qsTr("Clipboard"), subPageIdx: 4, keywords: ["history", "copied", "paste", "maximum entries", "history size", "status bar", "icon", "popout", "recent clips", "confirm clear"] },
                 { label: qsTr("Utilities Panel"), subPageIdx: 5, keywords: ["keep awake", "screenshot", "record"] },
                 { label: qsTr("Quick Toggles"), subPageIdx: 6, keywords: ["toggles", "dashboard", "switches"] },
                 { label: qsTr("Game Mode"), pagePath: "services/GameModePage.qml", subPageIdx: 1, keywords: ["hyprland overrides", "performance", "games"] },
