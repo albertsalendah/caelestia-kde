@@ -39,6 +39,9 @@ Item {
     // which can be narrower than the bar's right side now that it is resizable.
     property bool underSidebar: true
     property string detachedMode
+    // A popout opened by a click or a shortcut stays open when the pointer leaves
+    // the bar; a click outside it, Escape or choosing something closes it.
+    property bool pinned: false
     readonly property QtObject dummy: QtObject {}
     property int animLength: dummy.Tokens.anim.durations.expressiveDefaultSpatial
     property var animCurve: dummy.Tokens.anim.expressiveDefaultSpatial
@@ -63,6 +66,11 @@ Item {
     function close(): void {
         hasCurrent = false;
         detachedMode = "";
+    }
+
+    onHasCurrentChanged: {
+        if (!hasCurrent)
+            pinned = false;
     }
 
     implicitWidth: nonAnimWidth

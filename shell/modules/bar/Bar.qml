@@ -83,6 +83,10 @@ Item {
     }
 
     function checkPopout(pos: real): void {
+        // A pinned popout is left alone until it is dismissed.
+        if (popouts.pinned)
+            return;
+
         // A context menu stays open while the pointer moves over the bar, so
         // the hover routing below must not take it over or close it.
         if (popouts.hasCurrent && (popouts.currentName === "clockcontext" || popouts.currentName === "dockcontext" || popouts.currentName === "greetercontext" || popouts.currentName === "statusiconscontext" || popouts.currentName === "workspacescontext" || popouts.currentName === "traycontext" || popouts.currentName === "githubcontext" || popouts.currentName === "weathercontext" || popouts.currentName === "mediacontext" || popouts.currentName === "performancecontext" || popouts.currentName === "screencapturecontext" || popouts.currentName === "keepawakecontext" || popouts.currentName === "osiconcontext" || popouts.currentName === "dockbgcontext" || popouts.currentName === "elementscontext"))
@@ -156,7 +160,10 @@ Item {
                     }
                 }
             }
-            if (icon) {
+            if (icon && (icon.popoutName ?? icon.name) === "clipboard" && !Config.bar.status.clipboardOpenOnHover) {
+                // Set to open on click: hovering the icon shows nothing.
+                popouts.hasCurrent = false;
+            } else if (icon) {
                 popouts.currentName = icon.popoutName ?? icon.name;
                 popouts.currentCenter = isHorizontal ? icon.mapToItem(null, icon.width / 2, 0).x : icon.mapToItem(null, 0, icon.height / 2).y;
                 popouts.hasCurrent = true;

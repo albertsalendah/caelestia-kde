@@ -27,6 +27,7 @@ Singleton {
     property real dragWidth: 0
     property real dragHeight: 0
     property string streamClaim: ""
+    property var clipboardOpeners: new Map()
 
     signal cycleOverview(bool backwards)
 
@@ -66,6 +67,24 @@ Singleton {
             if (visibilities.session)
                 Kwin.clearHighlight();
         });
+    }
+
+    // The bar's status icons register a function per screen that opens the
+    // clipboard popout there; it answers whether it could.
+    function registerClipboardOpener(screenName: string, opener: var): void {
+        clipboardOpeners.set(screenName, opener);
+    }
+
+    function unregisterClipboardOpener(screenName: string, opener: var): void {
+        if (clipboardOpeners.get(screenName) === opener)
+            clipboardOpeners.delete(screenName);
+    }
+
+    // Opens (or closes, when it is already open) the clipboard popout on the screen
+    // the pointer is on. False when no bar there has a place for it.
+    function openClipboardPopout(): bool {
+        const opener = clipboardOpeners.get(Kwin.cursorOutputName()) ?? clipboardOpeners.values().next().value;
+        return opener ? opener() : false;
     }
 
     function registerBar(screen: ShellScreen, barWrapper: var): void {

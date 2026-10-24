@@ -65,6 +65,14 @@ PageBase {
             onToggled: root.setIconShown(checked)
         }
 
+        ToggleRow {
+            text: qsTr("Open on hover")
+            subtext: qsTr("Off: the popout opens when you click the icon and stays until you click elsewhere. Meta+V always opens it that way")
+            reset: ({ node: GlobalConfig.bar.status, setting: "clipboardOpenOnHover" })
+            checked: Config.bar.status.clipboardOpenOnHover
+            onToggled: GlobalConfig.bar.status.clipboardOpenOnHover = checked
+        }
+
         StepperRow {
             last: true
             label: qsTr("Rows visible in popout")

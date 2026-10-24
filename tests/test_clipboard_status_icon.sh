@@ -18,6 +18,12 @@ CLIP_ITEM="$SHELL_DIR/modules/launcher/items/ClipItem.qml"
 PAGE="$SHELL_DIR/modules/nexus/pages/utilities/ClipboardPage.qml"
 ICON_PAGE="$SHELL_DIR/modules/nexus/pages/panels/taskbar/BarStatusIcons.qml"
 DICTIONARY="$SHELL_DIR/modules/nexus/PageDictionary.qml"
+WRAPPER="$POPOUTS/Wrapper.qml"
+BAR="$SHELL_DIR/modules/bar/Bar.qml"
+INTERACTIONS="$SHELL_DIR/modules/drawers/Interactions.qml"
+CONTENT_WINDOW="$SHELL_DIR/modules/drawers/ContentWindow.qml"
+SHORTCUTS="$SHELL_DIR/modules/Shortcuts.qml"
+VISIBILITIES="$SHELL_DIR/services/Visibilities.qml"
 
 default_icon_ids() {
     sed -n '/CONFIG_LIST(EntryList, statusIcons/,/}))/p' "$BARCONFIG" \
@@ -55,12 +61,13 @@ test_the_icon_is_always_active_and_has_its_own_component() {
 }
 
 test_a_click_opens_the_popout_where_the_icon_is() {
-    assert_file_contains "$ICONS" 'root.openPopout("clipboard", delegateContainer)' \
-        "a click on the icon opens the clipboard popout"
-    assert_file_contains "$ICONS" 'function openPopout(name: string, item: Item): void' \
-        "the helper centres the popout on the icon"
+    assert_file_contains "$ICONS" 'root.clickClipboard(delegateContainer)' \
+        "a click on the icon goes to the clipboard click handler"
+    assert_file_contains "$ICONS" 'function openPopout(name: string, item: Item, pin: bool): void' \
+        "the helper centres the popout on the item and can pin it"
     assert_file_contains "$ICONS" 'popouts.currentName = name;' "it names the popout"
     assert_file_contains "$ICONS" 'popouts.hasCurrent = true;' "and shows it"
+    assert_file_contains "$ICONS" 'popouts.pinned = pin;' "pinned or not"
 }
 
 test_hover_reaches_the_popout_by_the_entry_id() {
@@ -107,7 +114,7 @@ test_images_show_the_launchers_thumbnail() {
     assert_file_contains "$POPOUT" 'function onImageReady(id: int, path: string): void' \
         "one that is still being made arrives through imageReady"
     assert_file_contains "$POPOUT" 'CachingImage {' "the thumbnail is drawn"
-    assert_file_contains "$POPOUT" 'height: isImage ? root.imageRowHeight : root.rowHeight' \
+    assert_file_contains "$POPOUT" 'height: isImage ? root.imageRowHeight : isFiles' \
         "an image row is taller than a text row"
 }
 
@@ -120,7 +127,7 @@ test_file_clips_show_names_and_scroll_sideways_only_when_they_overflow() {
     assert_file_contains "$POPOUT" 'import "../../../utils/scripts/clipfiles.js" as ClipFiles' \
         "the parsing lives in a script the tests can run"
     assert_file_exists "$SHELL_DIR/utils/scripts/clipfiles.js"
-    assert_file_contains "$POPOUT" 'ClipFiles.fileNames(clipText)' "the chips come from the clip's text"
+    assert_file_contains "$POPOUT" 'ClipFiles.fileEntries(clipText)' "the chips come from the clip's text"
     assert_file_contains "$POPOUT" 'command: ["cliphist", "decode", String(clipRow.modelData.id)]' \
         "the whole clip is read, as cliphist's preview is cut"
     assert_file_contains "$POPOUT" 'if (clipRow.isFiles && !clipRow.isPinned)' \
@@ -131,6 +138,27 @@ test_file_clips_show_names_and_scroll_sideways_only_when_they_overflow() {
         "no overflow: the wheel goes to the list"
     assert_file_contains "$POPOUT" 'wheel.accepted = false;' "and is handed on"
     assert_file_contains "$POPOUT" 'z: 1' "the click layer is above the strip so a click always copies"
+    assert_contains "$(cat "$POPOUT")" 'anchors.fill: parent
+                                interactive: false' \
+        "the strip fills a sized item, so it can never collapse to nothing in the row"
+    assert_file_contains "$POPOUT" 'isImage ? root.imageRowHeight : isFiles ? root.fileRowHeight : root.rowHeight' \
+        "a file row has room for its thumbnails"
+}
+
+test_each_file_shows_a_picture_or_the_icon_for_its_kind() {
+    assert_file_contains "$POPOUT" 'component FileThumb: Item {' "one thumbnail component per file"
+    assert_contains "$(cat "$POPOUT")" 'if (entry.kind === "image")
+                return entry.url;' "an image file is shown itself"
+    assert_file_contains "$POPOUT" 'readonly property string cacheName: Qt.md5(entry.url) + ".png"' \
+        "a video uses the file manager's cached preview, named by the md5 of its URL"
+    assert_file_contains "$POPOUT" '"/large/" + cacheName' "the large cached preview first"
+    assert_file_contains "$POPOUT" '"/normal/" + cacheName' "then the normal one"
+    assert_file_contains "$POPOUT" 'thumb.attempt++' "a missing preview moves on to the next size"
+    assert_file_contains "$POPOUT" 'visible: thumbImage.status !== Image.Ready' \
+        "and the icon for the kind of file shows whenever there is no picture"
+    assert_file_contains "$POPOUT" 'text: ClipFiles.iconFor(thumb.entry.kind)' "the icon comes from the parser"
+    assert_file_contains "$POPOUT" 'model: clipRow.fileEntries.slice(0, root.maxChips)' \
+        "a clip of hundreds of files does not make hundreds of thumbnails"
 }
 
 test_file_names_are_read_from_urls_and_from_cut_previews() {
@@ -139,7 +167,7 @@ test_file_names_are_read_from_urls_and_from_cut_previews() {
     out="$(node -e '
 const fs = require("fs");
 const src = fs.readFileSync(process.argv[1], "utf8").replace(/^\.pragma library\n/, "");
-const L = new Function(src + "; return {isFileClip, fileNames};")();
+const L = new Function(src + "; return {isFileClip, fileNames, fileEntries, kindOf, iconFor};")();
 const show = (v) => JSON.stringify(v);
 console.log(show(L.isFileClip("file:///home/a/b.txt")));
 console.log(show(L.isFileClip("hello file:///x")));
@@ -151,6 +179,9 @@ console.log(show(L.fileNames("file://host/share/x.txt")));
 console.log(show(L.fileNames("file:///a/b.txt notes/planning.md file:///c.txt")));
 console.log(show(L.fileNames("not files")));
 console.log(show(L.fileNames("file:///")));
+console.log(show(L.fileEntries("file:///h/Clip%20One.MP4 file:///h/pic.png")));
+console.log(show(["a.PNG","b.jpeg","c.mkv","d.mp3","e.pdf","f.tar","g.md","h.bin",".bashrc",".png","Makefile","x.",""].map(L.kindOf)));
+console.log(show(["image","video","audio","pdf","archive","text","file","nothing"].map(L.iconFor)));
 let big = ""; for (let i = 0; i < 700; i++) big += "file:///d/f" + i + " ";
 console.log(L.fileNames(big).length);
 ' "$SHELL_DIR/utils/scripts/clipfiles.js" 2>&1)"
@@ -164,6 +195,9 @@ false
 ["b.txt","c.txt"]
 []
 ["/"]
+[{"name":"Clip One.MP4","url":"file:///h/Clip%20One.MP4","kind":"video"},{"name":"pic.png","url":"file:///h/pic.png","kind":"image"}]
+["image","image","video","audio","pdf","archive","text","file","file","file","file","file","file"]
+["image","movie","audio_file","picture_as_pdf","folder_zip","description","draft","draft"]
 500' "$out" "the file name parser"
 }
 
@@ -201,6 +235,72 @@ test_the_clipboard_page_has_the_three_settings() {
     assert_file_contains "$PAGE" 'GlobalConfig.bar.statusIcons.insert({ id: "clipboard", enabled: true })' \
         "and adds the entry to a bar set up before the icon existed"
     assert_file_contains "$PAGE" 'clipboardMaxEntries' "the original history size row is kept"
+}
+
+test_a_pinned_popout_stays_until_it_is_dismissed() {
+    assert_file_contains "$WRAPPER" 'property bool pinned: false' "the popout host knows a popout is pinned"
+    local reset
+    reset="$(sed -n '/onHasCurrentChanged: {/,/^    }/p' "$WRAPPER")"
+    assert_contains "$reset" 'pinned = false;' "closing a popout unpins it"
+    assert_contains "$reset" 'if (!hasCurrent)' "only when it closes"
+    local check
+    check="$(sed -n '/function checkPopout(pos: real): void {/,/const ch = /p' "$BAR")"
+    assert_contains "$check" 'if (popouts.pinned)' "hovering the bar leaves a pinned popout alone"
+    local timer
+    timer="$(sed -n '/id: popoutHideTimer/,/^    }/p' "$INTERACTIONS")"
+    assert_contains "$timer" 'if (popouts.pinned)' "so does leaving it with the pointer"
+    assert_file_contains "$CONTENT_WINDOW" '(panels.popouts.pinned && panels.popouts.hasCurrent)' \
+        "a pinned popout takes the focus grab, so a click outside it closes it"
+}
+
+test_hovering_and_clicking_the_icon_follow_the_setting() {
+    assert_file_contains "$BARCONFIG" 'CONFIG_PROPERTY(bool, clipboardOpenOnHover, true)' \
+        "open on hover is the default, as before"
+    assert_file_contains "$BAR" '=== "clipboard" && !Config.bar.status.clipboardOpenOnHover' \
+        "set to click, hovering the icon opens nothing"
+    local click
+    click="$(sed -n '/function clickClipboard(item: Item): void {/,/^    }/p' "$ICONS")"
+    assert_contains "$click" 'if (Config.bar.status.clipboardOpenOnHover)
+            root.openPopout("clipboard", item, false);' "on hover, a click does not pin"
+    assert_contains "$click" 'else if (root.isClipboardPinned())
+            root.popouts.hasCurrent = false;' "on click, a second click closes it"
+    assert_contains "$click" 'root.openPopout("clipboard", item, true);' "and the first one pins it"
+    assert_file_contains "$PAGE" 'checked: Config.bar.status.clipboardOpenOnHover' "the page shows the setting"
+    assert_file_contains "$PAGE" 'GlobalConfig.bar.status.clipboardOpenOnHover = checked' "and changes it"
+}
+
+test_meta_v_opens_the_popout_and_falls_back_to_the_launcher() {
+    local press
+    press="$(sed -n '/name: "clipboard"/,/^    }/p' "$SHORTCUTS")"
+    assert_contains "$press" 'if (Visibilities.openClipboardPopout())
+                return;' "the shortcut tries the popout first"
+    assert_contains "$press" 'actionPrefix}clipboard' "and keeps the launcher's list as the fallback"
+    local before after
+    before="$(grep -n 'openClipboardPopout()' "$SHORTCUTS" | head -1 | cut -d: -f1)"
+    after="$(grep -n 'launcherInitialSearch = ' "$SHORTCUTS" | head -20 | cut -d: -f1 | while read -r n; do [[ "$n" -gt "$before" ]] && echo "$n" && break; done)"
+    [[ -n "$before" && -n "$after" && "$before" -lt "$after" ]] || fail "the popout comes before the launcher fallback"
+    assert_file_contains "$VISIBILITIES" 'function openClipboardPopout(): bool {' "the service finds the opener"
+    assert_file_contains "$VISIBILITIES" 'clipboardOpeners.get(Kwin.cursorOutputName())' \
+        "on the screen the pointer is on"
+    assert_file_contains "$VISIBILITIES" 'return opener ? opener() : false;' "false when no bar can show it"
+}
+
+test_the_status_icons_register_and_unregister_their_opener() {
+    assert_file_contains "$ICONS" 'Visibilities.registerClipboardOpener(name, root.clipboardOpener)' \
+        "each bar registers where its popout opens"
+    assert_file_contains "$ICONS" 'Visibilities.unregisterClipboardOpener(root.openerScreen, root.clipboardOpener)' \
+        "and removes it again"
+    assert_file_contains "$ICONS" 'Component.onDestruction: unregisterOpener()' "when it goes away"
+    assert_file_contains "$ICONS" 'onBarChanged: registerOpener()' "also when the bar is set after creation"
+    local open
+    open="$(sed -n '/function openClipboard(): bool {/,/^    }/p' "$ICONS")"
+    assert_contains "$open" 'if (root.isClipboardPinned()) {
+            root.popouts.hasCurrent = false;
+            return true;' "the shortcut pressed again closes the popout"
+    assert_contains "$open" 'let target = root.items;' "with no clipboard icon in the bar it opens on the status icons"
+    assert_contains "$open" 'root.openPopout("clipboard", target, true);' "pinned"
+    assert_file_contains "$VISIBILITIES" 'if (clipboardOpeners.get(screenName) === opener)' \
+        "only the opener that registered can remove itself"
 }
 
 test_the_clipboard_page_is_found_by_the_new_words() {

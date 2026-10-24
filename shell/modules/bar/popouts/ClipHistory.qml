@@ -16,7 +16,8 @@ import "../../../utils/scripts/clipfiles.js" as ClipFiles
 // Clipboard popout: the clipboard history the launcher also shows, newest
 // first, in a list that scrolls. A click copies a clip, the header button
 // clears the history. Text is one line, images show a thumbnail and copied
-// files show their names, which scroll sideways when they do not fit.
+// files show a thumbnail or icon and the name of each file, in a strip that
+// scrolls sideways when it does not fit.
 ColumnLayout {
     id: root
 
@@ -33,6 +34,9 @@ ColumnLayout {
     readonly property var clips: Clipboard.getSortedItems()
     readonly property real rowHeight: 40 * scaleOffset
     readonly property real imageRowHeight: 76 * scaleOffset
+    readonly property real fileRowHeight: 56 * scaleOffset
+    // A clip of hundreds of files shows this many chips.
+    readonly property int maxChips: 50
     readonly property real rowSpacing: Tokens.spacing.small * scaleOffset
     // The list grows to this many text rows and scrolls after that.
     readonly property real maxListHeight: visibleRows * rowHeight + (visibleRows - 1) * rowSpacing
@@ -196,7 +200,7 @@ ColumnLayout {
                     property string fullText: ""
                     readonly property string clipText: fullText.length > 0 ? fullText : (modelData.preview ?? "")
                     readonly property bool isFiles: !isImage && ClipFiles.isFileClip(modelData.preview ?? "")
-                    readonly property var fileNames: isFiles ? ClipFiles.fileNames(clipText) : []
+                    readonly property var fileEntries: isFiles ? ClipFiles.fileEntries(clipText) : []
                     property string imagePath: ""
 
                     function updateImage(): void {
@@ -218,7 +222,7 @@ ColumnLayout {
                     }
 
                     width: clipList.width
-                    height: isImage ? root.imageRowHeight : root.rowHeight
+                    height: isImage ? root.imageRowHeight : isFiles ? root.fileRowHeight : root.rowHeight
                     radius: Tokens.rounding.small * root.scaleOffset
                     color: "transparent"
 
@@ -251,7 +255,7 @@ ColumnLayout {
 
                         MaterialIcon {
                             visible: !clipRow.isImage
-                            text: clipRow.isPinned ? "keep" : clipRow.isFiles ? (clipRow.fileNames.length > 1 ? "file_copy" : "description") : "content_paste"
+                            text: clipRow.isPinned ? "keep" : clipRow.isFiles ? (clipRow.fileEntries.length > 1 ? "file_copy" : ClipFiles.iconFor(clipRow.fileEntries[0]?.kind)) : "content_paste"
                             color: Colours.palette.m3onSurfaceVariant
                             fontStyle.pointSize: Tokens.font.icon.medium.pointSize * root.fontScale
                         }
@@ -272,47 +276,68 @@ ColumnLayout {
                         }
 
                         // Files: one chip per file, in a strip that moves sideways.
-                        Flickable {
-                            id: filesFlick
-
+                        Item {
                             Layout.fillWidth: true
                             Layout.fillHeight: true
                             visible: clipRow.isFiles
                             clip: true
-                            interactive: false
-                            boundsBehavior: Flickable.StopAtBounds
-                            contentWidth: chipRow.implicitWidth
-                            contentHeight: height
 
-                            Row {
-                                id: chipRow
+                            Flickable {
+                                id: filesFlick
 
-                                height: filesFlick.height
-                                spacing: Tokens.spacing.small * root.scaleOffset
+                                anchors.fill: parent
+                                interactive: false
+                                boundsBehavior: Flickable.StopAtBounds
+                                contentWidth: chipRow.implicitWidth
+                                contentHeight: height
 
-                                Repeater {
-                                    model: clipRow.fileNames
+                                Row {
+                                    id: chipRow
 
-                                    delegate: StyledRect {
-                                        id: chip
+                                    height: filesFlick.height
+                                    spacing: Tokens.spacing.small * root.scaleOffset
 
-                                        required property string modelData
+                                    Repeater {
+                                        model: clipRow.fileEntries.slice(0, root.maxChips)
 
-                                        anchors.verticalCenter: parent.verticalCenter
-                                        implicitWidth: Math.min(chipText.implicitWidth, 170 * root.scaleOffset) + Tokens.padding.medium * 2 * root.scaleOffset
-                                        implicitHeight: chipText.implicitHeight + Tokens.padding.small * 2 * root.scaleOffset
-                                        radius: Tokens.rounding.full
-                                        color: Colours.tPalette.m3surfaceContainerHigh
+                                        delegate: StyledRect {
+                                            id: chip
 
-                                        StyledText {
-                                            id: chipText
+                                            required property var modelData
 
-                                            anchors.centerIn: parent
-                                            width: Math.min(implicitWidth, 170 * root.scaleOffset)
-                                            text: chip.modelData
-                                            elide: Text.ElideRight
-                                            font.pointSize: Tokens.font.body.small.pointSize * root.fontScale
+                                            anchors.verticalCenter: parent.verticalCenter
+                                            implicitWidth: chipLayout.implicitWidth + Tokens.padding.small * 2 * root.scaleOffset
+                                            implicitHeight: 44 * root.scaleOffset
+                                            radius: Tokens.rounding.small * root.scaleOffset
+                                            color: Colours.tPalette.m3surfaceContainerHigh
+
+                                            RowLayout {
+                                                id: chipLayout
+
+                                                anchors.centerIn: parent
+                                                spacing: Tokens.spacing.small * root.scaleOffset
+
+                                                FileThumb {
+                                                    entry: chip.modelData
+                                                    side: 32 * root.scaleOffset
+                                                }
+
+                                                StyledText {
+                                                    Layout.preferredWidth: Math.min(implicitWidth, 130 * root.scaleOffset)
+                                                    text: chip.modelData.name
+                                                    elide: Text.ElideRight
+                                                    font.pointSize: Tokens.font.body.small.pointSize * root.fontScale
+                                                }
+                                            }
                                         }
+                                    }
+
+                                    StyledText {
+                                        anchors.verticalCenter: parent.verticalCenter
+                                        visible: clipRow.fileEntries.length > root.maxChips
+                                        text: qsTr("+%1 more").arg(clipRow.fileEntries.length - root.maxChips)
+                                        color: Colours.palette.m3onSurfaceVariant
+                                        font.pointSize: Tokens.font.body.small.pointSize * root.fontScale
                                     }
                                 }
                             }
@@ -350,6 +375,66 @@ ColumnLayout {
                         }
                     }
                 }
+            }
+        }
+    }
+
+    // One copied file: the picture itself for an image, the file manager's
+    // cached preview for a video (freedesktop thumbnail cache, named by the md5
+    // of the file's URL), and an icon for the kind of file when there is none.
+    component FileThumb: Item {
+        id: thumb
+
+        required property var entry
+        required property real side
+        property int attempt: 0
+
+        readonly property string cacheDir: (Quickshell.env("XDG_CACHE_HOME") || (Quickshell.env("HOME") + "/.cache")) + "/thumbnails"
+        readonly property string cacheName: Qt.md5(entry.url) + ".png"
+        readonly property string source: {
+            if (entry.kind === "image")
+                return entry.url;
+            if (entry.kind !== "video")
+                return "";
+            if (attempt === 0)
+                return "file://" + cacheDir + "/large/" + cacheName;
+            if (attempt === 1)
+                return "file://" + cacheDir + "/normal/" + cacheName;
+            return "";
+        }
+
+        implicitWidth: side
+        implicitHeight: side
+
+        StyledRect {
+            anchors.fill: parent
+            radius: Tokens.rounding.small * root.scaleOffset
+            color: Colours.tPalette.m3surfaceContainer
+            clip: true
+
+            Image {
+                id: thumbImage
+
+                anchors.fill: parent
+                source: thumb.source
+                asynchronous: true
+                fillMode: Image.PreserveAspectCrop
+                sourceSize: Qt.size(thumb.side * 2, thumb.side * 2)
+                visible: status === Image.Ready
+                onStatusChanged: {
+                    // A video with no cached preview there falls through to the next
+                    // size and then to the icon.
+                    if (status === Image.Error && thumb.entry.kind === "video")
+                        thumb.attempt++;
+                }
+            }
+
+            MaterialIcon {
+                anchors.centerIn: parent
+                visible: thumbImage.status !== Image.Ready
+                text: ClipFiles.iconFor(thumb.entry.kind)
+                color: Colours.palette.m3onSurfaceVariant
+                fontStyle.pointSize: Tokens.font.icon.medium.pointSize * root.fontScale
             }
         }
     }

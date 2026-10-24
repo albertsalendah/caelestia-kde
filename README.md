@@ -191,9 +191,11 @@ Open Nexus (`Super`, then `>Settings`).
   minimum time and a preview) and the boot splash, where you list the Plymouth themes, preview one and
   apply it, which rebuilds the boot image and asks for your password (take a Snapper snapshot first)
 - Clipboard (under Utilities): how many entries the history keeps, whether clearing it asks first, and a
-  clipboard icon among the status icons (off by default). Hover or click the icon for a popout with the
-  history, which scrolls: click a clip to copy it, or clear the history from the header. Images show a
-  thumbnail and copied files show their names
+  clipboard icon among the status icons (off by default). The icon opens a popout with the history, which
+  scrolls: click a clip to copy it, or clear the history from the header. Images show a thumbnail; copied
+  files show a thumbnail (or the icon for their kind) and name each. "Open on hover" chooses between
+  hovering the icon and clicking it (a clicked popout stays until you click elsewhere or press Escape).
+  Meta+V opens the same popout, pinned; the launcher's clipboard list is the fallback when no bar can show it
 - Shortcuts: rebind any built-in shortcut, or add a command shortcut
 - Plugins: browse the store, or install a plugin you built yourself
 

@@ -279,6 +279,9 @@ Scope {
         name: "clipboard"
         description: qsTr("Open clipboard history")
         onPressed: {
+            // The bar's clipboard popout; the launcher's list when no bar has a place for it.
+            if (Visibilities.openClipboardPopout())
+                return;
             Visibilities.launcherInitialSearch = `${GlobalConfig.launcher.actionPrefix}clipboard `;
             const visibilities = Visibilities.getForActive();
             visibilities.launcher = true;

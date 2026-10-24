@@ -30,6 +30,9 @@ StyledRect {
     readonly property int effectiveThickness: rawScale < 1.0 ? baseThickness : barThickness
     readonly property int iconSize: Math.round(effectiveThickness * 0.42)
 
+    property string openerScreen: ""
+    readonly property var clipboardOpener: () => root.openClipboard()
+
     property real hoverPos: -1
     property real hoverSpacing: Tokens.spacing.small
 
@@ -85,7 +88,9 @@ StyledRect {
         GlobalConfig.bar.statusIcons.move(from, to);
     }
 
-    function openPopout(name: string, item: Item): void {
+    // Shows a popout centred on an item. Pinned, it stays until it is dismissed
+    // instead of closing when the pointer leaves the bar.
+    function openPopout(name: string, item: Item, pin: bool): void {
         const popouts = root.popouts;
         if (!popouts)
             return;
@@ -93,6 +98,61 @@ StyledRect {
         popouts.currentName = name;
         popouts.currentCenter = root.isHorizontal ? item.mapToItem(null, item.width / 2, 0).x : item.mapToItem(null, 0, item.height / 2).y;
         popouts.hasCurrent = true;
+        popouts.pinned = pin;
+    }
+
+    function isClipboardPinned(): bool {
+        const popouts = root.popouts;
+        return !!popouts && popouts.hasCurrent && popouts.pinned && popouts.currentName === "clipboard";
+    }
+
+    // A click on the icon: pins the popout, or closes it when it is already pinned.
+    // Set to open on hover, the popout is already there and a click leaves it be.
+    function clickClipboard(item: Item): void {
+        if (Config.bar.status.clipboardOpenOnHover)
+            root.openPopout("clipboard", item, false);
+        else if (root.isClipboardPinned())
+            root.popouts.hasCurrent = false;
+        else
+            root.openPopout("clipboard", item, true);
+    }
+
+    // The shortcut: the popout on the clipboard icon, or on the status icons when
+    // the icon is not shown, pinned; pressed again it closes. False without a bar.
+    function openClipboard(): bool {
+        if (!root.popouts)
+            return false;
+
+        if (root.isClipboardPinned()) {
+            root.popouts.hasCurrent = false;
+            return true;
+        }
+
+        let target = root.items;
+        for (let i = 0; i < root.items.children.length; i++) {
+            const child = root.items.children[i];
+            if (child.visible && child.name === "clipboard")
+                target = child;
+        }
+        root.openPopout("clipboard", target, true);
+        return true;
+    }
+
+    function registerOpener(): void {
+        const name = root.bar?.screen?.name ?? "";
+        if (name === root.openerScreen)
+            return;
+        root.unregisterOpener();
+        if (name.length > 0) {
+            Visibilities.registerClipboardOpener(name, root.clipboardOpener);
+            root.openerScreen = name;
+        }
+    }
+
+    function unregisterOpener(): void {
+        if (root.openerScreen.length > 0)
+            Visibilities.unregisterClipboardOpener(root.openerScreen, root.clipboardOpener);
+        root.openerScreen = "";
     }
 
     function openContextMenu(): void {
@@ -108,6 +168,10 @@ StyledRect {
             popouts.hasCurrent = true;
         }
     }
+
+    onBarChanged: registerOpener()
+    Component.onCompleted: registerOpener()
+    Component.onDestruction: unregisterOpener()
 
     color: Colours.tPalette.m3surfaceContainer
     radius: Tokens.rounding.full
@@ -279,7 +343,7 @@ StyledRect {
                                 const vis = Visibilities.getForActive();
                                 vis.sidebar = !vis.sidebar;
                             } else if (name === "clipboard") {
-                                root.openPopout("clipboard", delegateContainer);
+                                root.clickClipboard(delegateContainer);
                             }
                         }
                     }

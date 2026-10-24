@@ -131,6 +131,7 @@ class BarStatus : public settings::ObjectNode {
     CONFIG_PROPERTY(bool, showNotifications, true)
     CONFIG_PROPERTY(bool, showNightLight, true)
     CONFIG_PROPERTY(int, clipboardEntries, 8)
+    CONFIG_PROPERTY(bool, clipboardOpenOnHover, true)
 };
 
 class BarClock : public settings::ObjectNode {
