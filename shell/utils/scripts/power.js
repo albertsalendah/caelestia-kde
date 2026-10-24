@@ -53,6 +53,13 @@ var ACTION_NAMES = {
 // Seconds; 0 stands for "Never". The screen cannot be switched off sooner than 30 s.
 var DELAYS = [30, 60, 120, 300, 600, 900, 1800, 3600];
 
+// The charge, in percent, at or below which powerdevil uses the low-battery profile while the
+// machine is unplugged ([BatteryManagement] BatteryLowLevel, a global setting, 10 by default).
+// 100 means "whenever unplugged", which is also the way to see that profile at work without
+// draining the battery.
+var DEFAULT_LOW_LEVEL = 10;
+var LOW_LEVELS = [10, 15, 20, 30, 50, 100];
+
 // "[AC][Display]" becomes the key "AC/Display", "[AC]" becomes "AC".
 function parseIni(text) {
     var result = {};
@@ -113,6 +120,42 @@ function settingsFor(config, profile) {
         powerButton: intOr(value(config, profile, "SuspendAndShutdown", "PowerButtonAction"), ACTION_LOGOUT_DIALOG),
         powerProfile: value(config, profile, "Performance", "PowerProfile") || ""
     };
+}
+
+// The charge at or below which the low-battery profile is used.
+function lowBatteryLevel(config) {
+    var sec = config && config["BatteryManagement"];
+    var n = sec ? intOr(sec["BatteryLowLevel"], DEFAULT_LOW_LEVEL) : DEFAULT_LOW_LEVEL;
+    return n >= 1 && n <= 100 ? n : DEFAULT_LOW_LEVEL;
+}
+
+// The usual levels; a level set elsewhere (25 from System Settings, say) is added so that
+// the row can show it.
+function lowLevelChoices(current) {
+    var values = LOW_LEVELS.slice();
+    if (values.indexOf(current) < 0) {
+        values.push(current);
+        values.sort(function (a, b) {
+            return a - b;
+        });
+    }
+    return values.map(function (v) {
+        return {
+            value: v,
+            label: v + "%"
+        };
+    });
+}
+
+// A global setting, not part of a profile: buildWriteArgs gets an empty profile for it.
+function changesForLowLevel(level) {
+    return [
+        {
+            group: "BatteryManagement",
+            key: "BatteryLowLevel",
+            value: String(level)
+        }
+    ];
 }
 
 function formatDelay(seconds) {
@@ -308,8 +351,12 @@ function changesForProfile(name) {
 }
 
 // Arguments for one kwriteconfig6 call.
+// An empty profile writes a global setting, which has no profile group above it.
 function buildWriteArgs(profile, change) {
-    var args = ["--file", "powerdevilrc", "--group", profile, "--group", change.group, "--key", change.key];
+    var args = ["--file", "powerdevilrc"];
+    if (profile)
+        args.push("--group", profile);
+    args.push("--group", change.group, "--key", change.key);
     if (change.remove)
         args.push("--delete");
     else

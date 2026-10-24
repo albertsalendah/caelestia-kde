@@ -20,7 +20,7 @@ js() {
     node -e '
 const fs = require("fs");
 const src = fs.readFileSync(process.argv[1], "utf8").replace(/^\.pragma library\n/, "");
-const L = new Function(src + "; return {parseIni, settingsFor, currentDelay, delayChoices, profileChoices, changesForDelay, changesForProfile, buildWriteArgs, formatDelay, lidChoices, powerButtonChoices, changesForLid, changesForPowerButton};")();
+const L = new Function(src + "; return {parseIni, settingsFor, currentDelay, delayChoices, profileChoices, changesForDelay, changesForProfile, buildWriteArgs, formatDelay, lidChoices, powerButtonChoices, changesForLid, changesForPowerButton, lowBatteryLevel, lowLevelChoices, changesForLowLevel};")();
 const ini = "[AC]\nbrightnessosd=false\n\n[AC][Display]\nDimDisplayIdleTimeoutSec=45\nTurnOffDisplayIdleTimeoutSec=-1\nTurnOffDisplayWhenIdle=false\n\n[AC][SuspendAndShutdown]\nAutoSuspendAction=0\n\n[BrightnessControl]\nshowOSD=false\n";
 const cfg = L.parseIni(ini);
 const ac = L.settingsFor(cfg, "AC");
@@ -201,6 +201,56 @@ SuspendAndShutdown.PowerButtonAction=1
 true
 --file powerdevilrc --group LowBattery --group SuspendAndShutdown --key LidAction 32" "$out" \
         "an explicit value is always written (Do nothing is 0, not a removed key)"
+}
+
+test_the_low_battery_level_is_read_from_the_global_group_and_defaults_to_ten() {
+    local out
+    out="$(js 'const lv = t => L.lowBatteryLevel(L.parseIni(t));
+console.log([lv(""), lv("[BatteryManagement]\nBatteryLowLevel=25\n"), lv("[BatteryManagement]\nBatteryCriticalLevel=7\n"), lv("[Battery][BatteryManagement]\nBatteryLowLevel=40\n"), lv("[BatteryManagement]\nBatteryLowLevel=abc\n"), lv("[BatteryManagement]\nBatteryLowLevel=0\n"), lv("[BatteryManagement]\nBatteryLowLevel=250\n")].join(","));
+console.log(L.lowBatteryLevel(undefined), L.lowBatteryLevel({}));')" || return 0
+    assert_eq "10,25,10,10,10,10,10
+10 10" "$out" "the key is read from [BatteryManagement] only; a missing, other, unreadable or out-of-range value is powerdevil's 10"
+}
+
+test_the_low_battery_level_choices_end_at_always_and_keep_a_level_set_elsewhere() {
+    local out
+    out="$(js 'const names = c => L.lowLevelChoices(c).map(x => x.value + ":" + x.label).join("|");
+console.log(names(10));
+console.log(names(25));
+console.log(names(100));')" || return 0
+    assert_eq "10:10%|15:15%|20:20%|30:30%|50:50%|100:100%
+10:10%|15:15%|20:20%|25:25%|30:30%|50:50%|100:100%
+10:10%|15:15%|20:20%|30:30%|50:50%|100:100%" "$out" \
+        "100 is offered (the profile at any charge); a level from System Settings is added in order and not offered twice"
+}
+
+test_a_low_battery_level_change_is_a_global_write_with_no_profile_group() {
+    local out
+    out="$(js 'const c = L.changesForLowLevel(100);
+console.log(c.length, c[0].group, c[0].key, c[0].value, c[0].remove === undefined);
+console.log(L.buildWriteArgs("", c[0]).join(" "));
+console.log(L.buildWriteArgs("AC", {group: "Display", key: "DimDisplayIdleTimeoutSec", value: "45"}).join(" "));')" || return 0
+    assert_eq "1 BatteryManagement BatteryLowLevel 100 true
+--file powerdevilrc --group BatteryManagement --key BatteryLowLevel 100
+--file powerdevilrc --group AC --group Display --key DimDisplayIdleTimeoutSec 45" "$out" \
+        "BatteryLowLevel lives in [BatteryManagement], not under a profile; profile writes keep both groups"
+}
+
+test_the_low_battery_level_row_is_only_in_the_low_battery_section_and_writes_through_the_service() {
+    local page svc
+    page="$(cat "$PAGE_QML")"
+    svc="$(cat "$SERVICE_QML")"
+    assert_contains "$page" 'label: qsTr("Low battery level")' "the level row"
+    assert_contains "$page" 'readonly property bool isLow: modelData.id === "LowBattery"' "it is tied to powerdevil's low-battery profile"
+    assert_contains "$page" 'visible: section.isLow
+                    first: true
+                    label: qsTr("Low battery level")' "shown in the Low battery section only, as its first row"
+    assert_contains "$page" 'first: !section.isLow
+                    label: qsTr("Power profile")' "the profile row is first in the other sections only"
+    assert_contains "$page" 'Logic.lowLevelChoices(PowerSettings.lowLevel)' "the menu is built from the level now in force"
+    assert_contains "$page" 'PowerSettings.setLowLevel(item.value)' "choosing a level"
+    assert_contains "$svc" 'readonly property int lowLevel: Logic.lowBatteryLevel(root.config)' "the service reads the level"
+    assert_contains "$svc" 'enqueue("", Logic.changesForLowLevel(level));' "the service writes it as a global setting"
 }
 
 # --- the QML side, which has no runtime here: checked as text -------------------------------------

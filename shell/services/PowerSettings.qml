@@ -25,8 +25,15 @@ Singleton {
     // kwriteconfig6 argument lists still to run.
     property var queue: []
 
+    // The charge at or below which the low-battery profile is used (a global setting).
+    readonly property int lowLevel: Logic.lowBatteryLevel(root.config)
+
     function settings(profile: string): var {
         return Logic.settingsFor(root.config, profile);
+    }
+
+    function setLowLevel(level: int): void {
+        enqueue("", Logic.changesForLowLevel(level));
     }
 
     function setDelay(profile: string, kind: string, seconds: int): void {

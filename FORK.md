@@ -33,6 +33,7 @@ re-attach the fork's part.
 | `shell/modules/nexus/pages/UpdatesPage.qml`, `Launch.qml` | the system upgrade switch; Konsole-style terminals get their `-e` |
 | `shell/shell.qml` | writes `$XDG_RUNTIME_DIR/caelestia-shell-ready` for the login splash |
 | `PageDictionary.qml`, `PageCompRegistry.qml` | the Display, Power and Splash pages (matched by position in both lists) |
+| `shell/modules/bar/components/performance/PerfCpu.qml`, `PerfGpu.qml`, `PerfMemory.qml`, `PerfNetwork.qml` | the maintainer's own bar edits (commit "bar: performance widgets changes"); keep them when a merge touches these files |
 
 Everything else the fork adds lives in files of its own: `scripts/12-independent-session.sh`,
 `scripts/lib/independent-session.sh`, `src/session/`, the Display, Power and

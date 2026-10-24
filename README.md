@@ -182,8 +182,10 @@ Open Nexus (`Super`, then `>Settings`).
   it onto another, and set resolution, refresh rate, scale, orientation and brightness. It applies the
   change through KWin and asks you to keep it, or goes back
 - Power: for plugged in, on battery and low battery, when to dim the screen, turn it off and suspend,
-  the power profile, and what closing the lid and pressing the power button do. It writes
-  `~/.config/powerdevilrc` and asks `powerdevil` to reload it
+  the power profile, and what closing the lid and pressing the power button do. The low battery
+  section also sets the charge at or below which its profile is used (10% by default; "Whenever
+  unplugged" shows that profile at any charge). It writes `~/.config/powerdevilrc` and asks
+  `powerdevil` to reload it
 - Splash: a login splash (Caelestia's own, with or without the logo, or a Plasma splash theme; a
   minimum time and a preview) and the boot splash, where you list the Plymouth themes, preview one and
   apply it, which rebuilds the boot image and asks for your password (take a Snapper snapshot first)

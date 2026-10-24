@@ -16,7 +16,8 @@ PageBase {
     title: qsTr("Power")
 
     // The on-battery and low-battery settings only matter when there is a battery. powerdevil
-    // uses the low-battery profile once the charge is at or below its low-battery level.
+    // uses the low-battery profile once the charge is at or below its low-battery level, which
+    // the Low battery section sets (up to 100%, so the profile can be tried at any charge).
     readonly property var sections: {
         const list = [
             {
@@ -31,7 +32,7 @@ PageBase {
             }, {
                 id: "LowBattery",
                 title: qsTr("Low battery"),
-                hint: qsTr("Used when the charge is at or below the low-battery level (10% by default)")
+                hint: qsTr("Used while the charge is at or below the level above")
             });
         return list;
     }
@@ -43,6 +44,10 @@ PageBase {
         default:
             return qsTr("The power settings could not be saved.");
         }
+    }
+
+    function levelText(choice: var): string {
+        return choice.value === 100 ? qsTr("Whenever unplugged") : choice.label;
     }
 
     function delayText(choice: var): string {
@@ -131,6 +136,11 @@ PageBase {
                 readonly property int dimNow: Logic.currentDelay("dim", current)
                 readonly property int offNow: Logic.currentDelay("off", current)
                 readonly property int suspendNow: Logic.currentDelay("suspend", current)
+                readonly property bool isLow: modelData.id === "LowBattery"
+                readonly property var levelItems: root.makeItems(isLow ? Logic.lowLevelChoices(PowerSettings.lowLevel).map(c => ({
+                            text: root.levelText(c),
+                            value: c.value
+                        })) : [])
                 readonly property var profileItems: root.makeItems(Logic.profileChoices(PowerProfiles.hasPerformanceProfile, current.powerProfile).map(c => ({
                             text: root.profileText(c),
                             value: c.value
@@ -165,7 +175,18 @@ PageBase {
                 }
 
                 SelectRow {
+                    visible: section.isLow
                     first: true
+                    label: qsTr("Low battery level")
+                    subtext: qsTr("While unplugged, the profile below is used at or below this charge")
+                    menuItems: section.levelItems
+                    active: section.levelItems.find(i => i.value === PowerSettings.lowLevel) ?? null
+                    fallbackText: qsTr("10%")
+                    onSelected: item => PowerSettings.setLowLevel(item.value)
+                }
+
+                SelectRow {
+                    first: !section.isLow
                     label: qsTr("Power profile")
                     subtext: section.modelData.hint ?? qsTr("Used while on this power source")
                     menuItems: section.profileItems
