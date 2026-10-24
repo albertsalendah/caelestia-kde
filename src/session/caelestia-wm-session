@@ -195,13 +195,14 @@ start_splash() {
 }
 start_splash || true
 
-# 3b. Start the Plasma helpers this session needs: the polkit agent (password prompts) and
-#     powerdevil (idle actions, screen brightness). Both are PartOf=graphical-session.target,
+# 3b. Start the Plasma helpers this session needs: the polkit agent (password prompts),
+#     powerdevil (idle actions, screen brightness) and xembedsniproxy (old X11 tray icons,
+#     which its drop-in holds back until the shell provides the tray). All are PartOf=graphical-session.target,
 #     so they stop with the session, but they are not ordered after KWin, so they are started
 #     here, now that KWin is up. Not with After=graphical-session.target drop-ins on them
 #     (finding C: that made an ordering cycle). --no-block, because powerdevil is Type=dbus
 #     and should not delay step 4.
-for unit in plasma-polkit-agent.service plasma-powerdevil.service; do
+for unit in plasma-polkit-agent.service plasma-powerdevil.service plasma-xembedsniproxy.service; do
     if systemctl --user cat "$unit" >/dev/null 2>&1; then
         systemctl --user start --no-block "$unit" || say "could not start $unit"
     else

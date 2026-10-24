@@ -44,7 +44,7 @@ test_the_session_program_cleans_up_however_it_ends() {
     assert_contains "$program" "trap 'exit 143' TERM" "including a TERM, which would otherwise skip it"
     assert_contains "$program" 'plasma-workspace/env' "it should read the Plasma environment scripts, which is where the installer's caelestia.sh lives"
     assert_contains "$program" 'unset WAYLAND_DISPLAY DISPLAY' "it should forget a display left from an earlier session, or KWin starts nested"
-    assert_contains "$program" 'plasma-polkit-agent.service plasma-powerdevil.service' "and start the helpers once KWin is up"
+    assert_contains "$program" 'plasma-polkit-agent.service plasma-powerdevil.service plasma-xembedsniproxy.service' "and start the helpers once KWin is up"
 }
 
 test_the_session_entry_points_at_a_system_wide_program() {
@@ -363,12 +363,34 @@ test_the_step_installs_the_shell_drop_in_next_to_the_session_units() {
     rm -rf "$MACHINE"
 }
 
+test_the_step_installs_the_tray_wait_script_and_its_two_drop_ins() {
+    setup_machine
+    local root="$MACHINE/root" unit_dir="$MACHINE/root/usr/local/lib/systemd/user"
+    STUB_LOGIN_MANAGER=plasmalogin run_step > /dev/null
+
+    assert_file_exists "$root/usr/local/bin/caelestia-wait-for-tray"
+    [[ -x "$root/usr/local/bin/caelestia-wait-for-tray" ]] || fail "the wait script should be executable"
+    assert_eq "$(cat "$SESSION_SRC/app-wait-for-tray.conf")" "$(cat "$unit_dir/app-.service.d/10-caelestia-wait-for-tray.conf")" "the app drop-in should be the shipped one, in the folder named for every app- unit"
+    assert_eq "$(cat "$SESSION_SRC/xembedsniproxy-wait-for-tray.conf")" "$(cat "$unit_dir/plasma-xembedsniproxy.service.d/10-caelestia-wait-for-tray.conf")" "and the proxy drop-in too"
+    rm -rf "$MACHINE"
+}
+
+test_uninstall_removes_the_tray_wait_files_and_their_folders() {
+    local uninstall
+    uninstall="$(cat "$REPO_ROOT/uninstall.sh")"
+
+    assert_contains "$uninstall" '    /usr/local/bin/caelestia-wait-for-tray' "uninstall.sh should remove the script"
+    assert_contains "$uninstall" '    /usr/local/lib/systemd/user/app-.service.d/10-caelestia-wait-for-tray.conf' "and the app drop-in"
+    assert_contains "$uninstall" '    /usr/local/lib/systemd/user/plasma-xembedsniproxy.service.d/10-caelestia-wait-for-tray.conf' "and the proxy drop-in"
+    assert_contains "$uninstall" '/usr/local/lib/systemd/user/app-.service.d /usr/local/lib/systemd/user/plasma-xembedsniproxy.service.d /usr/local/lib/systemd/user 2>/dev/null' "and their folders, before the parent"
+}
+
 test_uninstall_removes_the_shell_drop_in_and_its_folder() {
     local uninstall
     uninstall="$(cat "$REPO_ROOT/uninstall.sh")"
 
     assert_contains "$uninstall" '    /usr/local/lib/systemd/user/caelestia-shell.service.d/10-caelestia-session-only.conf' "uninstall.sh should remove the file"
-    assert_contains "$uninstall" 'rmdir /usr/local/share/wayland-sessions /usr/local/lib/systemd/user/caelestia-shell.service.d /usr/local/lib/systemd/user' "and the folder, which has to go before its parent"
+    assert_contains "$uninstall" 'rmdir /usr/local/share/wayland-sessions /usr/local/lib/systemd/user/caelestia-shell.service.d /usr/local/lib/systemd/user/app-.service.d' "and the folder, which has to go before its parent (the last entry of the list)"
 }
 
 # Runs the real session program against stubs. The stub for systemctl records, when the session

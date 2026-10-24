@@ -94,6 +94,7 @@ they were, and you choose one at the login screen.
 | Session program | `/usr/local/bin/caelestia-wm-session` |
 | KWin unit and session target | `/usr/local/lib/systemd/user/caelestia-kwin.service` and `caelestia-session.target` |
 | Starts the shell in this session only (a drop-in for `caelestia-shell.service`, so a Plasma session does not get the Caelestia shell on top of `plasmashell`) | `/usr/local/lib/systemd/user/caelestia-shell.service.d/10-caelestia-session-only.conf`, refers to `caelestia-shell-session-only.conf` in the repository |
+| Holds autostarted tray apps back until the shell provides the tray, and starts the proxy for old X11 tray icons (the apps would otherwise ask for a tray that is not there yet and give up; does nothing in a Plasma session) | `/usr/local/bin/caelestia-wait-for-tray`, with the drop-ins `app-.service.d/10-caelestia-wait-for-tray.conf` and `plasma-xembedsniproxy.service.d/10-caelestia-wait-for-tray.conf` under `/usr/local/lib/systemd/user/`, which refer to `app-wait-for-tray.conf` and `xembedsniproxy-wait-for-tray.conf` in the repository |
 | Login-screen entry | `/usr/local/share/wayland-sessions/caelestia.desktop` |
 | Wayland greeter (SDDM only) | `/etc/sddm.conf.d/zz-wayland-greeter.conf` |
 | Hides the Plasma login entry (SDDM only, and only with no Plasma desktop installed) | `/usr/local/share/wayland-sessions/plasma.desktop` |

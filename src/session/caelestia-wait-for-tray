@@ -1,0 +1,48 @@
+#!/usr/bin/env bash
+# Wait until the system tray is ready, so a tray app does not start before there is a tray.
+#
+# The tray lives in the Caelestia shell: it owns org.kde.StatusNotifierWatcher once its QML has
+# loaded, a few seconds after login. Autostarted apps start at the same moment as the shell.
+# Many of them ask for the watcher once, at start, and give up when it is not there (the
+# Cachy-Update applet logs "failed to register to the StatusNotifierWatcher ... not
+# activatable" and exits; Java and Compose apps skip the tray for good). Run before such an
+# app starts, this script holds it back until the watcher exists.
+#
+# systemd runs it as ExecStartPre= from two drop-ins (see src/session):
+#   app-.service.d/10-caelestia-wait-for-tray.conf   every autostarted app (app-*@autostart)
+#   plasma-xembedsniproxy.service.d/...              the proxy for old X11 tray icons
+#
+# Usage: caelestia-wait-for-tray [--instance NAME INSTANCE]
+#   With --instance, wait only when INSTANCE (systemd's %i) is NAME; any other unit, such as
+#   an app started from the launcher, goes straight on.
+#
+# It never fails and never waits longer than CAELESTIA_TRAY_WAIT_SECONDS (30, give or take a
+# second), so a session
+# with no shell cannot hold an app back for good. Outside the Caelestia session (no marker
+# file) it does nothing at all, so a Plasma session is left as it is.
+
+set -u
+
+marker="${XDG_RUNTIME_DIR:-}/caelestia-session-active"
+limit="${CAELESTIA_TRAY_WAIT_SECONDS:-30}"
+step="${CAELESTIA_TRAY_WAIT_STEP:-0.5}"
+
+if [ "${1:-}" = "--instance" ]; then
+    [ "${3:-}" = "${2:-}" ] || exit 0
+fi
+
+[ -e "$marker" ] || exit 0
+command -v busctl >/dev/null 2>&1 || exit 0
+
+# NameHasOwner answers "b true" or "b false" and succeeds either way.
+watcher_is_up() {
+    [ "$(busctl --user call org.freedesktop.DBus /org/freedesktop/DBus org.freedesktop.DBus \
+        NameHasOwner s org.kde.StatusNotifierWatcher 2>/dev/null)" = "b true" ]
+}
+
+deadline=$((SECONDS + limit))
+until watcher_is_up; do
+    [ "$SECONDS" -ge "$deadline" ] && exit 0
+    sleep "$step"
+done
+exit 0

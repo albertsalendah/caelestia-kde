@@ -10,6 +10,12 @@
 #   /usr/local/lib/systemd/user/caelestia-shell.service.d/10-caelestia-session-only.conf
 #                                                          the shell starts in this session only,
 #                                                          not in a Plasma session
+#   /usr/local/bin/caelestia-wait-for-tray                 holds an app back until the tray exists
+#   /usr/local/lib/systemd/user/app-.service.d/10-caelestia-wait-for-tray.conf
+#   /usr/local/lib/systemd/user/plasma-xembedsniproxy.service.d/10-caelestia-wait-for-tray.conf
+#                                                          autostarted apps and the old-tray proxy
+#                                                          wait for the shell's tray (in this
+#                                                          session only)
 #   /usr/local/share/wayland-sessions/caelestia.desktop    the login-screen entry
 #   /etc/sddm.conf.d/zz-wayland-greeter.conf               SDDM only: a Wayland greeter
 #   /usr/local/share/wayland-sessions/plasma.desktop       SDDM only, and only with no Plasma desktop
@@ -41,6 +47,9 @@ ROOT="${CAELESTIA_SESSION_ROOT:-}"
 PROGRAM="$ROOT/usr/local/bin/caelestia-wm-session"
 UNIT_DIR="$ROOT/usr/local/lib/systemd/user"
 SHELL_DROPIN="$UNIT_DIR/caelestia-shell.service.d/10-caelestia-session-only.conf"
+TRAY_WAIT="$ROOT/usr/local/bin/caelestia-wait-for-tray"
+APP_DROPIN="$UNIT_DIR/app-.service.d/10-caelestia-wait-for-tray.conf"
+PROXY_DROPIN="$UNIT_DIR/plasma-xembedsniproxy.service.d/10-caelestia-wait-for-tray.conf"
 ENTRY="$ROOT/usr/local/share/wayland-sessions/caelestia.desktop"
 GREETER_DROPIN="$ROOT/etc/sddm.conf.d/zz-wayland-greeter.conf"
 PLASMA_ENTRY="$ROOT/usr/local/share/wayland-sessions/plasma.desktop"
@@ -63,7 +72,8 @@ if [[ "${BASE_DISTRO:-}" != "arch" ]]; then
 fi
 
 for file in caelestia-wm-session caelestia-kwin.service caelestia-session.target \
-            caelestia.desktop zz-wayland-greeter.conf plasma.desktop caelestia-shell-session-only.conf; do
+            caelestia.desktop zz-wayland-greeter.conf plasma.desktop caelestia-shell-session-only.conf \
+            caelestia-wait-for-tray app-wait-for-tray.conf xembedsniproxy-wait-for-tray.conf; do
     [[ -f "$SRC_DIR/$file" ]] || die "Missing $SRC_DIR/$file"
 done
 
@@ -111,6 +121,9 @@ install_file "$SRC_DIR/caelestia-wm-session"      "$PROGRAM"                    
 install_file "$SRC_DIR/caelestia-kwin.service"    "$UNIT_DIR/caelestia-kwin.service"   0644
 install_file "$SRC_DIR/caelestia-session.target"  "$UNIT_DIR/caelestia-session.target" 0644
 install_file "$SRC_DIR/caelestia-shell-session-only.conf" "$SHELL_DROPIN"            0644
+install_file "$SRC_DIR/caelestia-wait-for-tray"   "$TRAY_WAIT"                         0755
+install_file "$SRC_DIR/app-wait-for-tray.conf"    "$APP_DROPIN"                        0644
+install_file "$SRC_DIR/xembedsniproxy-wait-for-tray.conf" "$PROXY_DROPIN"              0644
 install_file "$SRC_DIR/caelestia.desktop"         "$ENTRY"                             0644
 ok "Session files installed under /usr/local."
 
