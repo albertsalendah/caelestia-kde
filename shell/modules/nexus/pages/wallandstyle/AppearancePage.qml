@@ -152,6 +152,15 @@ PageBase {
                 onMoved: v => GlobalConfig.border.thickness = v
                 Layout.topMargin: Tokens.spacing.extraSmall / 2 - parent.spacing
             }
+            ToggleRow {
+                reset: ({ node: GlobalConfig.border, setting: "reserveSpace" })
+                text: qsTr("Reserve space for the border")
+                subtext: qsTr("Maximised windows stop at the border. Off, they reach under it, and the shell opens fewer windows, which saves memory (about 11 MB per screen edge with an NVIDIA GPU)")
+                checked: GlobalConfig.border.reserveSpace
+                onToggled: GlobalConfig.border.reserveSpace = checked
+                Layout.topMargin: Tokens.spacing.extraSmall / 2 - parent.spacing
+                Layout.fillWidth: true
+            }
             StepperRow {
                 reset: ({ node: GlobalConfig.appearance.rounding, setting: "scale" })
                 label: qsTr("Corner radius scale")

@@ -23,6 +23,9 @@ Scope {
     // step of the drag would resize maximised windows on each frame. The default
     // comes from the bar, which has the screen's tokens.
     property real sidebarWidth
+    // The space kept free at the screen edges for the border. Off, maximised
+    // windows reach under the border.
+    readonly property real borderZone: Config.border.reserveSpace ? Config.border.thickness : 0
 
     Binding on sidebarWidth {
         value: Visibilities.sidebarWidthFor(root.bar.Tokens.sizes.sidebar.width)
@@ -32,33 +35,37 @@ Scope {
 
     ExclusionZone {
         anchors.left: true
-        exclusiveZone: (root.bar.position === "left" ? root.bar.exclusiveZone : Config.border.thickness)
+        exclusiveZone: (root.bar.position === "left" ? root.bar.exclusiveZone : root.borderZone)
             + (root.reserveSidebar && root.bar.position === "right" ? root.sidebarWidth : 0)
         Config.screen: root.screen.name
     }
 
     ExclusionZone {
         anchors.top: true
-        exclusiveZone: root.bar.position === "top" ? root.bar.exclusiveZone : Config.border.thickness
+        exclusiveZone: root.bar.position === "top" ? root.bar.exclusiveZone : root.borderZone
         Config.screen: root.screen.name
     }
 
     ExclusionZone {
         anchors.right: true
-        exclusiveZone: (root.bar.position === "right" ? root.bar.exclusiveZone : Config.border.thickness)
+        exclusiveZone: (root.bar.position === "right" ? root.bar.exclusiveZone : root.borderZone)
             + (root.reserveSidebar && root.bar.position !== "right" ? root.sidebarWidth : 0)
         Config.screen: root.screen.name
     }
 
     ExclusionZone {
         anchors.bottom: true
-        exclusiveZone: root.bar.position === "bottom" ? root.bar.exclusiveZone : Config.border.thickness
+        exclusiveZone: root.bar.position === "bottom" ? root.bar.exclusiveZone : root.borderZone
         Config.screen: root.screen.name
     }
 
+    // A window exists only while it reserves something: each is a full Qt Quick
+    // window with its own graphics context, which costs memory (about 2 MB on
+    // Mesa, about 11 MB on the NVIDIA driver) for a 1x1 pixel surface.
     component ExclusionZone: StyledWindow {
         screen: root.screen
         name: "border-exclusion"
+        visible: exclusiveZone > 0
         exclusiveZone: Config.border.thickness
         mask: Region {}
         implicitWidth: 1
