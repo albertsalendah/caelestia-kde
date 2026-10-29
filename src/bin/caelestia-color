@@ -19,6 +19,7 @@ STATE_DIR="$STATE_HOME/caelestia"
 SCHEME_FILE="$STATE_DIR/scheme.json"
 WALLPAPER_FILE="$STATE_DIR/wallpaper/path.txt"
 WALLPAPER_LINK="$STATE_DIR/wallpaper/current"
+SOURCE_FILE="$STATE_DIR/wallpaper/source.txt"
 THEME_DIR="$STATE_DIR/theme"
 USER_TEMPLATES="$CONFIG_HOME/caelestia/templates"
 CLI_CONFIG="$CONFIG_HOME/caelestia/cli.json"
@@ -31,6 +32,8 @@ PALETTES_JSON="$WORK_DIR/palettes.json"
 MATUGEN_LOG="$WORK_DIR/matugen.log"
 RENDER_FILE="$WORK_DIR/scheme.json.new"
 PREVIEW_FILE="$WORK_DIR/preview.json"
+PALETTES_CACHE="$WORK_DIR/wallpaper-palettes.json"
+PALETTES_RAW="$WORK_DIR/palettes"
 
 declare -A CFG=()
 
@@ -41,6 +44,11 @@ META_VARIANT=""
 META_INTENSITY=""
 META_COLOURS=""
 
+# Which of the wallpaper's own colours the palette is built from: the one a command was told to use,
+# and the one a render really used (it falls back to the first when the wallpaper has no such colour).
+SOURCE_OVERRIDE=""
+SOURCE_USED=0
+
 err() { printf '[ERR] %s\n' "$*" >&2; }
 warn() { printf '[WARN] %s\n' "$*" >&2; }
 die() { err "$*"; exit 1; }
@@ -50,7 +58,7 @@ usage() {
 caelestia-color - generate the color scheme and write everything that reads it
 
 Usage
-  caelestia-color scheme <list|get|set> [OPTS]
+  caelestia-color scheme <list|get|set|palettes> [OPTS]
   caelestia-color wallpaper <-f PATH | -p [PATH] | -r [DIR]> [OPTS]
 
 Scheme
@@ -66,6 +74,11 @@ Scheme
       -f, --flavour NAME  the flavour. dynamic has "default" and "hard"
       -m, --mode MODE     light or dark
       -v, --variant NAME  the Material You variant, for a dynamic scheme
+      -s, --source N      which of the wallpaper's own colors a dynamic palette is
+                          built from, 0 to 4. A wallpaper has as many as matugen
+                          finds in it, often two or three, and the first is the
+                          default. The choice is kept for that wallpaper and
+                          forgotten when the wallpaper changes
       -i, --intensity N   how saturated the palette is: 0 is a grey palette, 1 is
                           what the engine produced, 2 is the most it takes. The
                           whole desktop follows it, not only the shell. It is
@@ -77,6 +90,10 @@ Scheme
       -N, --no-smart      keep the mode and variant instead of letting the
                           wallpaper choose them, for a dynamic scheme
           --notify        send a notification when it fails
+  palettes              print, as JSON, the palettes the wallpaper offers and which
+                        one is in effect, which is what the Colors page reads: the
+                        wallpaper's own colors, then variants of the first to fill
+                        the row. Colors too close to one already listed are left out
 
 Wallpaper
   -f, --file PATH       set the wallpaper and re-derive a dynamic scheme from it
@@ -721,6 +738,87 @@ def cmd_konsole_scheme(scheme_file: str, out: str) -> int:
     return 0
 
 
+PALETTE_ROLES = ("primary", "secondary", "tertiary", "surface")
+PALETTE_VARIANTS = ("vibrant", "expressive", "fruitsalad", "rainbow")
+PALETTE_CARDS = 5
+PALETTE_TOO_CLOSE = 40.0
+
+
+def palette_swatch(path: pathlib.Path, mode: str) -> dict[str, str] | None:
+    """The colours one card shows, out of what `matugen --json hex` printed for a render."""
+    try:
+        roles = json.loads(path.read_text(encoding="utf-8"))["colors"]
+        return {role: roles[role][mode]["color"].lstrip("#").lower() for role in PALETTE_ROLES}
+    except (OSError, ValueError, KeyError, TypeError, AttributeError):
+        return None
+
+
+def palette_distance(first: dict[str, str], second: dict[str, str]) -> float:
+    """The largest gap, over the three accent roles, between two palettes: RGB distance, 0 to 441."""
+    worst = 0.0
+    for role in ("primary", "secondary", "tertiary"):
+        one = [int(first[role][i : i + 2], 16) for i in (0, 2, 4)]
+        two = [int(second[role][i : i + 2], 16) for i in (0, 2, 4)]
+        worst = max(worst, math.dist(one, two))
+    return worst
+
+
+def cmd_palettes_build(raw_dir: str, mode: str, default_variant: str, key: str, out: str) -> int:
+    """Pick the cards from the renders a wallpaper gave: its own colours first, then variants.
+
+    The wallpaper's colours come in the order matugen ranks them, each in the variant the wallpaper
+    chooses by default. Colours that look like one already taken are left out, because a wallpaper
+    of one hue has several near-identical colours and a card for each would be a row of the same
+    card. What is left of the row is filled with variants of the first colour, which change the
+    hue and the chroma and so look different. A render that failed has no file and no card.
+    """
+    folder = pathlib.Path(raw_dir)
+    cards: list[dict] = []
+
+    def add(source: int, variant: str, name: str) -> None:
+        swatch = palette_swatch(folder / name, mode)
+        if swatch is None or len(cards) >= PALETTE_CARDS:
+            return
+        if any(palette_distance(card["colours"], swatch) < PALETTE_TOO_CLOSE for card in cards):
+            return
+        cards.append({"source": source, "variant": variant, "colours": swatch})
+
+    for index in range(5):
+        add(index, default_variant, f"source-{index}.json")
+    for variant in PALETTE_VARIANTS:
+        if variant != default_variant:
+            add(0, variant, f"variant-{variant}.json")
+    for card in cards:
+        card["default"] = card["source"] == 0 and card["variant"] == default_variant
+    atomic_write(pathlib.Path(out), json.dumps({"key": key, "palettes": cards}))
+    return 0
+
+
+def read_palette_cache(path: str) -> dict:
+    try:
+        data = json.loads(pathlib.Path(path).read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return {}
+    return data if isinstance(data, dict) else {}
+
+
+def cmd_palettes_cached(path: str, key: str) -> int:
+    """Exit 0 when the cache was built for this wallpaper, mode and default variant."""
+    return 0 if read_palette_cache(path).get("key") == key else 1
+
+
+def cmd_palettes_output(path: str, source: str, variant: str) -> int:
+    """The cards and which of them is in effect: the source and the variant both have to match."""
+    cards = read_palette_cache(path).get("palettes", [])
+    selected = -1
+    for position, card in enumerate(cards):
+        if str(card.get("source")) == source and card.get("variant") == variant:
+            selected = position
+            break
+    print(json.dumps({"selected": selected, "palettes": cards}))
+    return 0
+
+
 def main(argv: list[str]) -> int:
     command, args = argv[0], argv[1:]
     if command == "config-dump":
@@ -755,6 +853,12 @@ def main(argv: list[str]) -> int:
         return cmd_smart_variant(*args)
     if command == "konsole-scheme":
         return cmd_konsole_scheme(*args)
+    if command == "palettes-build":
+        return cmd_palettes_build(*args)
+    if command == "palettes-cached":
+        return cmd_palettes_cached(*args)
+    if command == "palettes-output":
+        return cmd_palettes_output(*args)
     raise SystemExit(f"unknown python helper: {command}")
 
 
@@ -913,9 +1017,12 @@ run_matugen() {
     shift
     command -v matugen >/dev/null 2>&1 || die "matugen is not installed; it generates the palette"
     if ! matugen "$@" --config "$config" > /dev/null 2> "$MATUGEN_LOG"; then
-        err "matugen failed; its output follows"
-        cat "$MATUGEN_LOG" >&2
-        err "the config it was given is at $config"
+        # A caller that has a fallback says so, and reports it in its own words.
+        if [[ -z "${MATUGEN_QUIET:-}" ]]; then
+            err "matugen failed; its output follows"
+            cat "$MATUGEN_LOG" >&2
+            err "the config it was given is at $config"
+        fi
         return 1
     fi
 }
@@ -933,7 +1040,41 @@ render_decided() {
     run_matugen "$FANOUT_CONFIG" json "$import_json" --import-json-string "$meta"
 }
 
-# --source-color-index 0 stops matugen asking which color to use. Whether the wallpaper picks the
+# The wallpaper's own colours are what a dynamic palette is built from: matugen finds up to five in an
+# image, ranked, and the first has always been the one used. A choice of another belongs to one
+# wallpaper, so the file keeps the path beside the index and a different wallpaper reads it as no
+# choice at all, which is how it is forgotten without anything having to clear it.
+stored_source() {
+    local wallpaper="$1" index="" path=""
+    if [[ -f "$SOURCE_FILE" ]]; then
+        IFS=$'\t' read -r index path < "$SOURCE_FILE" || true
+    fi
+    if [[ "$index" =~ ^[0-4]$ && "$path" == "$wallpaper" ]]; then
+        printf '%s' "$index"
+    else
+        printf '0'
+    fi
+}
+
+source_index_for() {
+    if [[ -n "$SOURCE_OVERRIDE" ]]; then
+        printf '%s' "$SOURCE_OVERRIDE"
+    else
+        stored_source "$1"
+    fi
+}
+
+write_source() {
+    local index="$1" wallpaper="$2"
+    if [[ "$index" == 0 ]]; then
+        rm -f "$SOURCE_FILE"
+        return 0
+    fi
+    mkdir -p "$(dirname "$SOURCE_FILE")"
+    printf '%s\t%s\n' "$index" "$wallpaper" > "$SOURCE_FILE"
+}
+
+# --source-color-index stops matugen asking which color to use. Whether the wallpaper picks the
 # variant or the mode is the caller's answer, per field: a value it was given by hand is not the
 # wallpaper's to choose, and the two are separate choices - a caller may pin one and not the other.
 render_image() {
@@ -941,6 +1082,8 @@ render_image() {
     local variant_smart="${7:-false}" mode_smart="${8:-false}"
     local type mode_arg measured intensity="${META_INTENSITY:-1}"
     local fan_out_with_palette="$fan_out" fan_out_after=false
+    local source_index rendered=false
+    source_index="$(source_index_for "$wallpaper")"
 
     if [[ "$variant_smart" == "true" ]]; then
         if measured="$(smart_variant "$wallpaper")"; then
@@ -974,11 +1117,29 @@ render_image() {
     fi
 
     write_matugen_config "$GENERATED_CONFIG" "$out" "$fan_out_with_palette"
-    run_matugen "$GENERATED_CONFIG" image "$wallpaper" \
-        --source-color-index 0 \
-        --type "$type" \
-        --mode "$mode_arg" \
-        --import-json-string "$(meta_string dynamic "$flavour" "$variant")"
+    # A colour the wallpaper does not have (it was replaced under the same name, say) is not worth
+    # a failed render: the first one is used and a choice nobody asked for just now is dropped.
+    if [[ "$source_index" != 0 ]]; then
+        if MATUGEN_QUIET=1 run_matugen "$GENERATED_CONFIG" image "$wallpaper" \
+            --source-color-index "$source_index" \
+            --type "$type" \
+            --mode "$mode_arg" \
+            --import-json-string "$(meta_string dynamic "$flavour" "$variant")"; then
+            rendered=true
+        else
+            warn "the wallpaper has no color number $source_index; using the first"
+            source_index=0
+            [[ -n "$SOURCE_OVERRIDE" ]] || write_source 0 "$wallpaper"
+        fi
+    fi
+    if [[ "$rendered" != true ]]; then
+        run_matugen "$GENERATED_CONFIG" image "$wallpaper" \
+            --source-color-index 0 \
+            --type "$type" \
+            --mode "$mode_arg" \
+            --import-json-string "$(meta_string dynamic "$flavour" "$variant")"
+    fi
+    SOURCE_USED="$source_index"
 
     py finish-palette "$out" "$PALETTES_JSON" "$intensity" \
         || die "could not render the palette at that intensity"
@@ -1312,6 +1473,7 @@ cmd_scheme_get() {
 
 cmd_scheme_set() {
     local name="" flavour="" mode="" variant="" intensity="" random=0 preview=0 notify=0
+    local source_index=""
     local mode_stated=0 variant_stated=0 no_smart=0
     local data
 
@@ -1321,6 +1483,7 @@ cmd_scheme_set() {
             -f|--flavour) flavour="${2:-}"; [[ -n "$flavour" ]] || die "-f needs a flavour"; shift 2 ;;
             -m|--mode) mode="${2:-}"; mode_stated=1; [[ -n "$mode" ]] || die "-m needs a mode"; shift 2 ;;
             -v|--variant) variant="${2:-}"; variant_stated=1; [[ -n "$variant" ]] || die "-v needs a variant"; shift 2 ;;
+            -s|--source) source_index="${2:-}"; [[ "$source_index" =~ ^[0-4]$ ]] || die "-s needs a number from 0 to 4"; shift 2 ;;
             -i|--intensity) intensity="${2:-}"; [[ -n "$intensity" ]] || die "-i needs an intensity"; shift 2 ;;
             -r|--random) random=1; shift ;;
             -P|--preview) preview=1; shift ;;
@@ -1372,7 +1535,12 @@ cmd_scheme_set() {
         warn "$name keeps the colors in its file; the intensity colors the wallpaper-derived palette"
     fi
 
+    if [[ -n "$source_index" && "$name" != "dynamic" ]]; then
+        warn "$name keeps the colors in its file; the source color belongs to a dynamic scheme"
+    fi
+
     if [[ "$name" == "dynamic" ]]; then
+        SOURCE_OVERRIDE="$source_index"
         # The wallpaper picks a field the caller left out and never one they stated, unless the
         # caller has turned the wallpaper's choice off for the command as a whole. The pipeline
         # owns no copy of that setting: the shell states it as --no-smart.
@@ -1400,6 +1568,7 @@ cmd_scheme_set() {
             return 1
         fi
         derive_from_wallpaper "$wallpaper" "$flavour" "$mode" "$variant" "$variant_smart" "$mode_smart"
+        [[ -z "$source_index" ]] || write_source "$SOURCE_USED" "$wallpaper"
         return 0
     fi
 
@@ -1440,6 +1609,63 @@ fail_or_notify() {
     fi
 }
 
+build_palettes() {
+    local wallpaper="$1" mode="$2" default_variant="$3" key="$4"
+    local index variant
+
+    rm -rf "$PALETTES_RAW"
+    mkdir -p "$PALETTES_RAW"
+    # The wallpaper has as many colours as matugen finds in it, and asking past the last is an error,
+    # which is how the count is learned.
+    for index in 0 1 2 3 4; do
+        if ! matugen image "$wallpaper" --source-color-index "$index" \
+            --type "$(variant_type "$default_variant")" --mode "$mode" --dry-run --json hex \
+            > "$PALETTES_RAW/source-$index.json" 2> /dev/null; then
+            rm -f "$PALETTES_RAW/source-$index.json"
+            break
+        fi
+    done
+    for variant in vibrant expressive fruitsalad rainbow; do
+        [[ "$variant" == "$default_variant" ]] && continue
+        if ! matugen image "$wallpaper" --source-color-index 0 \
+            --type "$(variant_type "$variant")" --mode "$mode" --dry-run --json hex \
+            > "$PALETTES_RAW/variant-$variant.json" 2> /dev/null; then
+            rm -f "$PALETTES_RAW/variant-$variant.json"
+        fi
+    done
+    py palettes-build "$PALETTES_RAW" "$mode" "$default_variant" "$key" "$PALETTES_CACHE" \
+        || die "could not pick the palettes"
+    rm -rf "$PALETTES_RAW"
+}
+
+cmd_scheme_palettes() {
+    case "${1:-}" in
+        "") ;;
+        -h|--help) usage; return 0 ;;
+        *) die "unknown option for scheme palettes: $1" ;;
+    esac
+
+    local wallpaper
+    if ! wallpaper="$(stored_wallpaper)"; then
+        printf '{"selected": -1, "palettes": []}\n'
+        return 0
+    fi
+    command -v matugen >/dev/null 2>&1 || die "matugen is not installed; it generates the palette"
+
+    read_meta
+    local mode="${META_MODE:-dark}" default_variant key
+    [[ "$mode" == light ]] || mode=dark
+    if ! default_variant="$(smart_variant "$wallpaper")"; then
+        default_variant=tonalspot
+    fi
+    key="$wallpaper|$(stat -c %Y -- "$wallpaper" 2>/dev/null || printf 0)|$mode|$default_variant"
+    mkdir -p "$WORK_DIR"
+    if ! py palettes-cached "$PALETTES_CACHE" "$key"; then
+        build_palettes "$wallpaper" "$mode" "$default_variant" "$key"
+    fi
+    py palettes-output "$PALETTES_CACHE" "$(stored_source "$wallpaper")" "${META_VARIANT:-}"
+}
+
 cmd_scheme() {
     local action="${1:-}"
     [[ -n "$action" ]] || { usage; return 0; }
@@ -1448,6 +1674,7 @@ cmd_scheme() {
         list) cmd_scheme_list "$@" ;;
         get) cmd_scheme_get "$@" ;;
         set) cmd_scheme_set "$@" ;;
+        palettes) cmd_scheme_palettes "$@" ;;
         -h|--help) usage ;;
         *) die "unknown scheme action: $action" ;;
     esac

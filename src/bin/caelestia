@@ -85,7 +85,7 @@ Commands
   update [REF]                 update the shell and re-apply the configuration
   login-screen                 configure the login screen for the display manager in use
   wallpaper [OPTS]             set the wallpaper and derive the palette from it
-  scheme <list|get|set> [...]  manage the color scheme
+  scheme <list|get|set|palettes> [...]  manage the color scheme
   screenshot [OPTS]            take a screenshot
   record [OPTS]                record the screen
   version                      print the version
