@@ -98,5 +98,30 @@ PageBase {
             checked: Config.bar.popouts.statusIcons
             onToggled: GlobalConfig.bar.popouts.statusIcons = checked
         }
+
+        SectionHeader {
+            text: qsTr("Clipboard popout")
+        }
+
+        ToggleRow {
+            first: true
+            text: qsTr("Open on hover")
+            subtext: qsTr("Off: the popout opens when you click the clipboard icon and stays until you click elsewhere. Meta+V always opens it that way")
+            reset: ({ node: GlobalConfig.bar.status, setting: "clipboardOpenOnHover" })
+            checked: Config.bar.status.clipboardOpenOnHover
+            onToggled: GlobalConfig.bar.status.clipboardOpenOnHover = checked
+        }
+
+        StepperRow {
+            last: true
+            label: qsTr("Rows visible in popout")
+            subtext: qsTr("How many clips the popout shows before its list scrolls")
+            reset: ({ node: GlobalConfig.bar.status, setting: "clipboardEntries" })
+            value: Config.bar.status.clipboardEntries
+            from: 1
+            to: 15
+            stepSize: 1
+            onMoved: value => GlobalConfig.bar.status.clipboardEntries = value
+        }
     }
 }

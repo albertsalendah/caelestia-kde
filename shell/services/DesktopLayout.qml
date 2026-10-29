@@ -20,12 +20,15 @@ Singleton {
     // Group id -> { name, members: [file name, ...], size: { w, h } }. A size
     // above 1x1 shows the group as a large folder.
     property var groups: ({})
-    // Widget id -> { type, size: { w, h }, config: {} }.
+    // Widget id -> { type, size: { w, h }, config: {}, locked?: bool }.
     property var widgets: ({})
     property int iconSize: 64
     property bool autoArrange: false
     // Clip full-colour icons to a rounded square.
     property bool roundIcons: true
+    // Draw an outline around every widget, so that one that is empty (or hidden
+    // by its own condition) can still be located. Off by default.
+    property bool widgetOutlines: false
     // "" keeps the manual order; otherwise name, type, modified or size.
     property string sortKey: ""
     property bool defaultsSeeded: false
@@ -87,6 +90,39 @@ Singleton {
         setWidgets(next);
     }
 
+    function isWidgetLocked(id: string): bool {
+        return widgets[id]?.locked === true;
+    }
+
+    function setWidgetLocked(id: string, locked: bool): void {
+        const w = widgets[id];
+        if (!w || (w.locked === true) === locked)
+            return;
+        const next = Object.assign({}, widgets);
+        next[id] = Object.assign({}, w, { locked });
+        setWidgets(next);
+    }
+
+    function setAllWidgetsLocked(locked: bool): void {
+        const next = Object.assign({}, widgets);
+        let changed = false;
+        for (const id in next) {
+            if ((next[id].locked === true) === locked)
+                continue;
+            next[id] = Object.assign({}, next[id], { locked });
+            changed = true;
+        }
+        if (changed)
+            setWidgets(next);
+    }
+
+    function anyWidgetUnlocked(): bool {
+        for (const id in widgets)
+            if (widgets[id].locked !== true)
+                return true;
+        return false;
+    }
+
     function setPositions(next: var): void {
         positions = next;
         scheduleSave();
@@ -120,6 +156,13 @@ Singleton {
         if (roundIcons === on)
             return;
         roundIcons = on;
+        scheduleSave();
+    }
+
+    function setWidgetOutlines(on: bool): void {
+        if (widgetOutlines === on)
+            return;
+        widgetOutlines = on;
         scheduleSave();
     }
 
@@ -165,19 +208,29 @@ Singleton {
                     nextPositions[fileKey(it.name)] = { col: it.col | 0, row: it.row | 0 };
         } else if (data && typeof data === "object") {
             for (const it of data.items ?? [])
-                if (it && typeof it.key === "string")
-                    nextPositions[it.key] = { col: it.col | 0, row: it.row | 0 };
+                if (it && typeof it.key === "string") {
+                    const itemPos = { col: it.col | 0, row: it.row | 0 };
+                    if (typeof it.screen === "string" && it.screen.length > 0)
+                        itemPos.screen = it.screen;
+                    nextPositions[it.key] = itemPos;
+                }
             for (const g of data.groups ?? [])
                 if (g && typeof g.id === "string" && Array.isArray(g.members))
                     nextGroups[g.id] = { name: String(g.name ?? ""), members: g.members.filter(m => typeof m === "string"), size: size(g.size) };
             for (const w of data.widgets ?? [])
                 if (w && typeof w.id === "string" && typeof w.type === "string")
-                    nextWidgets[w.id] = { type: w.type, size: size(w.size), config: w.config && typeof w.config === "object" ? w.config : {} };
+                    nextWidgets[w.id] = {
+                        type: w.type,
+                        size: size(w.size),
+                        config: w.config && typeof w.config === "object" ? w.config : {},
+                        locked: w.locked === true
+                    };
             const prefs = data.prefs ?? {};
             if (iconSizes.indexOf(prefs.iconSize) !== -1)
                 iconSize = prefs.iconSize;
             autoArrange = prefs.autoArrange === true;
             roundIcons = prefs.roundIcons !== false;
+            widgetOutlines = prefs.widgetOutlines === true;
             sortKey = typeof prefs.sortKey === "string" ? prefs.sortKey : "";
             defaultsSeeded = prefs.defaultsSeeded === true;
         }
@@ -189,7 +242,7 @@ Singleton {
         loaded = true;
     }
 
-    function seedDefaults(cols: int, rows: int): void {
+    function seedDefaults(cols: int, rows: int, screenName: string): void {
         if (!defaultsNeeded || cols <= 0 || rows <= 0)
             return;
         defaultsNeeded = false;
@@ -197,6 +250,7 @@ Singleton {
 
         const nextWidgets = Object.assign({}, widgets);
         const nextPositions = Object.assign({}, positions);
+        const scr = (typeof screenName === "string" && screenName.length > 0) ? { screen: screenName } : {};
 
         const lyricsId = newGroupId();
         const lyricsKey = widgetKey(lyricsId);
@@ -205,10 +259,10 @@ Singleton {
             size: { w: 3, h: 2 },
             config: {}
         };
-        nextPositions[lyricsKey] = {
+        nextPositions[lyricsKey] = Object.assign({
             col: 0,
             row: 0
-        };
+        }, scr);
 
         const clockId = newGroupId();
         const clockKey = widgetKey(clockId);
@@ -217,10 +271,10 @@ Singleton {
             size: { w: 2, h: 2 },
             config: {}
         };
-        nextPositions[clockKey] = {
+        nextPositions[clockKey] = Object.assign({
             col: Math.max(0, cols - 2),
             row: 0
-        };
+        }, scr);
 
         const shapesId = newGroupId();
         const shapesKey = widgetKey(shapesId);
@@ -229,10 +283,10 @@ Singleton {
             size: { w: 2, h: 2 },
             config: {}
         };
-        nextPositions[shapesKey] = {
+        nextPositions[shapesKey] = Object.assign({
             col: Math.max(0, Math.floor((cols - 2) / 2)),
             row: Math.max(0, rows - 2)
-        };
+        }, scr);
 
         widgets = nextWidgets;
         positions = nextPositions;
@@ -241,17 +295,28 @@ Singleton {
 
     function serialise(): string {
         const items = [];
-        for (const key in positions)
-            items.push({ key, col: positions[key].col, row: positions[key].row });
+        for (const key in positions) {
+            const p = positions[key];
+            const item = { key, col: p.col, row: p.row };
+            if (p.screen)
+                item.screen = p.screen;
+            items.push(item);
+        }
         const groupList = [];
         for (const id in groups)
             groupList.push({ id, name: groups[id].name, members: groups[id].members, size: groups[id].size ?? { w: 1, h: 1 } });
         const widgetList = [];
         for (const id in widgets)
-            widgetList.push({ id, type: widgets[id].type, size: widgets[id].size, config: widgets[id].config });
+            widgetList.push({
+                id,
+                type: widgets[id].type,
+                size: widgets[id].size,
+                config: widgets[id].config,
+                locked: widgets[id].locked === true
+            });
         return JSON.stringify({
             version: 2,
-            prefs: { iconSize, autoArrange, sortKey, roundIcons, defaultsSeeded },
+            prefs: { iconSize, autoArrange, sortKey, roundIcons, widgetOutlines, defaultsSeeded },
             items,
             groups: groupList,
             widgets: widgetList

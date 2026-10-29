@@ -2018,7 +2018,7 @@
   <context>
     <name>BarComponents</name>
     <message>
-      <location filename="../modules/nexus/pages/panels/taskbar/BarComponents.qml" line="+21"/>
+      <location filename="../modules/nexus/pages/panels/taskbar/BarComponents.qml" line="+22"/>
       <source>Logo</source>
       <translation type="unfinished"/>
     </message>
@@ -2178,7 +2178,7 @@
       <translation type="unfinished"/>
     </message>
     <message>
-      <location line="+189"/>
+      <location line="+204"/>
       <source>Not detected</source>
       <translation>Non détecté</translation>
     </message>
@@ -2193,7 +2193,7 @@
       <translation>Désactiver le composant</translation>
     </message>
     <message>
-      <location line="+140"/>
+      <location line="+143"/>
       <source>Toggle &amp; rearrange</source>
       <translation>Activer/désactiver et réorganiser</translation>
     </message>
@@ -4015,29 +4015,6 @@
     </message>
   </context>
   <context>
-    <name>ClipboardPage</name>
-    <message>
-      <location filename="../modules/nexus/pages/utilities/ClipboardPage.qml" line="+9"/>
-      <source>Clipboard</source>
-      <translation>Presse-papiers</translation>
-    </message>
-    <message>
-      <location line="+11"/>
-      <source>History</source>
-      <translation>Historique</translation>
-    </message>
-    <message>
-      <location line="+6"/>
-      <source>Maximum entries</source>
-      <translation>Nombre maximum d&apos;entrées</translation>
-    </message>
-    <message>
-      <location line="+1"/>
-      <source>Number of entries available in the launcher</source>
-      <translation>Nombre d&apos;entrées disponibles dans le lanceur</translation>
-    </message>
-  </context>
-  <context>
     <name>ColourSelect</name>
     <message>
       <location filename="../modules/nexus/pages/wallandstyle/ColourSelect.qml" line="+39"/>
@@ -4073,7 +4050,7 @@
   <context>
     <name>Content</name>
     <message>
-      <location filename="../modules/bar/popouts/Content.qml" line="+61"/>
+      <location filename="../modules/bar/popouts/Content.qml" line="+83"/>
       <source>Greeter settings</source>
       <translation>Réglages de l&apos;accueil</translation>
     </message>
@@ -4775,17 +4752,28 @@
       <translation>Addons de bureau</translation>
     </message>
     <message>
-      <location line="+20"/>
-      <source>Auto-hide media shapes</source>
-      <translation>Masquer automatiquement les formes de média</translation>
+      <location line="+14"/>
+      <source>Desktop clock</source>
+      <translation>Horloge du bureau</translation>
     </message>
     <message>
-      <location line="+1"/>
-      <source>Hide media shapes when a window is open</source>
-      <translation>Masquer les formes de média lorsqu&apos;une fenêtre est ouverte</translation>
+      <location line="+11"/>
+      <location line="+32"/>
+      <source>Invert colors</source>
+      <translation>Inverser les couleurs</translation>
     </message>
     <message>
-      <location line="+9"/>
+      <location line="-24"/>
+      <source>Desktop lyrics</source>
+      <translation>Paroles sur le bureau</translation>
+    </message>
+    <message>
+      <location line="+10"/>
+      <source>Alignment</source>
+      <translation>Alignement</translation>
+    </message>
+    <message>
+      <location line="+23"/>
       <source>Auto-hide lyrics</source>
       <translation>Masquer automatiquement les paroles</translation>
     </message>
@@ -4793,6 +4781,11 @@
       <location line="+1"/>
       <source>Hide lyrics when a window is open</source>
       <translation>Masquer les paroles quand une fenêtre est ouverte</translation>
+    </message>
+    <message>
+      <location line="+8"/>
+      <source>Visualiser</source>
+      <translation>Visualiseur</translation>
     </message>
     <message>
       <location line="+10"/>
@@ -4805,53 +4798,7 @@
       <translation>Afficher le visualiseur de musique sur fond d&apos;écran (peut consommer plus de puissance)</translation>
     </message>
     <message>
-      <location line="+14"/>
-      <source>Auto-hide visualiser</source>
-      <translation>Masquer automatiquement le visualiseur</translation>
-    </message>
-    <message>
-      <location line="+1"/>
-      <source>Hide visualiser when a window is fullscreen</source>
-      <translation>Masquer le visualiseur quand une fenêtre est en plein écran</translation>
-    </message>
-    <message>
-      <location line="+11"/>
-      <source>Hide on all monitors</source>
-      <translation>Masquer sur tous les écrans</translation>
-    </message>
-    <message>
-      <location line="+1"/>
-      <source>Also hide on all other monitors if disabled by a window</source>
-      <translation>Masquer également sur tous les autres écrans si désactivé par une fenêtre</translation>
-    </message>
-    <message>
-      <location line="+9"/>
-      <source>Desktop clock</source>
-      <translation>Horloge du bureau</translation>
-    </message>
-    <message>
-      <location line="+11"/>
-      <location line="+33"/>
-      <source>Invert colors</source>
-      <translation>Inverser les couleurs</translation>
-    </message>
-    <message>
-      <location line="-25"/>
-      <source>Desktop lyrics</source>
-      <translation>Paroles sur le bureau</translation>
-    </message>
-    <message>
-      <location line="+10"/>
-      <source>Alignment</source>
-      <translation>Alignement</translation>
-    </message>
-    <message>
-      <location line="+23"/>
-      <source>Visualiser</source>
-      <translation>Visualiseur</translation>
-    </message>
-    <message>
-      <location line="+10"/>
+      <location line="+12"/>
       <source>Blur</source>
       <translation>Flou</translation>
     </message>
@@ -4866,7 +4813,7 @@
       <translation>Espacement</translation>
     </message>
     <message>
-      <location line="+12"/>
+      <location line="+11"/>
       <source>Size</source>
       <translation>Taille</translation>
     </message>
@@ -4874,6 +4821,41 @@
       <location line="+1"/>
       <source>Column width multiplier, lower values leave more room in the middle</source>
       <translation>Multiplicateur de largeur de colonne, des valeurs plus faibles laissent plus de place au centre</translation>
+    </message>
+    <message>
+      <location line="+11"/>
+      <source>Auto-hide visualiser</source>
+      <translation>Masquer automatiquement le visualiseur</translation>
+    </message>
+    <message>
+      <location line="+1"/>
+      <source>Hide visualiser when a window is fullscreen</source>
+      <translation>Masquer le visualiseur quand une fenêtre est en plein écran</translation>
+    </message>
+    <message>
+      <location line="+10"/>
+      <source>Hide on all monitors</source>
+      <translation>Masquer sur tous les écrans</translation>
+    </message>
+    <message>
+      <location line="+1"/>
+      <source>Also hide on all other monitors if disabled by a window</source>
+      <translation>Masquer également sur tous les autres écrans si désactivé par une fenêtre</translation>
+    </message>
+    <message>
+      <location line="+9"/>
+      <source>Media shapes</source>
+      <translation type="unfinished"/>
+    </message>
+    <message>
+      <location line="+11"/>
+      <source>Auto-hide media shapes</source>
+      <translation>Masquer automatiquement les formes de média</translation>
+    </message>
+    <message>
+      <location line="+1"/>
+      <source>Hide media shapes when a window is open</source>
+      <translation>Masquer les formes de média lorsqu&apos;une fenêtre est ouverte</translation>
     </message>
   </context>
   <context>
@@ -4995,13 +4977,13 @@
   <context>
     <name>DesktopIcons</name>
     <message>
-      <location filename="../modules/background/DesktopIcons.qml" line="+586"/>
+      <location filename="../modules/background/DesktopIcons.qml" line="+672"/>
       <location line="+3"/>
       <source>Group</source>
       <translation>Groupe</translation>
     </message>
     <message>
-      <location line="+295"/>
+      <location line="+298"/>
       <location line="+10"/>
       <source>Rename failed</source>
       <translation>Échec du renommage</translation>
@@ -5019,7 +5001,7 @@
       <translation>Échec de l&apos;opération de fichier</translation>
     </message>
     <message>
-      <location line="+493"/>
+      <location line="+502"/>
       <source>%1 could not complete the request</source>
       <translation>%1 n&apos;a pas pu exécuter la requête</translation>
     </message>
@@ -5391,233 +5373,83 @@ Allez maintenant prendre l&apos;air</translation>
     <name>Entries</name>
     <message>
       <location filename="../modules/whatsnew/Entries.qml" line="+12"/>
-      <source>Terminal Updates</source>
-      <translation>Mises à jour via le terminal</translation>
-    </message>
-    <message>
-      <location line="+1"/>
-      <source>The system package updater is now configured to launch inside your preferred user terminal emulator, with an automatic fallback to Konsole.</source>
-      <translation>La mise à jour des paquets du système s&apos;ouvre désormais dans votre émulateur de terminal préféré, avec un repli automatique sur Konsole.</translation>
-    </message>
-    <message>
-      <location line="+6"/>
-      <source>Built-in Uninstaller</source>
-      <translation>Désinstalleur intégré</translation>
-    </message>
-    <message>
-      <location line="+1"/>
-      <source>A safe uninstaller action has been added directly to the About page in settings, providing a clean way to remove the shell and its owned resources.</source>
-      <translation>Une action de désinstallation sûre a été ajoutée directement à la page À propos des paramètres, offrant un moyen propre de retirer le shell et les ressources qui lui appartiennent.</translation>
-    </message>
-    <message>
-      <location line="+6"/>
-      <source>System Font Integration</source>
-      <translation>Intégration de la police système</translation>
-    </message>
-    <message>
-      <location line="+1"/>
-      <source>A new option allows the shell to automatically follow your system-wide KDE font settings, rather than using a static default font.</source>
-      <translation>Une nouvelle option permet au shell de suivre automatiquement les paramètres de police KDE du système, plutôt que d&apos;utiliser une police statique par défaut.</translation>
-    </message>
-    <message>
-      <location line="+6"/>
-      <source>Export Configuration</source>
-      <translation>Exportation de la configuration</translation>
-    </message>
-    <message>
-      <location line="+1"/>
-      <source>You can now export your complete shell configuration to a YAML file, providing a lossless backup of all your settings and preferences.</source>
-      <translation>Vous pouvez désormais exporter la configuration complète du shell vers un fichier YAML, offrant une sauvegarde sans perte de tous vos réglages et préférences.</translation>
-    </message>
-    <message>
-      <location line="+6"/>
-      <source>Setting Reset Buttons</source>
-      <translation>Boutons de réinitialisation des réglages</translation>
-    </message>
-    <message>
-      <location line="+1"/>
-      <source>Added persistent, inline reset buttons across Nexus settings pages, allowing you to instantly restore individual sliders, steppers, and toggles to their default values.</source>
-      <translation>Des boutons de réinitialisation persistants ont été ajoutés dans les pages de réglages de Nexus, permettant de restaurer instantanément chaque curseur, compteur et interrupteur à sa valeur par défaut.</translation>
-    </message>
-    <message>
-      <location line="+6"/>
-      <source>Quick Toggles Overhaul</source>
-      <translation>Refonte des bascules rapides</translation>
-    </message>
-    <message>
-      <location line="+1"/>
-      <source>Complete visual and functional overhaul of Quick Toggles. Supports custom order, multiple layouts, settings shortcut, and more.</source>
-      <translation>Refonte visuelle et fonctionnelle complète des bascules rapides. Prise en charge de l&apos;ordre personnalisé, de plusieurs dispositions, d&apos;un raccourci vers les paramètres, et plus encore.</translation>
-    </message>
-    <message>
-      <location line="+6"/>
-      <source>Interactive Desktop Icons</source>
-      <translation>Icônes du bureau interactives</translation>
-    </message>
-    <message>
-      <location line="+1"/>
-      <source>A complete overhaul of desktop icons adding support for rectangle multi-selection, keyboard navigation, grid auto-alignment, grouping, and drag-and-drop.</source>
-      <translation>Une refonte complète des icônes du bureau, avec sélection rectangulaire multiple, navigation au clavier, alignement automatique sur la grille, regroupement et glisser-déposer.</translation>
-    </message>
-    <message>
-      <location line="+6"/>
-      <source>Sidebar Startup Tab</source>
-      <translation>Onglet de démarrage de la barre latérale</translation>
-    </message>
-    <message>
-      <location line="+1"/>
-      <source>The sidebar can now be configured to open on the last-used tab, or to always open on a specific default tab of your choice.</source>
-      <translation>La barre latérale peut désormais s&apos;ouvrir sur le dernier onglet utilisé, ou toujours sur un onglet par défaut de votre choix.</translation>
-    </message>
-    <message>
-      <location line="+6"/>
-      <source>Desktop Elements Fine-Tuning</source>
-      <translation>Réglage fin des éléments du bureau</translation>
-    </message>
-    <message>
-      <location line="+1"/>
-      <source>Added configurable fine X and Y position offsets for the desktop clock and desktop lyrics, allowing precise placement of elements on your wallpaper.</source>
-      <translation>Ajout de décalages X et Y configurables pour l&apos;horloge et les paroles du bureau, permettant un placement précis des éléments sur votre fond d&apos;écran.</translation>
-    </message>
-    <message>
-      <location line="+6"/>
-      <source>Wi-Fi Hotspot</source>
-      <translation>Point d&apos;accès Wi-Fi</translation>
-    </message>
-    <message>
-      <location line="+1"/>
-      <source>A built-in Wi-Fi hotspot toggle switch has been added to the quick toggles and network popout, complete with auto-refresh state monitoring.</source>
-      <translation>Un interrupteur de point d&apos;accès Wi-Fi intégré a été ajouté aux bascules rapides et au volet réseau, avec une surveillance automatique de l&apos;état.</translation>
-    </message>
-    <message>
-      <location line="+6"/>
-      <source>Advanced Brightness Control</source>
-      <translation>Contrôle avancé de la luminosité</translation>
-    </message>
-    <message>
-      <location line="+1"/>
-      <source>The Brightness OSD now perfectly synchronizes with KWin state during slider drags, and supports reading and displaying software dimming multipliers.</source>
-      <translation>L&apos;OSD de luminosité se synchronise désormais parfaitement avec l&apos;état de KWin pendant le déplacement du curseur, et prend en charge la lecture et l&apos;affichage des multiplicateurs d&apos;assombrissement logiciel.</translation>
-    </message>
-    <message>
-      <location line="+6"/>
-      <source>Audio Visualizer Enhancements</source>
-      <translation>Améliorations du visualiseur audio</translation>
-    </message>
-    <message>
-      <location line="+1"/>
-      <source>The audio visualizer now allows you to choose the capture source (System Audio Output vs Microphone Input), and features configurable side widths and margin size scaling.</source>
-      <translation>Le visualiseur audio permet désormais de choisir la source de capture (sortie audio système ou entrée microphone), et propose des largeurs latérales et une mise à l&apos;échelle des marges configurables.</translation>
-    </message>
-    <message>
-      <location line="+6"/>
-      <source>Ungrouped Dock Icons</source>
-      <translation>Icônes du dock non groupées</translation>
-    </message>
-    <message>
-      <location line="+1"/>
-      <source>An option has been added to the Dock to display separate, ungrouped icon tiles for each individual window instance instead of grouping them by application.</source>
-      <translation>Une option a été ajoutée au Dock pour afficher des tuiles d&apos;icônes distinctes et non groupées pour chaque fenêtre individuelle, au lieu de les regrouper par application.</translation>
-    </message>
-    <message>
-      <location line="+6"/>
-      <source>Bar Item Settings Links</source>
-      <translation>Liens vers les réglages des éléments de la barre</translation>
-    </message>
-    <message>
-      <location line="+1"/>
-      <source>Right-clicking specific bar items (such as the OS Icon, Power Button, and Show Desktop) now instantly opens their respective configuration pages in Nexus settings.</source>
-      <translation>Un clic droit sur certains éléments de la barre (comme l&apos;icône de l&apos;OS, le bouton d&apos;alimentation et Afficher le bureau) ouvre désormais directement leur page de configuration respective dans les paramètres de Nexus.</translation>
-    </message>
-    <message>
-      <location line="+6"/>
-      <source>App Browser Layouts</source>
-      <translation>Dispositions du navigateur d&apos;applications</translation>
-    </message>
-    <message>
-      <location line="+1"/>
-      <source>The launcher now supports multiple app browser layouts. Choose between the standard categorized Grid, a Simple list, or a Compact list view via configuration.</source>
-      <translation>Le lanceur prend désormais en charge plusieurs dispositions du navigateur d&apos;applications. Choisissez entre la grille par catégories standard, une liste simple ou une vue en liste compacte via la configuration.</translation>
-    </message>
-    <message>
-      <location line="+6"/>
-      <source>Hourly Weather Forecast</source>
-      <translation>Prévisions météo horaires</translation>
-    </message>
-    <message>
-      <location line="+1"/>
-      <source>The Weather tab in the dashboard now includes an hourly forecast alongside the existing daily weather predictions.</source>
-      <translation>L&apos;onglet Météo du tableau de bord inclut désormais une prévision horaire en plus des prévisions quotidiennes existantes.</translation>
-    </message>
-    <message>
-      <location line="+6"/>
-      <source>Pinned Sidebar</source>
-      <translation>Barre latérale épinglée</translation>
-    </message>
-    <message>
-      <location line="+1"/>
-      <source>The sidebar can now be pinned to stay open, reserving screen workarea space so windows don&apos;t overlap it. You can resize it dynamically by dragging its edge.</source>
-      <translation>La barre latérale peut désormais être épinglée pour rester ouverte, en réservant l&apos;espace de travail à l&apos;écran pour que les fenêtres ne la recouvrent pas. Vous pouvez la redimensionner dynamiquement en faisant glisser son bord.</translation>
-    </message>
-    <message>
-      <location line="+6"/>
-      <source>Unified Capture Card</source>
-      <translation>Carte de capture unifiée</translation>
-    </message>
-    <message>
-      <location line="+1"/>
-      <source>Screen recording and screenshots are now combined into a single Capture Card in the utilities drawer. It provides quick access to fullscreen, active window, region snip, OCR, image search, and a history of saved captures.</source>
-      <translation>L&apos;enregistrement d&apos;écran et les captures d&apos;écran sont désormais combinés dans une seule carte Capture du tiroir utilitaire. Elle donne un accès rapide à l&apos;écran entier, la fenêtre active, la capture de région, l&apos;OCR, la recherche d&apos;image et un historique des captures enregistrées.</translation>
-    </message>
-    <message>
-      <location line="+6"/>
-      <source>Dock App Shortcuts</source>
-      <translation>Raccourcis d&apos;applications du dock</translation>
-    </message>
-    <message>
-      <location line="+1"/>
-      <source>You can now use keyboard shortcuts (like Meta + 1 through 9) to quickly focus or launch your pinned applications from the dock. Requires setting up the shortcuts in the Shortcut Manager.</source>
-      <translation>Vous pouvez désormais utiliser des raccourcis clavier (comme Méta + 1 à 9) pour activer ou lancer rapidement vos applications épinglées depuis le dock. Nécessite de configurer les raccourcis dans le gestionnaire de raccourcis.</translation>
-    </message>
-    <message>
-      <location line="+6"/>
-      <source>Bar Widgets</source>
-      <translation>Widgets de la barre</translation>
-    </message>
-    <message>
-      <location line="+3"/>
-      <source>The Bar now features a full-featured media widget with cover art, live CAVA visualization, quick actions, and a complete popout player.</source>
-      <translation>La barre propose désormais un widget multimédia complet avec pochette, visualisation CAVA en direct, actions rapides et un lecteur dépliable complet.</translation>
-    </message>
-    <message>
-      <location line="+6"/>
-      <source>Note Types &amp; Editors</source>
-      <translation>Types de notes &amp; éditeurs</translation>
-    </message>
-    <message>
-      <location line="+1"/>
-      <source>The Dashboard Notes tab now supports dedicated editors for different note types, including Plain Text, Markdown, and Checklists, allowing for richer note-taking right from the dashboard.</source>
-      <translation>L&apos;onglet Notes du tableau de bord prend désormais en charge des éditeurs dédiés pour différents types de notes, dont le texte brut, Markdown et les listes de contrôle, pour une prise de notes plus riche directement depuis le tableau de bord.</translation>
-    </message>
-    <message>
-      <location line="+6"/>
-      <source>Desktop Widgets &amp; Large Folders</source>
-      <translation>Widgets de bureau &amp; grands dossiers</translation>
-    </message>
-    <message>
-      <location line="+1"/>
-      <source>You can now place interactive widgets and expandable large folders directly onto the desktop grid for quick access to tools and files.</source>
-      <translation>Vous pouvez désormais placer des widgets interactifs et des grands dossiers dépliables directement sur la grille du bureau pour un accès rapide aux outils et aux fichiers.</translation>
-    </message>
-    <message>
-      <location line="+7"/>
-      <source>Quick Share (Nearby Share)</source>
+      <source>Auto DND While Streaming</source>
       <translation type="unfinished"/>
     </message>
     <message>
       <location line="+3"/>
-      <source>Receive and send files natively via the Nearby Share protocol. Quick Share features a background transfer service, interactive notifications, a quick toggle switch, and a dedicated utilities card for transfer tracking.</source>
-      <translation>Recevez et envoyez des fichiers nativement via le protocole Nearby Share. Quick Share propose un service de transfert en arrière-plan, des notifications interactives, une bascule rapide et une carte utilitaire dédiée au suivi des transferts.</translation>
+      <source>Do Not Disturb now activates automatically when sharing your screen or streaming via OBS, keeping unwanted notification banners and sounds off your broadcast.</source>
+      <translation type="unfinished"/>
+    </message>
+    <message>
+      <location line="+6"/>
+      <source>Master Animation Switch</source>
+      <translation type="unfinished"/>
+    </message>
+    <message>
+      <location line="+3"/>
+      <source>A single toggle in Appearance settings now allows you to completely disable all shell animations and transitions for instant responsiveness.</source>
+      <translation type="unfinished"/>
+    </message>
+    <message>
+      <location line="+6"/>
+      <source>Music Ambient Glow</source>
+      <translation type="unfinished"/>
+    </message>
+    <message>
+      <location line="+3"/>
+      <source>The Dashboard Music tab now features a dynamic ambient glow effect reflecting the colors of your currently playing media&apos;s album artwork.</source>
+      <translation type="unfinished"/>
+    </message>
+    <message>
+      <location line="+6"/>
+      <source>Audio Visualizer Toggle</source>
+      <translation type="unfinished"/>
+    </message>
+    <message>
+      <location line="+3"/>
+      <source>A dedicated Audio Visualizer toggle has been added to Quick Toggles, allowing you to instantly show or hide the desktop visualizer on demand.</source>
+      <translation type="unfinished"/>
+    </message>
+    <message>
+      <location line="+6"/>
+      <source>New Taskbar Widgets</source>
+      <translation type="unfinished"/>
+    </message>
+    <message>
+      <location line="+3"/>
+      <source>The taskbar now includes dedicated widgets for Notes, Weather, Performance stats, Shortcuts, Screen Capture, and Keep Awake, complete with hover popouts and inline settings.</source>
+      <translation type="unfinished"/>
+    </message>
+    <message>
+      <location line="+6"/>
+      <source>Background Worker Thread</source>
+      <translation type="unfinished"/>
+    </message>
+    <message>
+      <location line="+1"/>
+      <source>Ticking background services are now offloaded to a dedicated worker thread with queued connections, reducing shell latency and eliminating unnecessary desktop redraws.</source>
+      <translation type="unfinished"/>
+    </message>
+    <message>
+      <location line="+6"/>
+      <source>Rich Notification Formatting</source>
+      <translation type="unfinished"/>
+    </message>
+    <message>
+      <location line="+1"/>
+      <source>Notifications in both popups and the sidebar now cleanly sanitize FreeDesktop markup, auto-link web URLs, and preserve paragraph formatting.</source>
+      <translation type="unfinished"/>
+    </message>
+    <message>
+      <location line="+6"/>
+      <source>Shimeji Cat update</source>
+      <translation type="unfinished"/>
+    </message>
+    <message>
+      <location line="+3"/>
+      <source>Multiple Shimeji Cats can now be summoned at once. Also a fix regarding the cat hiding when clicking desktop has been pushed. Update from plugin store to access new features!</source>
+      <translation type="unfinished"/>
     </message>
   </context>
   <context>
@@ -9311,7 +9143,7 @@ Allez maintenant prendre l&apos;air</translation>
   <context>
     <name>PageCompRegistry</name>
     <message>
-      <location filename="../modules/nexus/PageCompRegistry.qml" line="+346"/>
+      <location filename="../modules/nexus/PageCompRegistry.qml" line="+343"/>
       <source>Page under construction</source>
       <translation>Page en construction</translation>
     </message>
@@ -9492,6 +9324,11 @@ Allez maintenant prendre l&apos;air</translation>
       <location line="+1"/>
       <source>Truncated app names</source>
       <translation type="unfinished"/>
+    </message>
+    <message>
+      <location line="+1"/>
+      <source>Clipboard</source>
+      <translation>Presse-papiers</translation>
     </message>
     <message>
       <location line="+1"/>
@@ -9766,18 +9603,13 @@ Allez maintenant prendre l&apos;air</translation>
     </message>
     <message>
       <location line="+3"/>
-      <source>Quick controls, clipboard, game mode</source>
-      <translation>Bascules rapides, presse-papiers, mode de jeu</translation>
+      <source>Quick controls, game mode</source>
+      <translation type="unfinished"/>
     </message>
     <message>
       <location line="+3"/>
       <source>On-screen Sliders</source>
       <translation>Curseurs à l&apos;écran</translation>
-    </message>
-    <message>
-      <location line="+1"/>
-      <source>Clipboard</source>
-      <translation>Presse-papiers</translation>
     </message>
     <message>
       <location line="+1"/>
@@ -10216,12 +10048,12 @@ Allez maintenant prendre l&apos;air</translation>
   <context>
     <name>PluginSettingsPopup</name>
     <message>
-      <location filename="../modules/nexus/pages/PluginSettingsPopup.qml" line="+44"/>
+      <location filename="../modules/nexus/pages/PluginSettingsPopup.qml" line="+53"/>
       <source>Settings</source>
       <translation>Réglages</translation>
     </message>
     <message>
-      <location line="+51"/>
+      <location line="+74"/>
       <source>Done</source>
       <translation>Terminé</translation>
     </message>
@@ -10283,13 +10115,13 @@ Allez maintenant prendre l&apos;air</translation>
       <translation>Redémarrer Shell</translation>
     </message>
     <message>
-      <location line="+34"/>
-      <location line="+371"/>
+      <location line="+43"/>
+      <location line="+369"/>
       <source>Installed</source>
       <translation>Installé</translation>
     </message>
     <message>
-      <location line="-362"/>
+      <location line="-360"/>
       <source>Store</source>
       <translation>Catalogue</translation>
     </message>
@@ -10304,12 +10136,12 @@ Allez maintenant prendre l&apos;air</translation>
       <translation>Plugins du shell</translation>
     </message>
     <message>
-      <location line="+73"/>
+      <location line="+72"/>
       <source>User Installed</source>
       <translation>Installés par l&apos;utilisateur</translation>
     </message>
     <message>
-      <location line="+106"/>
+      <location line="+105"/>
       <source>No plugins installed</source>
       <translation>Aucun plugin installé</translation>
     </message>
@@ -12054,26 +11886,26 @@ PIN : %1</translation>
   <context>
     <name>SystemWidget</name>
     <message>
-      <location filename="../modules/background/desktopicons/widgets/SystemWidget.qml" line="+66"/>
-      <location line="+36"/>
+      <location filename="../modules/background/desktopicons/widgets/SystemWidget.qml" line="+69"/>
+      <location line="+39"/>
       <source>CPU</source>
       <translation type="unfinished"/>
     </message>
     <message>
-      <location line="-30"/>
-      <location line="+40"/>
+      <location line="-33"/>
+      <location line="+43"/>
       <source>GPU</source>
       <translation type="unfinished"/>
     </message>
     <message>
-      <location line="-35"/>
-      <location line="+45"/>
+      <location line="-38"/>
+      <location line="+48"/>
       <source>Memory</source>
       <translation>Mémoire</translation>
     </message>
     <message>
-      <location line="-40"/>
-      <location line="+50"/>
+      <location line="-43"/>
+      <location line="+53"/>
       <source>Disk</source>
       <translation>Disque</translation>
     </message>
@@ -13335,16 +13167,6 @@ PIN : %1</translation>
       <location line="+1"/>
       <source>Volume, microphone, brightness, and edge triggers</source>
       <translation>Volume, microphone, luminosité et déclencheurs des bords</translation>
-    </message>
-    <message>
-      <location line="+6"/>
-      <source>Clipboard</source>
-      <translation>Presse-papiers</translation>
-    </message>
-    <message>
-      <location line="+1"/>
-      <source>History size</source>
-      <translation>Taille de l&apos;historique</translation>
     </message>
     <message>
       <location line="+6"/>

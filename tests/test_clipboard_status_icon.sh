@@ -15,7 +15,7 @@ POPOUTS="$SHELL_DIR/modules/bar/popouts"
 CONTENT="$POPOUTS/Content.qml"
 POPOUT="$POPOUTS/ClipHistory.qml"
 CLIP_ITEM="$SHELL_DIR/modules/launcher/items/ClipItem.qml"
-PAGE="$SHELL_DIR/modules/nexus/pages/utilities/ClipboardPage.qml"
+LAUNCHER_PAGE="$SHELL_DIR/modules/nexus/pages/panels/LauncherPanel.qml"
 ICON_PAGE="$SHELL_DIR/modules/nexus/pages/panels/taskbar/BarStatusIcons.qml"
 DICTIONARY="$SHELL_DIR/modules/nexus/PageDictionary.qml"
 WRAPPER="$POPOUTS/Wrapper.qml"
@@ -244,15 +244,14 @@ test_the_clear_question_has_its_own_line_above_the_buttons() {
         "question and buttons are stacked, not one RowLayout"
 }
 
-test_the_clipboard_page_has_the_three_settings() {
-    assert_file_contains "$PAGE" 'GlobalConfig.launcher.confirmClearClipboard' "ask before clearing"
-    assert_file_contains "$PAGE" 'setting: "clipboardEntries"' "the number of rows the popout shows"
-    assert_file_contains "$PAGE" 'entry.id === "clipboard"' "the icon switch finds the list entry"
-    assert_file_contains "$PAGE" 'GlobalConfig.bar.statusIcons.at(root.iconIndex).enabled = show' \
-        "it switches an existing entry"
-    assert_file_contains "$PAGE" 'GlobalConfig.bar.statusIcons.insert({ id: "clipboard", enabled: true })' \
-        "and adds the entry to a bar set up before the icon existed"
-    assert_file_contains "$PAGE" 'clipboardMaxEntries' "the original history size row is kept"
+test_the_clipboard_popout_settings_live_on_the_status_icons_page() {
+    assert_file_contains "$ICON_PAGE" 'setting: "clipboardEntries"' "the number of rows the popout shows"
+    assert_file_contains "$ICON_PAGE" 'GlobalConfig.bar.status.clipboardEntries = value' "and changes it"
+    assert_file_contains "$ICON_PAGE" 'setting: "clipboardOpenOnHover"' "the hover or click choice"
+    assert_file_contains "$LAUNCHER_PAGE" 'confirmClearClipboard' "ask before clearing stays on the launcher page"
+    assert_file_contains "$LAUNCHER_PAGE" 'clipboardMaxEntries' "and so does the history size"
+    [[ ! -e "$SHELL_DIR/modules/nexus/pages/utilities/ClipboardPage.qml" ]] \
+        || fail "the Utilities clipboard sub-page is gone since upstream 2.6.3"
 }
 
 test_a_pinned_popout_stays_until_it_is_dismissed() {
@@ -283,8 +282,8 @@ test_hovering_and_clicking_the_icon_follow_the_setting() {
     assert_contains "$click" 'else if (root.isClipboardPinned())
             root.popouts.hasCurrent = false;' "on click, a second click closes it"
     assert_contains "$click" 'root.openPopout("clipboard", item, true);' "and the first one pins it"
-    assert_file_contains "$PAGE" 'checked: Config.bar.status.clipboardOpenOnHover' "the page shows the setting"
-    assert_file_contains "$PAGE" 'GlobalConfig.bar.status.clipboardOpenOnHover = checked' "and changes it"
+    assert_file_contains "$ICON_PAGE" 'checked: Config.bar.status.clipboardOpenOnHover' "the page shows the setting"
+    assert_file_contains "$ICON_PAGE" 'GlobalConfig.bar.status.clipboardOpenOnHover = checked' "and changes it"
 }
 
 test_meta_v_opens_the_popout_and_falls_back_to_the_launcher() {
@@ -322,8 +321,12 @@ test_the_status_icons_register_and_unregister_their_opener() {
 }
 
 test_the_clipboard_page_is_found_by_the_new_words() {
-    assert_file_contains "$DICTIONARY" '"status bar", "icon", "popout", "scroll"' \
-        "searching for the status bar finds the Clipboard page"
+    local entry
+    entry="$(grep 'qsTr("Clipboard popout")' "$DICTIONARY")"
+    assert_contains "$entry" '"status bar", "icon", "popout", "scroll"' \
+        "searching for the status bar finds the clipboard popout settings"
+    assert_contains "$entry" 'pagePath: "panels/taskbar/BarStatusIcons.qml"' \
+        "and lands on the Status icons page"
 }
 
 run_tests
