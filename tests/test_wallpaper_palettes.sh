@@ -44,6 +44,7 @@ for ((i = 0; i < ${#args[@]}; i++)); do
         --import-json-string) meta="${args[i + 1]}" ;;
         --dry-run) dry=1 ;;
         image|json) kind="${args[i]}"; source="${args[i + 1]}" ;;
+        color) kind="color"; source="${args[i + 2]}" ;;
     esac
 done
 
@@ -62,6 +63,13 @@ if [[ "$kind" == "image" && -f "$source" ]]; then
         echo "Error:  index $index is out of bounds (0-$((${#seeds[@]} - 1)))" >&2
         exit 1
     fi
+fi
+if [[ "$kind" == "color" ]]; then
+    if [[ -n "${MATUGEN_FAIL_COLOR:-}" ]]; then
+        echo "error: cannot render" >&2
+        exit 1
+    fi
+    seeds=("${source#\#}")
 fi
 seed="${seeds[index]}"
 
@@ -84,7 +92,7 @@ roles = {
     "primary": hexof(hue + turn, sat, 0.85),
     "secondary": hexof(hue + turn + 30 / 360, sat * 0.5, 0.8),
     "tertiary": hexof(hue + turn + 60 / 360, sat * 0.6, 0.8),
-    "surface": "#101417",
+    "primary_container": hexof(hue + turn, sat * 0.4, 0.95),
 }
 print(json.dumps({"colors": {role: {"dark": {"color": c}, "light": {"color": c}} for role, c in roles.items()}}))
 PYEOF
@@ -226,7 +234,7 @@ test_a_card_carries_the_colors_it_shows_without_a_hash() {
     wall="$(wallpaper_with spread.png "$SPREAD")"
     run_color wallpaper -f "$wall"
     run_color scheme palettes
-    assert_eq "['primary', 'secondary', 'surface', 'tertiary']" \
+    assert_eq "['primary', 'primary_container', 'secondary', 'tertiary']" \
         "$(palettes_field 'sorted(d["palettes"][0]["colours"])')" "the roles a card draws"
     assert_eq "True" "$(palettes_field 'all(len(v) == 6 and "#" not in v for c in d["palettes"] for v in c["colours"].values())')" \
         "six hex digits, no hash, like the rest of the shell's colours"
@@ -396,6 +404,142 @@ test_a_failed_render_leaves_a_smaller_row_not_an_error() {
     assert_eq "True" "$(palettes_field 'd["palettes"][0]["source"] == 0 and len(d["palettes"]) <= 5')" "the first color leads"
 }
 
+test_a_custom_color_builds_the_palette_from_the_color_not_the_image() {
+    setup_sandbox
+    local wall
+    wall="$(wallpaper_with spread.png "$SPREAD")"
+    run_color wallpaper -f "$wall"
+    run_color scheme set -n dynamic --seed '#6b5d00' -v tonalspot --no-smart
+    assert_status 0 "$STATUS" "choosing a color works"
+    assert_contains "$(cat "$CALLS")" "color hex #6b5d00" "matugen is given the color"
+    assert_not_contains "$(cat "$CALLS")" "image $wall" "and not the image"
+    assert_contains "$(cat "$CALLS")" "--type scheme-tonal-spot" "in the variant that was asked for"
+    assert_contains "$(cat "$XDG_STATE_HOME/caelestia/wallpaper/source.txt")" "#6b5d00" "it is kept"
+}
+
+test_the_seed_is_normalised_and_kept_for_later_renders() {
+    setup_sandbox
+    local wall
+    wall="$(wallpaper_with spread.png "$SPREAD")"
+    run_color wallpaper -f "$wall"
+    run_color scheme set -n dynamic --seed 6B5D00 --no-smart
+    assert_contains "$(cat "$XDG_STATE_HOME/caelestia/wallpaper/source.txt")" "#6b5d00" "lower case, with a hash"
+    run_color scheme set -n dynamic -m light --no-smart
+    assert_contains "$(cat "$CALLS")" "color hex #6b5d00" "a later render still uses the color"
+}
+
+test_a_custom_color_is_reported_with_its_palette_and_no_card_is_in_effect() {
+    setup_sandbox
+    local wall
+    wall="$(wallpaper_with spread.png "$SPREAD")"
+    run_color wallpaper -f "$wall"
+    run_color scheme palettes
+    assert_eq "False" "$(palettes_field 'd["custom"]["active"]')" "no custom color at first"
+
+    run_color scheme set -n dynamic --seed '#6b5d00' -v tonalspot --no-smart
+    run_color scheme palettes
+    assert_eq "True" "$(palettes_field 'd["custom"]["active"]')" "the custom color is in effect"
+    assert_eq "#6b5d00" "$(palettes_field 'd["custom"]["hex"]')" "and it is the one that was picked"
+    assert_eq "['primary', 'primary_container', 'secondary', 'tertiary']" \
+        "$(palettes_field 'sorted(d["custom"]["colours"])')" "its card shows the same four colors"
+    assert_eq "-1" "$(palettes_field 'd["selected"]')" "so no wallpaper card is checked"
+}
+
+test_a_different_wallpaper_forgets_a_custom_color() {
+    setup_sandbox
+    local first second
+    first="$(wallpaper_with spread.png "$SPREAD")"
+    second="$(wallpaper_with other.png "$SPREAD")"
+    run_color wallpaper -f "$first"
+    run_color scheme set -n dynamic --seed '#6b5d00' --no-smart
+    run_color wallpaper -f "$second"
+    assert_contains "$(cat "$CALLS")" "image $second" "the new wallpaper is read again"
+    assert_not_contains "$(cat "$CALLS")" "color hex" "the picked color is not carried over"
+    run_color scheme palettes
+    assert_eq "False" "$(palettes_field 'd["custom"]["active"]')" "and it is no longer in effect"
+}
+
+test_a_custom_color_that_cannot_be_rendered_falls_back_to_the_wallpaper() {
+    setup_sandbox
+    local wall
+    wall="$(wallpaper_with spread.png "$SPREAD")"
+    run_color wallpaper -f "$wall"
+    printf '#6b5d00\t%s\n' "$wall" > "$XDG_STATE_HOME/caelestia/wallpaper/source.txt"
+
+    MATUGEN_FAIL_COLOR=1 run_color scheme set -n dynamic --no-smart
+    assert_status 0 "$STATUS" "a stored color matugen refuses is not a failed render"
+    assert_contains "$OUTPUT" "could not build a palette from #6b5d00" "the fallback is said once"
+    assert_not_contains "$OUTPUT" "matugen failed" "the failed attempt is not reported as an error"
+    assert_contains "$(cat "$CALLS")" "--source-color-index 0" "the wallpaper's first color is used"
+    assert_file_missing "$XDG_STATE_HOME/caelestia/wallpaper/source.txt"
+}
+
+test_the_seed_is_a_six_digit_color_and_excludes_a_source_number() {
+    setup_sandbox
+    local bad
+    for bad in red 12345 '#12345g' '#1234567'; do
+        run_color scheme set -n dynamic --seed "$bad"
+        assert_ne "0" "$STATUS" "$bad is not a color"
+        assert_contains "$OUTPUT" "--seed needs a color like #6b5d00" "the message shows the form"
+    done
+    run_color scheme set -n dynamic -s 1 --seed '#6b5d00'
+    assert_ne "0" "$STATUS" "two ways to choose the source are refused"
+    assert_contains "$OUTPUT" "give one" "and the message says why"
+}
+
+test_a_preview_with_a_seed_changes_nothing() {
+    setup_sandbox
+    local wall
+    wall="$(wallpaper_with spread.png "$SPREAD")"
+    run_color wallpaper -f "$wall"
+    run_color scheme set -n dynamic --seed '#6b5d00' --no-smart --preview
+    assert_status 0 "$STATUS" "the preview works"
+    assert_contains "$(cat "$CALLS")" "color hex #6b5d00" "it is rendered from the color"
+    assert_file_missing "$XDG_STATE_HOME/caelestia/wallpaper/source.txt"
+}
+
+# The row a real wallpaper gave on the MSI (light mode): the vibrant and rainbow cards share their
+# primary and are 60 apart over the three accents, which put two olive cards side by side when
+# only the largest single gap was compared. Every other pair is more than 120 apart.
+test_two_cards_that_look_alike_are_thinned_to_one() {
+    local dir
+    dir="$(new_tmpdir)"
+    mkdir -p "$dir/raw"
+    cat > "$dir/make.py" <<'MAKE'
+import json, pathlib, sys
+
+renders = {
+    "source-0": ("635e50", "615e57", "5b6056"),
+    "variant-vibrant": ("6f5d00", "636032", "5b6327"),
+    "variant-expressive": ("854a7a", "4c6545", "5b6327"),
+    "variant-fruitsalad": ("974811", "8c4e29", "6e5e0e"),
+    "variant-rainbow": ("6f5d00", "665e40", "43664e"),
+}
+for name, (primary, secondary, tertiary) in renders.items():
+    roles = {"primary": primary, "secondary": secondary, "tertiary": tertiary, "primary_container": primary}
+    doc = {"colors": {role: {m: {"color": "#" + c} for m in ("light", "dark")} for role, c in roles.items()}}
+    pathlib.Path(sys.argv[1], name + ".json").write_text(json.dumps(doc))
+MAKE
+    python3 "$dir/make.py" "$dir/raw"
+    # the python helper is the body of py(); it ends at the PY line, not at the first closing brace
+    eval "$(sed -n '/^py() {/,/^PY$/p' "$COLOR"; echo '}')"
+    py palettes-build "$dir/raw" light content key "$dir/out.json"
+    assert_eq "['content', 'vibrant', 'expressive', 'fruitsalad']" \
+        "$(python3 -c "import json; print([c['variant'] for c in json.load(open('$dir/out.json'))['palettes']])")" \
+        "rainbow is left out, the first of two look-alikes stays"
+}
+
+test_the_cache_is_marked_with_the_shape_of_a_card() {
+    setup_sandbox
+    local wall
+    wall="$(wallpaper_with spread.png "$SPREAD")"
+    run_color wallpaper -f "$wall"
+    run_color scheme palettes
+    assert_eq "True" \
+        "$(python3 -c "import json; print(json.load(open('$XDG_STATE_HOME/caelestia/matugen/wallpaper-palettes.json'))['key'].startswith('2|'))")" \
+        "a cache written before the card changed is not read as this one"
+}
+
 test_the_colors_page_shows_the_palettes_and_applies_one() {
     assert_file_exists "$PALETTES_PAGE"
     assert_file_contains "$PALETTES_PAGE" 'command: ["caelestia", "scheme", "palettes"]' "the page reads the command"
@@ -403,6 +547,10 @@ test_the_colors_page_shows_the_palettes_and_applies_one() {
     assert_file_contains "$PALETTES_PAGE" '"-v", ' "and its variant"
     assert_file_contains "$PALETTES_PAGE" '...Colours.smartArg' "and the user's smart setting"
     assert_file_contains "$PALETTES_PAGE" 'onSchemeApplied' "the row follows the scheme in effect"
+    assert_file_contains "$PALETTES_PAGE" '"--seed", hex, "-v", "tonalspot"' "the Custom card states a variant"
+    assert_file_contains "$PALETTES_PAGE" 'org.kde.kwin.ColorPicker.pick' "and takes its color from KWin's eyedropper"
+    assert_file_contains "$PALETTES_PAGE" 'role: "primary_container"' "the fourth quarter is the tinted container"
+    assert_file_not_contains "$PALETTES_PAGE" 'role: "surface"' "not the near-white surface"
     assert_file_contains "$COLOR_PAGE" 'WallpaperPalettes {' "the Colors page places the row"
     assert_contains "$(grep 'qsTr("Wallpaper palettes")' "$DICTIONARY")" 'wallandstyle/ColourSelect.qml' \
         "searching for it lands on the Colors page"
