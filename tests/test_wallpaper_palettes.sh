@@ -94,6 +94,15 @@ roles = {
     "tertiary": hexof(hue + turn + 60 / 360, sat * 0.6, 0.8),
     "primary_container": hexof(hue + turn, sat * 0.4, 0.95),
 }
+# the rest of the families, each role a different shade so a test can tell them apart
+for number, role in enumerate(["on_primary", "on_primary_container", "primary_fixed", "primary_fixed_dim", "on_primary_fixed", "on_primary_fixed_variant"]):
+    roles[role] = hexof(hue + turn, sat, 0.2 + number * 0.1)
+    roles[role.replace("primary", "secondary")] = hexof(hue + turn + 30 / 360, sat * 0.5, 0.2 + number * 0.1)
+    roles[role.replace("primary", "tertiary")] = hexof(hue + turn + 60 / 360, sat * 0.6, 0.2 + number * 0.1)
+roles["secondary_container"] = hexof(hue + turn + 30 / 360, sat * 0.3, 0.9)
+roles["tertiary_container"] = hexof(hue + turn + 60 / 360, sat * 0.3, 0.9)
+for number, role in enumerate(["background", "on_background", "surface", "surface_dim", "surface_bright", "surface_container_lowest", "surface_container_low", "surface_container", "surface_container_high", "surface_container_highest", "on_surface", "surface_variant", "on_surface_variant", "outline", "outline_variant", "inverse_surface", "inverse_on_surface"]):
+    roles[role] = hexof(hue, 0.08, 0.1 + number * 0.05)
 print(json.dumps({"colors": {role: {"dark": {"color": c}, "light": {"color": c}} for role, c in roles.items()}}))
 PYEOF
     exit 0
@@ -121,6 +130,12 @@ awk '
         "onSurface": "dfe6ed",
         "surface": "0a0f12",
         "primary": "92cef5",
+        "onSecondary": "ffffff",
+        "secondary": "677987",
+        "secondaryContainer": "d0e4f4",
+        "tertiary": "6e759f",
+        "surfaceContainerHigh": "1e2428",
+        "outline": "8a9399",
         "term0": "333a40"
     }
 }
@@ -439,9 +454,9 @@ test_a_custom_color_is_reported_with_its_palette_and_no_card_is_in_effect() {
     run_color scheme set -n dynamic --seed '#6b5d00' -v tonalspot --no-smart
     run_color scheme palettes
     assert_eq "True" "$(palettes_field 'd["custom"]["active"]')" "the custom color is in effect"
-    assert_eq "#6b5d00" "$(palettes_field 'd["custom"]["hex"]')" "and it is the one that was picked"
-    assert_eq "['primary', 'primary_container', 'secondary', 'tertiary']" \
-        "$(palettes_field 'sorted(d["custom"]["colours"])')" "its card shows the same four colors"
+    assert_eq "['neutral', 'primary', 'secondary', 'tertiary']" \
+        "$(palettes_field 'sorted(d["custom"]["colours"])')" "its card shows the four key colors"
+    assert_eq "#6b5d00" "$(palettes_field 'd["custom"]["slots"]["primary"]')" "and the one that was picked is the primary"
     assert_eq "-1" "$(palettes_field 'd["selected"]')" "so no wallpaper card is checked"
 }
 
@@ -468,7 +483,7 @@ test_a_custom_color_that_cannot_be_rendered_falls_back_to_the_wallpaper() {
 
     MATUGEN_FAIL_COLOR=1 run_color scheme set -n dynamic --no-smart
     assert_status 0 "$STATUS" "a stored color matugen refuses is not a failed render"
-    assert_contains "$OUTPUT" "could not build a palette from #6b5d00" "the fallback is said once"
+    assert_contains "$OUTPUT" "could not build a palette from the custom colors" "the fallback is said once"
     assert_not_contains "$OUTPUT" "matugen failed" "the failed attempt is not reported as an error"
     assert_contains "$(cat "$CALLS")" "--source-color-index 0" "the wallpaper's first color is used"
     assert_file_missing "$XDG_STATE_HOME/caelestia/wallpaper/source.txt"
@@ -529,6 +544,175 @@ MAKE
         "rainbow is left out, the first of two look-alikes stays"
 }
 
+# What the stub's dry run says one color is as a primary, a secondary or a surface: the values a
+# slot picked with that color has to end up with. $1 color, $2 matugen role, printed without a hash.
+render_role() {
+    "$STUB_DIR/matugen" color hex "$1" --type scheme-tonal-spot --mode dark --dry-run --json hex \
+        | python3 -c "import json, sys; print(json.load(sys.stdin)['colors']['$2']['dark']['color'].lstrip('#'))"
+}
+
+# A role of the scheme in effect.
+scheme_role() {
+    python3 -c "import json; print(json.load(open('$XDG_STATE_HOME/caelestia/scheme.json'))['colours']['$1'])"
+}
+
+test_a_secondary_color_is_laid_over_the_secondary_roles_only() {
+    setup_sandbox
+    local wall
+    wall="$(wallpaper_with spread.png "$SPREAD")"
+    run_color wallpaper -f "$wall"
+    run_color scheme set -n dynamic --seed '#6b5d00' --secondary '#cc3333' -v tonalspot --no-smart
+    assert_status 0 "$STATUS" "picking two colors works"
+    assert_contains "$(cat "$CALLS")" "color hex #cc3333 --type scheme-tonal-spot" "the secondary is rendered on its own"
+    assert_eq "$(render_role '#cc3333' primary)" "$(scheme_role secondary)" "the secondary is that color's primary"
+    assert_eq "$(render_role '#cc3333' on_primary)" "$(scheme_role onSecondary)" "and so is the text on it"
+    assert_eq "$(render_role '#cc3333' primary_container)" "$(scheme_role secondaryContainer)" "and its container"
+    assert_eq "92cef5" "$(scheme_role primary)" "the primary is what the seed gave"
+    assert_eq "6e759f" "$(scheme_role tertiary)" "and the tertiary is left as the render made it"
+}
+
+test_a_tertiary_and_a_neutral_color_take_their_own_roles() {
+    setup_sandbox
+    local wall
+    wall="$(wallpaper_with spread.png "$SPREAD")"
+    run_color wallpaper -f "$wall"
+    run_color scheme set -n dynamic --seed '#6b5d00' --tertiary '#33cc66' --neutral '#3366cc' -v tonalspot --no-smart
+    assert_status 0 "$STATUS" "picking three colors works"
+    assert_eq "$(render_role '#33cc66' primary)" "$(scheme_role tertiary)" "the tertiary is that color's primary"
+    assert_eq "$(render_role '#3366cc' surface_container_high)" "$(scheme_role surfaceContainerHigh)" \
+        "the neutral tints the surfaces"
+    assert_eq "$(render_role '#3366cc' outline)" "$(scheme_role outline)" "and the outline"
+    assert_eq "677987" "$(scheme_role secondary)" "the secondary is left as the render made it"
+}
+
+test_a_color_picked_before_stays_when_another_is_picked() {
+    setup_sandbox
+    local wall
+    wall="$(wallpaper_with spread.png "$SPREAD")"
+    run_color wallpaper -f "$wall"
+    run_color scheme set -n dynamic --seed '#6b5d00' -v tonalspot --no-smart
+    run_color scheme set -n dynamic --secondary '#cc3333' --no-smart
+    run_color scheme set -n dynamic --tertiary '#33cc66' --no-smart
+    assert_contains "$(cat "$XDG_STATE_HOME/caelestia/wallpaper/source.txt")" "#6b5d00,#cc3333,#33cc66," \
+        "each pick is added to the ones before"
+    run_color scheme set -n dynamic --secondary '#112233' --no-smart
+    assert_contains "$(cat "$XDG_STATE_HOME/caelestia/wallpaper/source.txt")" "#6b5d00,#112233,#33cc66," \
+        "a slot picked again is replaced and the rest stay"
+}
+
+test_a_slot_with_no_primary_is_laid_over_the_wallpapers_first_color() {
+    setup_sandbox
+    local wall
+    wall="$(wallpaper_with spread.png "$SPREAD")"
+    run_color wallpaper -f "$wall"
+    run_color scheme set -n dynamic --secondary '#cc3333' --no-smart
+    assert_status 0 "$STATUS" "a secondary alone works"
+    assert_contains "$(cat "$CALLS")" "image $wall --source-color-index 0" "the base is the wallpaper's first color"
+    assert_contains "$(cat "$XDG_STATE_HOME/caelestia/wallpaper/source.txt")" ",#cc3333,," "and the spec says only the secondary was picked"
+}
+
+test_a_slot_over_a_chosen_wallpaper_color_keeps_that_color_as_the_base() {
+    setup_sandbox
+    local wall
+    wall="$(wallpaper_with spread.png "$SPREAD")"
+    run_color wallpaper -f "$wall"
+    run_color scheme set -n dynamic -s 2 --no-smart
+    run_color scheme set -n dynamic --secondary '#cc3333' --no-smart
+    assert_contains "$(cat "$CALLS")" "image $wall --source-color-index 2" "the third color of the wallpaper is still the base"
+    assert_contains "$(cat "$XDG_STATE_HOME/caelestia/wallpaper/source.txt")" "2,#cc3333,," "and the spec keeps it"
+}
+
+test_the_custom_card_says_which_quarters_were_picked_and_what_they_look_like() {
+    setup_sandbox
+    local wall
+    wall="$(wallpaper_with spread.png "$SPREAD")"
+    run_color wallpaper -f "$wall"
+    run_color scheme set -n dynamic --secondary '#cc3333' --neutral '#3366cc' -v tonalspot --no-smart
+    run_color scheme palettes
+    assert_eq "True" "$(palettes_field 'd["custom"]["active"]')" "the custom palette is in effect"
+    assert_eq "['', '#cc3333', '', '#3366cc']" \
+        "$(palettes_field '[d["custom"]["slots"][k] for k in ("primary", "secondary", "tertiary", "neutral")]')" \
+        "which quarters were picked"
+    assert_eq "$(render_role '#cc3333' primary)" "$(palettes_field 'd["custom"]["colours"]["secondary"]')" \
+        "the secondary quarter is the secondary color as a primary"
+    assert_eq "$(render_role '#3366cc' surface_container_high)" "$(palettes_field 'd["custom"]["colours"]["neutral"]')" \
+        "the neutral quarter is the tinted surface it gives"
+    assert_eq "-1" "$(palettes_field 'd["selected"]')" "and no wallpaper card is in effect"
+}
+
+test_choosing_a_wallpaper_card_clears_every_picked_color() {
+    setup_sandbox
+    local wall
+    wall="$(wallpaper_with spread.png "$SPREAD")"
+    run_color wallpaper -f "$wall"
+    run_color scheme set -n dynamic --seed '#6b5d00' --secondary '#cc3333' --no-smart
+    run_color scheme set -n dynamic -s 1 -v tonalspot --no-smart
+    run_color scheme palettes
+    assert_eq "False" "$(palettes_field 'd["custom"]["active"]')" "no custom palette is in effect"
+    assert_eq "1" "$(palettes_field 'd["palettes"][d["selected"]]["source"]')" "the wallpaper card is"
+    assert_eq "1" "$(cut -f1 "$XDG_STATE_HOME/caelestia/wallpaper/source.txt")" "and the file holds that one choice only"
+}
+
+test_a_picked_color_matugen_refuses_is_left_to_the_primary() {
+    setup_sandbox
+    local wall
+    wall="$(wallpaper_with spread.png "$SPREAD")"
+    run_color wallpaper -f "$wall"
+    MATUGEN_FAIL_COLOR=1 run_color scheme set -n dynamic --secondary '#cc3333' --no-smart
+    assert_status 0 "$STATUS" "one slot that fails does not fail the palette"
+    assert_eq "677987" "$(scheme_role secondary)" "the secondary is what the render made"
+}
+
+test_every_color_option_takes_a_six_digit_color_and_none_goes_with_a_source_number() {
+    setup_sandbox
+    local option
+    for option in --seed --secondary --tertiary --neutral; do
+        run_color scheme set -n dynamic "$option" nope
+        assert_ne "0" "$STATUS" "$option nope is refused"
+        assert_contains "$OUTPUT" "$option needs a color like #6b5d00" "the message names the option"
+    done
+    run_color scheme set -n dynamic -s 1 --neutral '#6b5d00'
+    assert_ne "0" "$STATUS" "a source number and a picked color are two ways to choose"
+    assert_contains "$OUTPUT" "give one" "the message says why"
+}
+
+test_a_preview_with_picked_colors_changes_nothing_on_disk() {
+    setup_sandbox
+    local wall
+    wall="$(wallpaper_with spread.png "$SPREAD")"
+    run_color wallpaper -f "$wall"
+    run_color scheme set -n dynamic --secondary '#cc3333' --no-smart --preview
+    assert_status 0 "$STATUS" "the preview works"
+    assert_contains "$(cat "$CALLS")" "color hex #cc3333" "the picked color is rendered"
+    assert_file_missing "$XDG_STATE_HOME/caelestia/wallpaper/source.txt"
+}
+
+# The helper that lays the colors over a scheme, run on its own: it adds nothing the scheme did not
+# have, and leaves alone a slot that has no render.
+test_composing_changes_only_the_roles_a_scheme_has() {
+    local dir
+    dir="$(new_tmpdir)"
+    mkdir -p "$dir/raw"
+    cat > "$dir/make.py" <<'MAKE'
+import json, pathlib, sys
+
+folder = pathlib.Path(sys.argv[1])
+roles = {"primary": "aa0000", "on_primary": "bb0000", "primary_container": "cc0000", "surface": "dd0000"}
+doc = {"colors": {role: {m: {"color": "#" + c} for m in ("light", "dark")} for role, c in roles.items()}}
+(folder / "secondary.json").write_text(json.dumps(doc))
+(folder / "raw" / "neutral.json").parent.mkdir(exist_ok=True)
+(folder / "raw" / "neutral.json").write_text(json.dumps({"colors": {"surface": {"dark": {"color": "#ee0000"}}}}))
+(folder / "raw" / "secondary.json").write_text(json.dumps(doc))
+(folder / "scheme.json").write_text(json.dumps({"mode": "dark", "colours": {"secondary": "111111", "onSecondary": "222222", "primary": "333333", "surface": "444444"}}))
+MAKE
+    python3 "$dir/make.py" "$dir"
+    eval "$(sed -n '/^py() {/,/^PY$/p' "$COLOR"; echo '}')"
+    py compose-custom "$dir/scheme.json" "$dir/raw"
+    assert_eq "{'secondary': 'aa0000', 'onSecondary': 'bb0000', 'primary': '333333', 'surface': 'ee0000'}" \
+        "$(python3 -c "import json; print(json.load(open('$dir/scheme.json'))['colours'])")" \
+        "the secondary roles the scheme has take the color's primary roles, the neutral its surface, nothing is added"
+}
+
 test_the_cache_is_marked_with_the_shape_of_a_card() {
     setup_sandbox
     local wall
@@ -547,10 +731,13 @@ test_the_colors_page_shows_the_palettes_and_applies_one() {
     assert_file_contains "$PALETTES_PAGE" '"-v", ' "and its variant"
     assert_file_contains "$PALETTES_PAGE" '...Colours.smartArg' "and the user's smart setting"
     assert_file_contains "$PALETTES_PAGE" 'onSchemeApplied' "the row follows the scheme in effect"
-    assert_file_contains "$PALETTES_PAGE" '"--seed", hex, "-v", "tonalspot"' "the Custom card states a variant"
+    assert_file_contains "$PALETTES_PAGE" 'option, hex, "-v", "tonalspot"' "the Custom card states a variant"
+    assert_file_contains "$PALETTES_PAGE" 'const option = slot === "primary" ? "--seed" : `--${slot}`;' "and picks one slot at a time"
+    assert_file_contains "$PALETTES_PAGE" 'roles: ["primary", "secondary", "tertiary", "neutral"]' "the Custom card has the four key colors"
     assert_file_contains "$PALETTES_PAGE" 'org.kde.kwin.ColorPicker.pick' "and takes its color from KWin's eyedropper"
-    assert_file_contains "$PALETTES_PAGE" 'role: "primary_container"' "the fourth quarter is the tinted container"
-    assert_file_not_contains "$PALETTES_PAGE" 'role: "surface"' "not the near-white surface"
+    assert_file_contains "$PALETTES_PAGE" 'property var roles: ["primary", "secondary", "tertiary", "primary_container"]' \
+        "a wallpaper card's fourth quarter is the tinted container"
+    assert_file_not_contains "$PALETTES_PAGE" '"surface"]' "not the near-white surface"
     assert_file_contains "$COLOR_PAGE" 'WallpaperPalettes {' "the Colors page places the row"
     assert_contains "$(grep 'qsTr("Wallpaper palettes")' "$DICTIONARY")" 'wallandstyle/ColourSelect.qml' \
         "searching for it lands on the Colors page"

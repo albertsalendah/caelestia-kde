@@ -12,10 +12,12 @@ ColumnLayout {
     id: root
 
     // What `caelestia scheme palettes` printed: the cards, the position of the one in effect (-1
-    // when none of them is, for a variant that has no card), and the Custom card's palette.
+    // when none of them is, for a variant that has no card), and the Custom card's palette: the four
+    // colors it shows, and the slots, which hold a #color for each quarter that was picked.
     property var palettes: []
     property int selected: -1
-    property var custom: ({ active: false, hex: "", colours: ({}) })
+    property var custom: ({ active: false, slots: ({}), colours: ({}) })
+    property string pendingSlot: "primary"
     property bool loading: false
     // Asked again while a run was going: run once more when it ends.
     property bool stale: false
@@ -36,11 +38,11 @@ ColumnLayout {
             const data = JSON.parse(json);
             root.palettes = data.palettes ?? [];
             root.selected = data.selected ?? -1;
-            root.custom = data.custom ?? ({ active: false, hex: "", colours: ({}) });
+            root.custom = data.custom ?? ({ active: false, slots: ({}), colours: ({}) });
         } catch (e) {
             root.palettes = [];
             root.selected = -1;
-            root.custom = ({ active: false, hex: "", colours: ({}) });
+            root.custom = ({ active: false, slots: ({}), colours: ({}) });
         }
     }
 
@@ -50,15 +52,20 @@ ColumnLayout {
         Quickshell.execDetached(["caelestia", "scheme", "set", "-n", "dynamic", "-s", String(entry.source), "-v", entry.variant, ...Colours.smartArg]);
     }
 
-    // The Custom card builds the palette from a color picked on the screen. The variant is stated:
-    // the wallpaper's own choice can be a grey one, which would take the color out of it.
-    function applyCustom(hex: string): void {
-        Quickshell.execDetached(["caelestia", "scheme", "set", "-n", "dynamic", "--seed", hex, "-v", "tonalspot", ...Colours.smartArg]);
+    // The Custom card is four key colors, a quarter each, and a click on a quarter picks that one on
+    // the screen. The others stay as they were: derived from the primary, or picked before. The
+    // variant is stated: the wallpaper's own choice can be a grey one, which would take the color
+    // out of what was picked.
+    function applyCustom(slot: string, hex: string): void {
+        const option = slot === "primary" ? "--seed" : `--${slot}`;
+        Quickshell.execDetached(["caelestia", "scheme", "set", "-n", "dynamic", option, hex, "-v", "tonalspot", ...Colours.smartArg]);
     }
 
-    function pickCustom(): void {
-        if (!eyedropper.running)
-            eyedropper.running = true;
+    function pickCustom(slot: string): void {
+        if (eyedropper.running)
+            return;
+        root.pendingSlot = slot;
+        eyedropper.running = true;
     }
 
     Layout.fillWidth: true
@@ -73,7 +80,7 @@ ColumnLayout {
 
     StyledText {
         Layout.fillWidth: true
-        text: root.palettes.length > 0 ? qsTr("Colors found in your wallpaper, then variants of the first. The last card builds a palette from any color you pick on the screen.") : root.loading ? qsTr("Reading the wallpaper...") : qsTr("No colors could be read from the wallpaper.")
+        text: root.palettes.length > 0 ? qsTr("Colors found in your wallpaper, then variants of the first. On the last card, click a quarter to pick its color on the screen: primary, secondary, tertiary and the neutral that tints the background.") : root.loading ? qsTr("Reading the wallpaper...") : qsTr("No colors could be read from the wallpaper.")
         font: Tokens.font.body.medium
         color: Colours.palette.m3onSurfaceVariant
         wrapMode: Text.Wrap
@@ -122,7 +129,7 @@ ColumnLayout {
                 const match = text.match(/uint32\s+(\d+)/);
                 const value = match ? parseInt(match[1]) & 0xFFFFFF : 0;
                 if (value !== 0)
-                    root.applyCustom(`#${value.toString(16).padStart(6, "0")}`);
+                    root.applyCustom(root.pendingSlot, `#${value.toString(16).padStart(6, "0")}`);
             }
         }
     }
@@ -145,29 +152,39 @@ ColumnLayout {
         target: Wallpapers
     }
 
-    // One circle in four quarters: three accents and the tinted container of the first, like the
-    // palette circles of a phone's wallpaper settings. A quarter is a clipped view of the whole circle.
+    // One circle in four quarters, like the palette circles of a phone's wallpaper settings: for a
+    // wallpaper card the three accents and the tinted container of the first, for the Custom card
+    // the four key colors. A quarter is a clipped view of the whole circle.
     component Dial: Item {
         id: dial
 
         required property var colours
+        property var roles: ["primary", "secondary", "tertiary", "primary_container"]
+        // The Custom card: a quarter takes a click, and says whether its color was picked.
+        property bool interactive: false
+        property var picked: [false, false, false, false]
+        // Nothing to show yet: the quarters are empty, with an eyedropper to say what they do.
+        property bool empty: false
         property bool checked: false
+
+        signal quarterClicked(int position)
 
         width: root.dialSize
         height: width
 
         Repeater {
             model: [
-                { role: "primary", column: 0, row: 0 },
-                { role: "secondary", column: 1, row: 0 },
-                { role: "tertiary", column: 0, row: 1 },
-                { role: "primary_container", column: 1, row: 1 }
+                { column: 0, row: 0 },
+                { column: 1, row: 0 },
+                { column: 0, row: 1 },
+                { column: 1, row: 1 }
             ]
 
             Item {
                 id: quarter
 
                 required property var modelData
+                required property int index
 
                 x: modelData.column * dial.width / 2
                 y: modelData.row * dial.height / 2
@@ -181,7 +198,34 @@ ColumnLayout {
                     width: dial.width
                     height: dial.height
                     radius: Tokens.rounding.full
-                    color: `#${dial.colours[quarter.modelData.role] ?? "000000"}`
+                    color: dial.empty ? Colours.palette.m3surfaceContainerHighest : `#${dial.colours[dial.roles[quarter.index]] ?? "000000"}`
+                }
+
+                MaterialIcon {
+                    anchors.centerIn: parent
+                    visible: dial.empty
+                    text: "colorize"
+                    color: Colours.palette.m3onSurfaceVariant
+                    fontStyle: Tokens.font.icon.small
+                }
+
+                // A color that was picked, as against one the primary gave.
+                StyledRect {
+                    anchors.centerIn: parent
+                    visible: dial.picked[quarter.index] ?? false
+                    width: Tokens.sizes.launcher.itemHeight * 0.2
+                    height: width
+                    radius: Tokens.rounding.full
+                    color: Colours.palette.m3surface
+                    border.width: 2
+                    border.color: Colours.palette.m3onSurface
+                }
+
+                MouseArea {
+                    anchors.fill: parent
+                    enabled: dial.interactive
+                    cursorShape: dial.interactive ? Qt.PointingHandCursor : Qt.ArrowCursor
+                    onClicked: dial.quarterClicked(quarter.index)
                 }
             }
         }
@@ -245,8 +289,8 @@ ColumnLayout {
         }
     }
 
-    // Empty until a color is picked: an eyedropper in a plain circle. Picked, it shows the palette
-    // that color gave, and a click picks another.
+    // Empty until a color is picked, with an eyedropper in every quarter. Then it shows the palette the
+    // picked colors gave, a dot marks a quarter that was picked, and a click on a quarter picks again.
     component CustomCard: CardFrame {
         id: customCard
 
@@ -254,32 +298,17 @@ ColumnLayout {
 
         StateLayer {
             radius: parent.radius
-            onClicked: root.pickCustom()
         }
 
         Dial {
             anchors.centerIn: parent
-            visible: root.custom.active
             colours: root.custom.colours ?? ({})
+            roles: ["primary", "secondary", "tertiary", "neutral"]
+            interactive: true
+            empty: !root.custom.active
             checked: customCard.isSelected
-        }
-
-        StyledRect {
-            anchors.centerIn: parent
-            visible: !root.custom.active
-            width: root.dialSize
-            height: width
-            radius: Tokens.rounding.full
-            color: Colours.palette.m3surfaceContainerHighest
-            border.width: 1
-            border.color: Qt.alpha(Colours.palette.m3outline, 0.5)
-
-            MaterialIcon {
-                anchors.centerIn: parent
-                text: "colorize"
-                color: Colours.palette.m3onSurfaceVariant
-                fontStyle: Tokens.font.icon.large
-            }
+            picked: ["primary", "secondary", "tertiary", "neutral"].map(slot => (root.custom.slots?.[slot] ?? "").startsWith("#"))
+            onQuarterClicked: position => root.pickCustom(["primary", "secondary", "tertiary", "neutral"][position])
         }
     }
 }
