@@ -6,7 +6,9 @@ import Quickshell
 import Quickshell.Io
 import Caelestia.Config
 import qs.components
+import qs.components.controls
 import qs.services
+import "../../../../utils/scripts/hexcolor.js" as HexColor
 
 ColumnLayout {
     id: root
@@ -18,6 +20,8 @@ ColumnLayout {
     property int selected: -1
     property var custom: ({ active: false, slots: ({}), colours: ({}) })
     property string pendingSlot: "primary"
+    // The slot whose color is being typed, "" when no editor is open.
+    property string editing: ""
     property bool loading: false
     // Asked again while a run was going: run once more when it ends.
     property bool stale: false
@@ -61,6 +65,49 @@ ColumnLayout {
         Quickshell.execDetached(["caelestia", "scheme", "set", "-n", "dynamic", option, hex, "-v", "tonalspot", ...Colours.smartArg]);
     }
 
+    function slotLabel(slot: string): string {
+        switch (slot) {
+        case "primary":
+            return qsTr("Primary");
+        case "secondary":
+            return qsTr("Secondary");
+        case "tertiary":
+            return qsTr("Tertiary");
+        default:
+            return qsTr("Neutral");
+        }
+    }
+
+    function slotHint(slot: string): string {
+        switch (slot) {
+        case "primary":
+            return qsTr("The main color. The rest of the palette is built from it unless you pick them too.");
+        case "secondary":
+            return qsTr("The quieter accent, for containers and secondary buttons.");
+        case "tertiary":
+            return qsTr("The contrasting accent.");
+        default:
+            return qsTr("Tints the background and the surfaces. A muted color works best.");
+        }
+    }
+
+    // Opens the editor on a slot, with the color it has now: the one that was picked, or the one it
+    // shows because the primary gave it.
+    function startEdit(slot: string): void {
+        const picked = root.custom.slots?.[slot] ?? "";
+        const shown = root.custom.colours?.[slot] ?? "";
+        hexField.text = picked.startsWith("#") ? picked : shown ? `#${shown}` : "";
+        root.editing = slot;
+    }
+
+    function commitEdit(): void {
+        const hex = HexColor.normalise(hexField.text);
+        if (root.editing === "" || hex === "")
+            return;
+        root.applyCustom(root.editing, hex);
+        root.editing = "";
+    }
+
     function pickCustom(slot: string): void {
         if (eyedropper.running)
             return;
@@ -80,7 +127,7 @@ ColumnLayout {
 
     StyledText {
         Layout.fillWidth: true
-        text: root.palettes.length > 0 ? qsTr("Colors found in your wallpaper, then variants of the first. On the last card, click a quarter to pick its color on the screen: primary, secondary, tertiary and the neutral that tints the background.") : root.loading ? qsTr("Reading the wallpaper...") : qsTr("No colors could be read from the wallpaper.")
+        text: root.palettes.length > 0 ? qsTr("Colors found in your wallpaper, then variants of the first. On the last card, click a quarter to type a hex color for it: primary, secondary, tertiary and the neutral that tints the background.") : root.loading ? qsTr("Reading the wallpaper...") : qsTr("No colors could be read from the wallpaper.")
         font: Tokens.font.body.medium
         color: Colours.palette.m3onSurfaceVariant
         wrapMode: Text.Wrap
@@ -100,6 +147,87 @@ ColumnLayout {
         }
 
         CustomCard {}
+    }
+
+    // The color of the quarter that was clicked, typed as hex or taken from the screen.
+    StyledRect {
+        Layout.fillWidth: true
+        visible: root.editing !== ""
+        implicitHeight: editor.implicitHeight + Tokens.padding.large * 2
+        radius: Tokens.rounding.large
+        color: Colours.tPalette.m3surfaceContainer
+
+        ColumnLayout {
+            id: editor
+
+            anchors.fill: parent
+            anchors.margins: Tokens.padding.large
+            spacing: Tokens.spacing.medium
+
+            StyledText {
+                text: qsTr("%1 color").arg(root.slotLabel(root.editing))
+                font: Tokens.font.title.small
+            }
+
+            StyledText {
+                Layout.fillWidth: true
+                text: root.slotHint(root.editing)
+                font: Tokens.font.body.small
+                color: Colours.palette.m3onSurfaceVariant
+                wrapMode: Text.Wrap
+            }
+
+            RowLayout {
+                Layout.fillWidth: true
+                spacing: Tokens.spacing.medium
+
+                StyledRect {
+                    implicitWidth: hexField.implicitHeight * 0.7
+                    implicitHeight: implicitWidth
+                    radius: Tokens.rounding.full
+                    color: HexColor.normalise(hexField.text) || Colours.palette.m3surfaceContainerHighest
+                    border.width: 1
+                    border.color: Qt.alpha(Colours.palette.m3outline, 0.5)
+                }
+
+                StyledTextField {
+                    id: hexField
+
+                    Layout.fillWidth: true
+                    placeholderText: qsTr("#6b5d00")
+                    leadingIcon: "tag"
+                    errorText: qsTr("Enter a hex color like #6b5d00 or #6b0")
+                    inputMethodHints: Qt.ImhNoPredictiveText
+                    validate: text => HexColor.normalise(text) !== ""
+                    onAccepted: root.commitEdit()
+                    Keys.onEscapePressed: root.editing = ""
+                }
+
+                IconButton {
+                    icon: "colorize"
+                    type: IconButton.Tonal
+                    onClicked: root.pickCustom(root.editing)
+                }
+            }
+
+            RowLayout {
+                Layout.alignment: Qt.AlignRight
+                spacing: Tokens.spacing.medium
+
+                TextButton {
+                    text: qsTr("Cancel")
+                    type: TextButton.Text
+                    onClicked: root.editing = ""
+                }
+
+                TextButton {
+                    text: qsTr("Apply")
+                    type: TextButton.Filled
+                    disabled: HexColor.normalise(hexField.text) === ""
+                    onClicked: root.commitEdit()
+                }
+            }
+        }
     }
 
     Process {
@@ -128,8 +256,10 @@ ColumnLayout {
             onStreamFinished: {
                 const match = text.match(/uint32\s+(\d+)/);
                 const value = match ? parseInt(match[1]) & 0xFFFFFF : 0;
-                if (value !== 0)
+                if (value !== 0) {
                     root.applyCustom(root.pendingSlot, `#${value.toString(16).padStart(6, "0")}`);
+                    root.editing = "";
+                }
             }
         }
     }
@@ -308,7 +438,7 @@ ColumnLayout {
             empty: !root.custom.active
             checked: customCard.isSelected
             picked: ["primary", "secondary", "tertiary", "neutral"].map(slot => (root.custom.slots?.[slot] ?? "").startsWith("#"))
-            onQuarterClicked: position => root.pickCustom(["primary", "secondary", "tertiary", "neutral"][position])
+            onQuarterClicked: position => root.startEdit(["primary", "secondary", "tertiary", "neutral"][position])
         }
     }
 }

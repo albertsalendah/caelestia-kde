@@ -9,6 +9,7 @@ COLOR="$REPO_ROOT/src/bin/caelestia-color"
 COLOR_PAGE="$REPO_ROOT/shell/modules/nexus/pages/wallandstyle/ColourSelect.qml"
 PALETTES_PAGE="$REPO_ROOT/shell/modules/nexus/pages/wallandstyle/WallpaperPalettes.qml"
 DICTIONARY="$REPO_ROOT/shell/modules/nexus/PageDictionary.qml"
+HEXCOLOR="$REPO_ROOT/shell/utils/scripts/hexcolor.js"
 
 SANDBOX=""
 STUB_DIR=""
@@ -711,6 +712,33 @@ MAKE
     assert_eq "{'secondary': 'aa0000', 'onSecondary': 'bb0000', 'primary': '333333', 'surface': 'ee0000'}" \
         "$(python3 -c "import json; print(json.load(open('$dir/scheme.json'))['colours'])")" \
         "the secondary roles the scheme has take the color's primary roles, the neutral its surface, nothing is added"
+}
+
+test_a_hex_color_is_read_the_way_it_is_typed() {
+    command -v node >/dev/null 2>&1 || { skip_test "node is not installed"; return 0; }
+    local out
+    out="$(node -e '
+const fs = require("fs");
+const src = fs.readFileSync(process.argv[1], "utf8").replace(/^\.pragma library\n/, "");
+const H = new Function(src + "; return {normalise};")();
+console.log(JSON.stringify(["6B5D00", "#6b5d00", "#abc", " #ABC ", "12345", "#12345g", "", "#1234567", "abcd", "#", null, undefined, "#6b5d00 ", "6b5d0", "#ABCDEF"].map(H.normalise)));
+' "$HEXCOLOR")"
+    assert_eq '["#6b5d00","#6b5d00","#aabbcc","#aabbcc","","","","","","","","","#6b5d00","","#abcdef"]' "$out" \
+        "with or without the hash, any case, three digits widened, anything else is not a color"
+}
+
+test_a_quarter_opens_a_hex_editor_that_applies_what_was_typed() {
+    assert_file_exists "$HEXCOLOR"
+    assert_file_exists "$(dirname "$PALETTES_PAGE")/../../../../utils/scripts/hexcolor.js" "the page's import path reaches the helper"
+    assert_file_contains "$PALETTES_PAGE" 'onQuarterClicked: position => root.startEdit(' "a click opens the editor, it does not pick on its own"
+    assert_file_contains "$PALETTES_PAGE" 'import "../../../../utils/scripts/hexcolor.js" as HexColor' "the page reads hex with the helper"
+    assert_file_contains "$PALETTES_PAGE" 'validate: text => HexColor.normalise(text) !== ""' "the field is valid for what the helper accepts"
+    assert_file_contains "$PALETTES_PAGE" 'root.applyCustom(root.editing, hex);' "Apply sets the color of the slot being edited"
+    assert_file_contains "$PALETTES_PAGE" 'onAccepted: root.commitEdit()' "Enter applies"
+    assert_file_contains "$PALETTES_PAGE" 'disabled: HexColor.normalise(hexField.text) === ""' "Apply waits for a color"
+    assert_file_contains "$PALETTES_PAGE" 'onClicked: root.pickCustom(root.editing)' "the eyedropper stays, in the editor"
+    assert_file_contains "$PALETTES_PAGE" 'picked.startsWith("#") ? picked : shown ? `#${shown}` : ""' \
+        "the field starts with the color the slot has"
 }
 
 test_the_cache_is_marked_with_the_shape_of_a_card() {
