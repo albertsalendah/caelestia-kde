@@ -34,12 +34,12 @@ function parseGroup(text, group) {
     return result;
 }
 
-// A missing key means the default: the login splash is off until the user turns it on.
+// A missing key means the default: the login splash is on until the user turns it off.
 function settingsFrom(text) {
     var login = parseGroup(text, GROUP);
     var seconds = parseInt(login.MinSeconds, 10);
     return {
-        enabled: login.Enabled === "true",
+        enabled: login.Enabled === undefined ? true : login.Enabled === "true",
         minSeconds: isNaN(seconds) ? DEFAULT_MIN_SECONDS : Math.min(MAX_MIN_SECONDS, Math.max(0, seconds)),
         showLogo: login.ShowLogo === undefined ? true : login.ShowLogo === "true",
         // The Plasma splash theme the login shows (its look-and-feel id); "" is the Caelestia design.

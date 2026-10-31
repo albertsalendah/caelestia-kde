@@ -187,7 +187,8 @@ Open Nexus (`Super`, then `>Settings`).
   section also sets the charge at or below which its profile is used (10% by default; "Whenever
   unplugged" shows that profile at any charge). It writes `~/.config/powerdevilrc` and asks
   `powerdevil` to reload it
-- Splash: a login splash (Caelestia's own, with or without the logo, or a Plasma splash theme; a
+- Splash: a login splash, on by default (Caelestia's own, in the colors of your scheme, light or dark,
+  with or without the logo, or a Plasma splash theme; a
   minimum time and a preview) and the boot splash, where you list the Plymouth themes, preview one and
   apply it, which rebuilds the boot image and asks for your password (take a Snapper snapshot first)
 - Clipboard (under Utilities): how many entries the history keeps, whether clearing it asks first, and a

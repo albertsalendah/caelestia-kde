@@ -27,20 +27,20 @@ const L = new Function(src + "; return {parseGroup, settingsFrom, minChoices, wr
 
 # --- the logic -------------------------------------------------------------------------------------
 
-test_a_missing_file_means_the_splash_is_off_with_two_seconds_and_the_logo() {
+test_a_missing_file_means_the_splash_is_on_with_two_seconds_and_the_logo() {
     local out
     out="$(js 'console.log(JSON.stringify(L.settingsFrom(""))); console.log(JSON.stringify(L.settingsFrom(undefined)));')" || return 0
-    assert_eq '{"enabled":false,"minSeconds":2,"showLogo":true,"plasmaTheme":""}
-{"enabled":false,"minSeconds":2,"showLogo":true,"plasmaTheme":""}' "$out" "the splash is opt-in; the defaults must match the session program's kreadconfig6 defaults"
+    assert_eq '{"enabled":true,"minSeconds":2,"showLogo":true,"plasmaTheme":""}
+{"enabled":true,"minSeconds":2,"showLogo":true,"plasmaTheme":""}' "$out" "the splash is on unless it is turned off; the defaults must match the session program's kreadconfig6 defaults"
 }
 
 test_the_login_group_is_read_and_other_groups_are_ignored() {
     local out
     out="$(js 'const t = "[General]\nEnabled=true\nMinSeconds=9\n\n[Login]\nEnabled=true\nMinSeconds=5\nShowLogo=false\n\n[Other]\nShowLogo=true\n";
 console.log(JSON.stringify(L.settingsFrom(t)));
-console.log(JSON.stringify(L.settingsFrom("[General]\nEnabled=true\n")));')" || return 0
+console.log(JSON.stringify(L.settingsFrom("[General]\nEnabled=true\n[Other]\nEnabled=false\n")));')" || return 0
     assert_eq '{"enabled":true,"minSeconds":5,"showLogo":false,"plasmaTheme":""}
-{"enabled":false,"minSeconds":2,"showLogo":true,"plasmaTheme":""}' "$out" "only [Login] counts; the same key in another group must not leak in"
+{"enabled":true,"minSeconds":2,"showLogo":true,"plasmaTheme":""}' "$out" "only [Login] counts; the same key in another group must not leak in"
 }
 
 test_the_minimum_time_is_clamped_and_junk_falls_back() {
@@ -155,13 +155,13 @@ HARNESS
     RESULT_TMP="$tmp"
 }
 
-test_the_session_program_starts_no_splash_unless_it_is_turned_on() {
+test_the_session_program_starts_the_splash_unless_it_is_turned_off() {
     run_start_splash "" yes
-    assert_eq "NOT-STARTED" "$RESULT_OUT" "no settings file: off"
+    assert_contains "$RESULT_OUT" "min=2 logo=1" "no settings file: on, with the defaults"
     run_start_splash $'[Login]\nEnabled=false\n' yes
     assert_eq "NOT-STARTED" "$RESULT_OUT" "Enabled=false: off"
     run_start_splash $'[Login]\nMinSeconds=4\n' yes
-    assert_eq "NOT-STARTED" "$RESULT_OUT" "settings without Enabled: still off"
+    assert_contains "$RESULT_OUT" "min=4 logo=1" "settings without Enabled: still on"
 }
 
 test_the_session_program_passes_the_settings_and_the_display_to_the_splash() {
@@ -313,8 +313,8 @@ test_the_login_theme_is_read_from_the_settings_file() {
     local out
     out="$(js 'console.log(JSON.stringify(L.settingsFrom("[Login]\nPlasmaTheme=org.kde.breeze.desktop\n")));
 console.log(JSON.stringify(L.settingsFrom("[Login]\nTheme=cachyos\nThemeSpec={}\n")));')" || return 0
-    assert_eq '{"enabled":false,"minSeconds":2,"showLogo":true,"plasmaTheme":"org.kde.breeze.desktop"}
-{"enabled":false,"minSeconds":2,"showLogo":true,"plasmaTheme":""}' "$out" "PlasmaTheme is the key; the Plymouth keys of the first version are ignored"
+    assert_eq '{"enabled":true,"minSeconds":2,"showLogo":true,"plasmaTheme":"org.kde.breeze.desktop"}
+{"enabled":true,"minSeconds":2,"showLogo":true,"plasmaTheme":""}' "$out" "PlasmaTheme is the key; the Plymouth keys of the first version are ignored"
 }
 
 # --- the login splash's Plasma themes: surveyed for real ---------------------------------------------
@@ -471,17 +471,87 @@ test_the_splash_is_standalone_covers_every_screen_and_always_ends() {
     assert_contains "$qml" '(stage.width - width) * root.theme.x' "an image is placed the way Plymouth places it"
 }
 
-test_the_splash_logo_is_a_file_next_to_the_splash_and_is_visible_on_a_dark_background() {
-    local qml dir
-    qml="$(cat "$SPLASH_QML")"
+test_the_splash_logo_is_drawn_from_the_paths_of_logo_svg_in_the_users_colors() {
+    local dir check
     dir="$(dirname "$SPLASH_QML")"
-    # Quickshell turns a path that leaves the config folder (here modules/splash) into
-    # qrc:/qs-blackhole, which is how the first version lost its logo on the Asus.
-    assert_contains "$qml" 'source: Qt.resolvedUrl("logo.svg")' "the logo is named relative to the splash file, inside its folder"
-    assert_not_contains "$(grep -n 'resolvedUrl' "$SPLASH_QML")" '..' "no path may climb out of the splash's folder"
-    assert_file_exists "$dir/logo.svg" "the logo copy"
+    check="$(new_tmpdir)/check.py"
+    assert_file_exists "$dir/logo.svg" "the logo the paths come from"
+    assert_not_contains "$(cat "$SPLASH_QML")" 'resolvedUrl("logo.svg")' "the logo is no longer a picture in fixed colors"
+    assert_eq "5" "$(grep -c 'fillRule: ShapePath.WindingFill' "$SPLASH_QML")" "five paths, filled the way an SVG fills"
+    assert_eq "4" "$(grep -c 'fillColor: root.accent' "$SPLASH_QML")" "the crescent and the three stars take the accent"
+    assert_eq "1" "$(grep -c 'fillColor: root.ink' "$SPLASH_QML")" "the swoosh takes the text color"
+    cat > "$check" <<'CHECK'
+import re
+import sys
+
+svg = open(sys.argv[1]).read()
+qml = open(sys.argv[2]).read()
+paths = re.findall(r'<path\s+class="[^"]*"\s+d="([^"]+)"', svg)
+assert len(paths) == 5, len(paths)
+for d in paths:
+    assert f'path: "{d}"' in qml, "a path of logo.svg is not in the splash: " + d[:40]
+matrix = re.search(r"matrix\(([0-9.e+-]+),0,0,([0-9.e+-]+),([0-9.e+-]+),([0-9.e+-]+)\)", svg).groups()
+scale = float(re.search(r"xScale: ([0-9.e+-]+)", qml).group(1))
+shift = float(re.search(r"Translate \{\s+y: ([0-9.e+-]+)", qml).group(1))
+# the 128 by 128 box of the logo is shown at 96 by 96
+assert abs(scale - float(matrix[0]) * 96 / 128) < 1e-9, scale
+assert abs(shift - float(matrix[3]) * 96 / 128) < 1e-9, shift
+print("ok")
+CHECK
+    assert_eq "ok" "$(python3 "$check" "$dir/logo.svg" "$SPLASH_QML" 2>&1 | tail -1)" \
+        "every path, and the scale and shift of the group, are those of logo.svg"
     assert_not_contains "$(cat "$dir/logo.svg")" "fill:#010203" "the original's near-black fill vanishes on a dark background"
     assert_not_contains "$(cat "$dir/logo.svg")" "fill:#7b7c7d" "the original's dim grey is hard to see on a dark background"
+}
+
+test_the_splash_follows_the_scheme_in_a_light_one_too() {
+    command -v node >/dev/null 2>&1 || { skip_test "node is not installed"; return 0; }
+    local out
+    out="$(node -e '
+const fs = require("fs");
+const src = fs.readFileSync(process.argv[1], "utf8");
+const grab = name => {
+    const start = src.indexOf("function " + name);
+    const open = src.indexOf("{", start);
+    let depth = 0;
+    for (let i = open; i < src.length; i++) {
+        if (src[i] === "{") depth++;
+        if (src[i] === "}" && --depth === 0)
+            return src.slice(start, i + 1).replace(/\(([^)]*)\): \w+ \{/, (m, args) => "(" + args.replace(/: \w+/g, "") + ") {");
+    }
+};
+const make = () => {
+    const root = { background: "#12131a", accent: "#b8c3ff", ink: "#e6e6ee" };
+    const loadScheme = new Function("root", grab("hex") + "\n" + grab("loadScheme") + "\nreturn loadScheme;")(root);
+    return [root, loadScheme];
+};
+const colours = { surface: "fef7ff", primary: "6750a4", onSurface: "1d1b20" };
+const results = [];
+let [root, load] = make();
+load(JSON.stringify({ mode: "light", colours }));
+results.push([root.background, root.accent, root.ink]);
+[root, load] = make();
+load(JSON.stringify({ mode: "dark", colours: { surface: "#101010", primary: "#ff0000", onSurface: "#eeeeee" } }));
+results.push([root.background, root.accent, root.ink]);
+[root, load] = make();
+load("{not json");
+load(JSON.stringify({ mode: "light" }));
+load(JSON.stringify({ mode: "light", colours: { surface: "fef7ff" } }));
+results.push([root.background, root.accent, root.ink]);
+console.log(JSON.stringify(results));
+' "$SPLASH_QML")"
+    assert_eq '[["#fef7ff","#6750a4","#1d1b20"],["#101010","#ff0000","#eeeeee"],["#fef7ff","#b8c3ff","#e6e6ee"]]' "$out" \
+        "a light scheme is read like a dark one; a file that is broken or has no colors keeps the defaults, a color it lacks too"
+}
+
+test_nothing_is_drawn_before_the_scheme_has_been_read() {
+    local qml
+    qml="$(cat "$SPLASH_QML")"
+    assert_not_contains "$qml" 'scheme.mode === "light"' "a light scheme is not skipped"
+    assert_contains "$qml" 'opacity: root.closing || !root.schemeReady ? 0 : 1' "the cover appears when the colors are known"
+    assert_contains "$qml" 'onLoadFailed: root.schemeReady = true' "a scheme that cannot be read does not keep the screen bare"
+    assert_contains "$qml" "interval: 1500" "and neither does one that is slow"
+    assert_contains "$qml" 'if (root.closing && opacity === 0)' "the exit still waits for the fade, which is not blocked by the new wait"
 }
 
 test_the_splash_is_part_of_what_the_build_installs() {

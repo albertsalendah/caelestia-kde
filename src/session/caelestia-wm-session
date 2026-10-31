@@ -108,7 +108,7 @@ else
     say "WAYLAND_DISPLAY was exported to the user manager by KWin"
 fi
 
-# 3a. The login splash (Nexus -> Splash), off unless the user turned it on. Two kinds:
+# 3a. The login splash (Nexus -> Splash), on unless the user turned it off. Two kinds:
 #     - a Plasma splash theme (PlasmaTheme in caelestia-splashrc): ksplashqml, Plasma's own
 #       splash runner, draws the theme's Splash.qml. It closes when it is told the sixth stage
 #       has come, which finish_plasma_splash does once the shell is ready.
@@ -166,7 +166,7 @@ send_splash_stage() {
 start_splash() {
     command -v kreadconfig6 >/dev/null 2>&1 || return 0
     local rc=caelestia-splashrc
-    [ "$(kreadconfig6 --file "$rc" --group Login --key Enabled --default false)" = true ] || return 0
+    [ "$(kreadconfig6 --file "$rc" --group Login --key Enabled --default true)" = true ] || return 0
     local qs shell_config qml display min plasma logo=1
     display="$(systemctl --user show-environment | sed -n 's/^WAYLAND_DISPLAY=//p')"
     [ -n "$display" ] || return 0
