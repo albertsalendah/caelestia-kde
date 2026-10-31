@@ -11,12 +11,22 @@ import qs.services
 import qs.utils
 import qs.modules.launcher.services
 import qs.modules.nexus.common
+import "../../../../utils/scripts/variantcolours.js" as VariantColours
 
 PageBase {
     id: root
 
     property var lightSchemes: []
     property var darkSchemes: []
+    // The colors each variant gives, for the swatches: {variant: colours}, read on the first look at
+    // the section and again when what a preview derives from changes.
+    property var variantColours: ({})
+    property string variantsLoadedKey: ""
+    property bool variantsStale: false
+
+    // A preview derives from the wallpaper for a dynamic scheme, from the shipped colors otherwise,
+    // in the light or the dark mode, so these are what it depends on. A variant that is chosen is not.
+    readonly property string variantKey: `${Schemes.currentScheme}|${Colours.currentLight}|${Wallpapers.actualCurrent}|${Colours.smartArg.join(" ")}`
 
     function parseSchemeList(json: string): void {
         const light = [];
@@ -36,8 +46,26 @@ PageBase {
         root.darkSchemes = dark;
     }
 
+    // One run for all of them, one after another: a preview is written to a single file.
+    function loadVariants(): void {
+        if (variantProc.running) {
+            root.variantsStale = true;
+            return;
+        }
+        root.variantsLoadedKey = root.variantKey;
+        variantProc.command = ["sh", "-c",
+            'smart="$1"; shift; for v in "$@"; do printf "%s\\t" "$v"; caelestia scheme set --preview -v "$v" $smart | tr -d "\\n"; printf "\\n"; done',
+            "--", Colours.smartArg.join(" "), ...M3Variants.list.map(v => v.variant)];
+        variantProc.running = true;
+    }
+
     title: qsTr("Colors")
     isSubPage: true
+
+    onVariantKeyChanged: {
+        if (variantsSection.expanded)
+            root.loadVariants();
+    }
 
     Component.onCompleted: {
         Schemes.reload();
@@ -147,112 +175,106 @@ PageBase {
             }
         }
 
-        StyledText {
-            Layout.topMargin: Tokens.spacing.large
-            text: qsTr("Light")
-            font: Tokens.font.title.medium
-        }
+        CollapsibleSection {
+            id: variantsSection
 
-        GridLayout {
-            Layout.fillWidth: true
-            columns: 2
-            rowSpacing: Tokens.spacing.medium
-            columnSpacing: Tokens.spacing.medium
+            title: qsTr("Variants")
 
-            Repeater {
-                model: root.lightSchemes
-
-                PaletteCard {}
+            onExpandedChanged: {
+                if (expanded && root.variantsLoadedKey !== root.variantKey)
+                    root.loadVariants();
             }
-        }
 
-        StyledText {
-            Layout.topMargin: Tokens.spacing.large
-            text: qsTr("Dark")
-            font: Tokens.font.title.medium
-        }
+            GridLayout {
+                Layout.fillWidth: true
+                columns: 2
+                rowSpacing: Tokens.spacing.medium
+                columnSpacing: Tokens.spacing.medium
 
-        GridLayout {
-            Layout.fillWidth: true
-            columns: 2
-            rowSpacing: Tokens.spacing.medium
-            columnSpacing: Tokens.spacing.medium
+                Repeater {
+                    model: M3Variants.list
 
-            Repeater {
-                model: root.darkSchemes
+                    StyledRect {
+                        id: varDelegateRect
 
-                PaletteCard {}
-            }
-        }
+                        required property var modelData
 
-        StyledText {
-            Layout.topMargin: Tokens.spacing.large
-            text: qsTr("Variants")
-            font: Tokens.font.title.medium
-        }
+                        readonly property bool isSelected: modelData?.variant === Schemes.currentVariant
 
-        GridLayout {
-            Layout.fillWidth: true
-            columns: 2
-            rowSpacing: Tokens.spacing.medium
-            columnSpacing: Tokens.spacing.medium
+                        Layout.fillWidth: true
+                        Layout.fillHeight: true
+                        Layout.preferredWidth: 1
+                        implicitHeight: varCol.implicitHeight + Tokens.padding.large * 2
+                        radius: Tokens.rounding.large
+                        color: isSelected ? Colours.palette.m3secondaryContainer : Colours.tPalette.m3surfaceContainer
+                        border.width: isSelected ? 2 : 1
+                        border.color: isSelected ? Colours.palette.m3secondary : Colours.palette.m3surfaceVariant
 
-            Repeater {
-                model: M3Variants.list
-
-                StyledRect {
-                    id: varDelegateRect
-
-                    required property var modelData
-
-                    readonly property bool isSelected: modelData?.variant === Schemes.currentVariant
-
-                    Layout.fillWidth: true
-                    Layout.fillHeight: true
-                    Layout.preferredWidth: 1
-                    implicitHeight: varCol.implicitHeight + Tokens.padding.large * 2
-                    radius: Tokens.rounding.large
-                    color: isSelected ? Colours.palette.m3secondaryContainer : Colours.tPalette.m3surfaceContainer
-                    border.width: isSelected ? 2 : 1
-                    border.color: isSelected ? Colours.palette.m3secondary : Colours.palette.m3surfaceVariant
-
-                    StateLayer {
-                        radius: parent.radius
-                        onClicked: varDelegateRect.modelData?.onClicked(null)
-                    }
-
-                    RowLayout {
-                        id: varCol
-
-                        anchors.top: parent.top
-                        anchors.left: parent.left
-                        anchors.right: parent.right
-                        anchors.margins: Tokens.padding.large
-                        spacing: Tokens.spacing.large
-
-                        MaterialIcon {
-                            Layout.alignment: Qt.AlignTop
-                            text: varDelegateRect.modelData?.icon ?? ""
-                            fontStyle: Tokens.font.icon.extraLarge
-                            color: varDelegateRect.isSelected ? Colours.palette.m3onSecondaryContainer : Colours.palette.m3onSurface
+                        StateLayer {
+                            radius: parent.radius
+                            onClicked: varDelegateRect.modelData?.onClicked(null)
                         }
 
-                        ColumnLayout {
-                            Layout.fillWidth: true
-                            spacing: Tokens.spacing.extraSmall
+                        RowLayout {
+                            id: varCol
 
-                            StyledText {
-                                Layout.fillWidth: true
-                                text: varDelegateRect.modelData?.name ?? ""
-                                font: Tokens.font.title.small
-                                color: varDelegateRect.isSelected ? Colours.palette.m3onSecondaryContainer : Colours.palette.m3onSurface
+                            anchors.top: parent.top
+                            anchors.left: parent.left
+                            anchors.right: parent.right
+                            anchors.margins: Tokens.padding.large
+                            spacing: Tokens.spacing.large
+
+                            StyledRect {
+                                id: swatch
+
+                                readonly property var colours: root.variantColours[varDelegateRect.modelData?.variant]
+
+                                Layout.alignment: Qt.AlignTop
+                                Layout.preferredWidth: Tokens.sizes.launcher.itemHeight
+                                Layout.preferredHeight: Tokens.sizes.launcher.itemHeight
+
+                                border.width: 1
+                                border.color: Qt.alpha(colours ? `#${colours.outline}` : Colours.palette.m3outline, 0.5)
+                                color: colours ? `#${colours.surface}` : Colours.palette.m3surfaceContainerHighest
+                                radius: Tokens.rounding.full
+
+                                Item {
+                                    anchors.top: parent.top
+                                    anchors.bottom: parent.bottom
+                                    anchors.right: parent.right
+
+                                    width: parent.width / 2
+                                    clip: true
+
+                                    StyledRect {
+                                        anchors.top: parent.top
+                                        anchors.bottom: parent.bottom
+                                        anchors.right: parent.right
+
+                                        width: parent.width
+                                        color: swatch.colours ? `#${swatch.colours.primary}` : Colours.palette.m3outlineVariant
+                                        radius: Tokens.rounding.full
+                                    }
+                                }
                             }
-                            StyledText {
+
+                            ColumnLayout {
                                 Layout.fillWidth: true
-                                text: varDelegateRect.modelData?.description ?? ""
-                                font: Tokens.font.body.medium
-                                color: varDelegateRect.isSelected ? Colours.palette.m3onSecondaryContainer : Colours.palette.m3onSurfaceVariant
-                                wrapMode: Text.Wrap
+                                spacing: Tokens.spacing.extraSmall
+
+                                StyledText {
+                                    Layout.fillWidth: true
+                                    text: varDelegateRect.modelData?.name ?? ""
+                                    font: Tokens.font.title.small
+                                    color: varDelegateRect.isSelected ? Colours.palette.m3onSecondaryContainer : Colours.palette.m3onSurface
+                                }
+                                StyledText {
+                                    Layout.fillWidth: true
+                                    text: varDelegateRect.modelData?.description ?? ""
+                                    font: Tokens.font.body.medium
+                                    color: varDelegateRect.isSelected ? Colours.palette.m3onSecondaryContainer : Colours.palette.m3onSurfaceVariant
+                                    wrapMode: Text.Wrap
+                                }
                             }
                         }
                     }
@@ -260,9 +282,58 @@ PageBase {
             }
         }
 
+        CollapsibleSection {
+            id: lightSection
 
+            title: qsTr("Light")
 
+            GridLayout {
+                Layout.fillWidth: true
+                columns: 2
+                rowSpacing: Tokens.spacing.medium
+                columnSpacing: Tokens.spacing.medium
 
+                Repeater {
+                    model: root.lightSchemes
+
+                    PaletteCard {}
+                }
+            }
+        }
+
+        CollapsibleSection {
+            id: darkSection
+
+            title: qsTr("Dark")
+
+            GridLayout {
+                Layout.fillWidth: true
+                columns: 2
+                rowSpacing: Tokens.spacing.medium
+                columnSpacing: Tokens.spacing.medium
+
+                Repeater {
+                    model: root.darkSchemes
+
+                    PaletteCard {}
+                }
+            }
+        }
+
+        Process {
+            id: variantProc
+
+            stdout: StdioCollector {
+                onStreamFinished: root.variantColours = VariantColours.parse(text)
+            }
+            onExited: {
+                if (root.variantsStale) {
+                    root.variantsStale = false;
+                    if (variantsSection.expanded && root.variantsLoadedKey !== root.variantKey)
+                        root.loadVariants();
+                }
+            }
+        }
 
         Process {
             id: schemeListProc
@@ -271,6 +342,68 @@ PageBase {
             stdout: StdioCollector {
                 onStreamFinished: root.parseSchemeList(text)
             }
+        }
+    }
+
+    // A heading that opens and closes what is under it, closed to begin with. Whatever is put inside
+    // goes under the heading.
+    component CollapsibleSection: ColumnLayout {
+        id: section
+
+        property string title
+        property bool expanded: false
+        default property alias content: body.data
+
+        Layout.fillWidth: true
+        spacing: Tokens.spacing.medium
+
+        StyledRect {
+            Layout.fillWidth: true
+            implicitHeight: headerRow.implicitHeight + Tokens.padding.large * 2
+            radius: Tokens.rounding.large
+            color: Colours.tPalette.m3surfaceContainer
+            border.width: 1
+            border.color: Colours.palette.m3surfaceVariant
+
+            StateLayer {
+                radius: parent.radius
+                onClicked: section.expanded = !section.expanded
+            }
+
+            RowLayout {
+                id: headerRow
+
+                anchors.fill: parent
+                anchors.margins: Tokens.padding.large
+                spacing: Tokens.spacing.large
+
+                StyledText {
+                    Layout.fillWidth: true
+                    text: section.title
+                    font: Tokens.font.title.medium
+                }
+
+                MaterialIcon {
+                    text: "expand_more"
+                    rotation: section.expanded ? 180 : 0
+                    color: Colours.palette.m3onSurfaceVariant
+                    fontStyle: Tokens.font.icon.large
+
+                    Behavior on rotation {
+                        Anim {
+                            type: Anim.DefaultEffects
+                        }
+                    }
+                }
+            }
+        }
+
+        ColumnLayout {
+            id: body
+
+            Layout.fillWidth: true
+            spacing: Tokens.spacing.medium
+            visible: section.expanded
         }
     }
 
