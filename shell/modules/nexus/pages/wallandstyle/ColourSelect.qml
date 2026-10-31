@@ -147,10 +147,6 @@ PageBase {
             }
         }
 
-        WallpaperPalettes {
-            Layout.topMargin: Tokens.spacing.large
-        }
-
         StyledText {
             Layout.topMargin: Tokens.spacing.large
             text: qsTr("Light")
