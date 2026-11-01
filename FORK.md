@@ -29,6 +29,8 @@ re-attach the fork's part.
 | `uninstall.sh` | the boot target set by the session step on a minimal Fedora install is set back, with the SDDM flag |
 | `scripts/09-system-tweaks.sh` | the OSD, panel and splash tweaks are skipped with the independent session (`scripts/lib/independent-session.sh`) |
 | `scripts/04-deploy-kde.sh` | the cliphist unit is wanted by `graphical-session.target`; the runner keeps the `wl-paste` watchers alive when `wl-clip-persist` cannot start (Fedora's 0.4.1 speaks wlr-data-control only) |
+| `shell/modules/dashboard/Wrapper.qml` | a new profile picture runs `shell/scripts/sync_greeter.sh`, so the login screen shows it |
+| `src/sddm/themes/full/components/SessionPicker.qml` | the list and the label are built each time a session appears (`refresh()`), not once at completion |
 | `scripts/05-sddm-theme.sh` | `install_greeter_icon_font` copies the Material Symbols font to `/usr/local/share/fonts/caelestia` when only the user's home has it (Fedora, Debian), so the greeter's icons are not boxes |
 | `scripts/setup.sh` | the compiled installer is reused only when its stamp (`tui.version` plus a hash of `installer/tui` and `installer/data`) matches the sources: `installer_stamp`, `compiled_installer_is_current` |
 | `scripts/06-services.sh`, `07-kde-apps.sh`, `08-build-shell.sh` | Bluetooth, ydotoold clean-up, KDE apps and the KDE Connect firewall rules, stale `m3shapes` record |

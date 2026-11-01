@@ -44,7 +44,11 @@ start_service() {
 
 stub_helpers() {
     local root="$1"
-    recording_stub "$root/bin" wl-paste "$root/watchers.log"
+    # A real watcher keeps running; one that exits at once would end the runner before the
+    # others have been started, and the log would depend on who won the race.
+    mkfifo "$root/hold"
+    stub_bin "$root/bin" wl-paste "printf 'wl-paste %s\\n' \"\$*\" >> '$root/watchers.log'
+exec 9<>'$root/hold'; read -r -t 1 -u 9; echo done >> '$root/watchers.done'; exit \${WATCHER_EXIT:-0}"
     stub_bin "$root/bin" cliphist 'exit 0'
     stub_bin "$root/bin" wl-clip-persist "printf '%s\n' \"\$@\" > '$root/persister-argv.txt'"
 }
@@ -140,9 +144,7 @@ test_a_missing_helper_is_reported() {
 # The watchers wait a second, as real ones do; the persister's fate is then the only thing
 # that could end the runner early.
 slow_watchers() {
-    local root="$1"
-    mkfifo "$root/hold"
-    stub_bin "$root/bin" wl-paste "exec 9<>'$root/hold'; read -r -t 1 -u 9; exit \${WATCHER_EXIT:-0}"
+    :
 }
 
 test_a_persister_that_cannot_start_does_not_take_the_watchers_down() {
@@ -158,6 +160,8 @@ test_a_persister_that_cannot_start_does_not_take_the_watchers_down() {
     status="$(start_service "$home" "$root/bin")"
 
     assert_status 0 "$status" "wl-clip-persist failing is not the runner's failure: the history still works"
+    assert_contains "$(cat "$root/watchers.done" 2>/dev/null)" 'done' \
+        "the runner should have waited for a watcher to end, not for the persister"
     assert_contains "$(cat "$home/runner.log")" 'wl-clip-persist stopped (exit 1)' \
         "the journal should say the persister stopped, and why it matters"
 }

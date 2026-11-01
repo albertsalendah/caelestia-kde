@@ -9,17 +9,24 @@ Item {
     property var items: []
     property int selectedIndex: 0
     property string currentText
-    Component.onCompleted: {
-        root.currentText = sessionArray.sessions[root.selectedIndex].name;
+
+    // Builds the list and the label from the sessions the instantiator has made so far. The
+    // instantiator makes its items after this picker has completed (Qt 6.11 on Fedora 44), so
+    // reading them once at completion found none, threw, and left the label and the list
+    // empty. Every item calls this when it appears, so the last one has the full list.
+    function refresh(): void {
+        const sessions = sessionArray.sessions;
         const arr = [];
-        for (let i = 0; i < sessionArray.sessions.length; i++) {
-            arr.push(sessionArray.sessions[i].name);
+        for (let i = 0; i < sessions.length; i++) {
+            arr.push(sessions[i].name ?? "");
         }
         root.items = arr;
+        if (arr.length > 0)
+            root.currentText = arr[Math.min(root.selectedIndex, arr.length - 1)];
     }
-    onSelectedIndexChanged: {
-        root.currentText = sessionArray.sessions[root.selectedIndex].name;
-    }
+
+    Component.onCompleted: root.refresh()
+    onSelectedIndexChanged: root.refresh()
 
     width: labelRect.width + expandBtn.width
     height: 40
@@ -40,6 +47,7 @@ Item {
                     index: index,
                     name: model.name
                 });
+                root.refresh();
             }
         }
     }

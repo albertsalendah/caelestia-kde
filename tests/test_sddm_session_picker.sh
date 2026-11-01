@@ -34,4 +34,20 @@ test_the_mini_theme_has_no_picker_switch() {
     assert_not_contains "$(cat "$MINI_THEME/theme.conf")" 'sessionPicker' "the mini theme has no such key, so it is not part of this setting"
 }
 
+test_the_picker_fills_its_list_when_the_sessions_appear_not_only_at_completion() {
+    local qml
+    qml="$(cat "$FULL_THEME/components/SessionPicker.qml")"
+
+    # The instantiator can make its items after the picker has completed; reading them once
+    # at completion gave an empty label and an empty list.
+    assert_contains "$qml" 'function refresh(): void {' "one function builds the list and the label"
+    assert_contains "$qml" 'name: model.name
+                });
+                root.refresh();' "each session refreshes the picker when it appears"
+    assert_contains "$qml" 'Component.onCompleted: root.refresh()' "completion refreshes too, for sessions that are already there"
+    assert_contains "$qml" 'onSelectedIndexChanged: root.refresh()' "and so does a change of the selection"
+    assert_not_contains "$qml" 'sessionArray.sessions[root.selectedIndex].name' "nothing indexes a list that may still be empty"
+    assert_contains "$qml" 'sessions[i].name ?? ""' "a session with no name gives an empty label, not undefined"
+}
+
 run_tests

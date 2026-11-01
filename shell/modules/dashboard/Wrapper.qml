@@ -21,9 +21,11 @@ Item {
         filterLabel: qsTr("Image files")
         filters: Images.validImageExtensions
         onAccepted: path => {
-            if (CUtils.copyFile(Qt.resolvedUrl(path), Qt.resolvedUrl(`${Paths.home}/.face`)))
+            if (CUtils.copyFile(Qt.resolvedUrl(path), Qt.resolvedUrl(`${Paths.home}/.face`))) {
+                // The login screen shows this picture too, from its own copy.
+                Quickshell.execDetached(["bash", Quickshell.shellPath("scripts/sync_greeter.sh")]);
                 Quickshell.execDetached(["notify-send", "-a", "caelestia-shell", "-u", "low", "-h", `STRING:image-path:${path}`, qsTr("Profile picture changed"), qsTr("Profile picture changed to %1").arg(Paths.shortenHome(path))]);
-            else
+            } else
                 Quickshell.execDetached(["notify-send", "-a", "caelestia-shell", "-u", "critical", qsTr("Unable to change profile picture"), qsTr("Failed to change profile picture to %1").arg(Paths.shortenHome(path))]);
         }
     }
