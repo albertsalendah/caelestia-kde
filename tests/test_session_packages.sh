@@ -53,11 +53,12 @@ test_fedora_names_the_same_session_set_under_its_own_package_names() {
     local pkgs needed
     pkgs="$(fedora_session_packages)"
 
-    for needed in plasma-workspace kwin-wayland kscreenlocker plasma5support layer-shell-qt \
+    for needed in plasma-workspace kwin kscreenlocker plasma5support layer-shell-qt \
                   xdg-desktop-portal-kde xorg-x11-server-Xwayland polkit-kde powerdevil kscreen \
                   konsole dolphin ark; do
         assert_contains "$pkgs" "$needed" "$needed should be in Fedora's session set"
     done
+    assert_not_contains "$pkgs" "kwin-wayland" "Fedora 44 has no such package; kwin ships the wrapper"
     assert_not_contains "$pkgs" "xorg-xwayland" "Arch's name for Xwayland is not a Fedora package"
     assert_not_contains "$pkgs" "polkit-kde-agent" "nor is Arch's polkit agent name"
 }

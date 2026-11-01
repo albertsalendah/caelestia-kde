@@ -105,7 +105,7 @@ The step looks at the login manager the machine uses:
 | --- | --- |
 | Plasma Login | installs the entry only |
 | SDDM | installs the entry and a drop-in that switches SDDM to a Wayland greeter, and hides the Plasma entry if no Plasma desktop is installed |
-| none enabled | installs SDDM, adds the drop-in and enables it, and hides the Plasma entry if no Plasma desktop is installed. On Fedora a minimal install (Fedora Everything) boots to a text console, so the step also sets the boot target to `graphical.target`; `uninstall.sh` sets it back |
+| none enabled | installs SDDM, adds the drop-in and enables it, and hides the Plasma entry if no Plasma desktop is installed |
 | anything else | installs the entry and warns that the login manager may not list it |
 
 The Wayland greeter matters. With SDDM's default Xorg greeter, about 4 in 9 logins on the test
@@ -122,8 +122,8 @@ this with a file in `/usr/local/share/wayland-sessions`, and touches nothing the
 `plasma-desktop` and run the installer again to show the entry. When foot is not installed and you have not chosen a
 terminal, the installer records Konsole as the shell's terminal.
 
-**Fedora.** The same step runs on Fedora, with the same files. The packages are `plasma-workspace`,
-`kwin-wayland` (the `kwin_wayland_wrapper` the session starts), `kscreenlocker`, `plasma5support`,
+**Fedora.** The same step runs on Fedora, with the same files. A minimal install (Fedora Everything) boots to a text console, so with any of the three login managers above the step also sets the boot target to `graphical.target`; `uninstall.sh` sets it back. The packages are `plasma-workspace`,
+`kwin` (it ships the `kwin_wayland_wrapper` the session starts), `kscreenlocker`, `plasma5support`,
 `layer-shell-qt`, `xdg-desktop-portal-kde`, `xorg-x11-server-Xwayland`, `polkit-kde`, `powerdevil`,
 `kscreen`, `konsole`, `dolphin`, `ark` and `plasma-systemsettings`, plus `pipewire-pulseaudio`,
 `pipewire-alsa`, `bluedevil` and `bluez`; the same menu switches turn System Settings, PipeWire and

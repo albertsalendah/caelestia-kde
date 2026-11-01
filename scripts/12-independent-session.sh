@@ -24,9 +24,9 @@
 # The login manager decides the last two:
 #   Plasma Login (plasmalogin) active -> the entry only.
 #   SDDM active                       -> the entry and the Wayland greeter drop-in.
-#   no login manager                  -> SDDM is installed, given the drop-in and enabled (on Fedora
-#                                        also made the boot target, because a minimal install
-#                                        boots to the text console).
+#   no login manager                  -> SDDM is installed, given the drop-in and enabled.
+# On Fedora the boot target is also made graphical.target when the machine boots to a text console
+# (a minimal install does), whichever of these three applied.
 #   another login manager             -> the entry only, with a warning.
 #
 # The Wayland greeter matters: with SDDM's default Xorg greeter about 4 of 9 logins hit a
@@ -127,7 +127,7 @@ info "Login manager: $LOGIN_MANAGER"
 if [[ -z "$ROOT" && ! -x /usr/bin/kwin_wayland_wrapper ]]; then
     warn "/usr/bin/kwin_wayland_wrapper is missing, so the session cannot start KWin."
     if [[ "$BASE_DISTRO" == "fedora" ]]; then
-        warn "Install it with: sudo dnf install kwin-wayland"
+        warn "Install it with: sudo dnf install kwin"
     fi
 fi
 
@@ -172,19 +172,27 @@ case "$LOGIN_MANAGER" in
         caelestia_sudo systemctl enable sddm.service
         mkdir -p "$STATE_DIR"
         : > "$SDDM_ENABLED_FLAG"
-        # Fedora Everything and other minimal installs boot to multi-user.target, which starts no
-        # login manager however many are enabled. Remember the change so uninstall.sh can undo it.
-        if [[ "$BASE_DISTRO" == "fedora" ]] && \
-           [[ "$(systemctl get-default 2>/dev/null || true)" != "graphical.target" ]]; then
-            caelestia_sudo systemctl set-default graphical.target
-            : > "$GRAPHICAL_FLAG"
-            ok "The boot target is now graphical.target (it was a text console)."
-        fi
         ok "SDDM enabled with a Wayland greeter. Reboot to reach the login screen."
         ;;
     other)
         warn "Another login manager is enabled. The session entry is installed, but the login"
         warn "manager may not list /usr/local/share/wayland-sessions; check that it shows 'Caelestia'."
+        ;;
+esac
+
+# --- the boot target (Fedora) -------------------------------------------------------------
+# Fedora Everything and other minimal installs boot to multi-user.target, which starts no login
+# manager however many are enabled, and the SDDM theme step may have enabled SDDM already, so this
+# runs for every login manager this step handles. Remember the change so uninstall.sh can undo it.
+case "$LOGIN_MANAGER" in
+    plasmalogin|sddm|none)
+        if [[ "$BASE_DISTRO" == "fedora" ]] && \
+           [[ "$(systemctl get-default 2>/dev/null || true)" != "graphical.target" ]]; then
+            caelestia_sudo systemctl set-default graphical.target
+            mkdir -p "$STATE_DIR"
+            : > "$GRAPHICAL_FLAG"
+            ok "The boot target is now graphical.target (it was a text console)."
+        fi
         ;;
 esac
 

@@ -216,13 +216,22 @@ test_fedora_that_already_boots_graphically_keeps_its_boot_target() {
     rm -rf "$MACHINE"
 }
 
-test_fedora_with_a_login_manager_gets_the_entry_and_no_install() {
+test_fedora_with_sddm_already_enabled_gets_the_entry_no_install_and_a_graphical_boot() {
     setup_machine
     STUB_DISTRO=fedora STUB_LOGIN_MANAGER=sddm run_step > /dev/null
 
     assert_file_exists "$MACHINE/root/etc/sddm.conf.d/zz-wayland-greeter.conf"
     assert_not_contains "$(cat "$LOG")" 'dnf install' "SDDM is already there"
-    assert_not_contains "$(cat "$LOG")" 'set-default' "and the machine already boots to its login screen"
+    assert_contains "$(cat "$LOG")" 'systemctl set-default graphical.target' "but a text console never starts it (the SDDM theme step enables it first)"
+    assert_file_exists "$MACHINE/home/.local/state/caelestia/session-set-graphical-target"
+    rm -rf "$MACHINE"
+}
+
+test_fedora_with_plasma_login_that_boots_graphically_keeps_its_boot_target() {
+    setup_machine
+    STUB_DISTRO=fedora STUB_LOGIN_MANAGER=plasmalogin STUB_BOOT_TARGET=graphical.target run_step > /dev/null
+
+    assert_not_contains "$(cat "$LOG")" 'set-default' "nothing to change"
     rm -rf "$MACHINE"
 }
 
