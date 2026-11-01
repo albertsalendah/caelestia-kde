@@ -24,11 +24,15 @@
 # The login manager decides the last two:
 #   Plasma Login (plasmalogin) active -> the entry only.
 #   SDDM active                       -> the entry and the Wayland greeter drop-in.
-#   no login manager                  -> SDDM is installed, given the drop-in and enabled.
+#   no login manager                  -> SDDM is installed, given the drop-in and enabled (on Fedora
+#                                        also made the boot target, because a minimal install
+#                                        boots to the text console).
 #   another login manager             -> the entry only, with a warning.
 #
 # The Wayland greeter matters: with SDDM's default Xorg greeter about 4 of 9 logins hit a
 # black screen on the test machine (the greeter's X server races KWin's first modeset).
+#
+# Arch-based systems and Fedora are handled; Debian is not tested yet.
 #
 # Set CAELESTIA_SESSION_ROOT to a directory to install under it instead of /, for tests.
 
@@ -57,6 +61,7 @@ DISPLAY_MANAGER_LINK="$ROOT/etc/systemd/system/display-manager.service"
 PLASMALOGIN_CONF="$ROOT/etc/plasmalogin.conf"
 STATE_DIR="${XDG_STATE_HOME:-$HOME/.local/state}/caelestia"
 SDDM_ENABLED_FLAG="$STATE_DIR/session-enabled-sddm"
+GRAPHICAL_FLAG="$STATE_DIR/session-set-graphical-target"
 
 echo
 info "Installing the independent session"
@@ -66,10 +71,13 @@ if install_is_packaged; then
     exit 0
 fi
 
-if [[ "${BASE_DISTRO:-}" != "arch" ]]; then
-    skip "The independent session is only tested on Arch-based systems (this is '${BASE_DISTRO:-unknown}')."
-    exit 0
-fi
+case "${BASE_DISTRO:-}" in
+    arch|fedora) ;;
+    *)
+        skip "The independent session is only tested on Arch-based systems and Fedora (this is '${BASE_DISTRO:-unknown}')."
+        exit 0
+        ;;
+esac
 
 for file in caelestia-wm-session caelestia-kwin.service caelestia-session.target \
             caelestia.desktop zz-wayland-greeter.conf plasma.desktop caelestia-shell-session-only.conf \
@@ -116,6 +124,13 @@ detect_login_manager() {
 LOGIN_MANAGER="$(detect_login_manager)"
 info "Login manager: $LOGIN_MANAGER"
 
+if [[ -z "$ROOT" && ! -x /usr/bin/kwin_wayland_wrapper ]]; then
+    warn "/usr/bin/kwin_wayland_wrapper is missing, so the session cannot start KWin."
+    if [[ "$BASE_DISTRO" == "fedora" ]]; then
+        warn "Install it with: sudo dnf install kwin-wayland"
+    fi
+fi
+
 # --- the session files --------------------------------------------------------------------
 install_file "$SRC_DIR/caelestia-wm-session"      "$PROGRAM"                           0755
 install_file "$SRC_DIR/caelestia-kwin.service"    "$UNIT_DIR/caelestia-kwin.service"   0644
@@ -147,12 +162,24 @@ case "$LOGIN_MANAGER" in
     none)
         info "No login manager is enabled; setting up SDDM so the session can be chosen at login."
         if ! package_present sddm; then
-            caelestia_sudo pacman -S --needed --noconfirm sddm
+            if [[ "$BASE_DISTRO" == "fedora" ]]; then
+                caelestia_sudo dnf install -y sddm
+            else
+                caelestia_sudo pacman -S --needed --noconfirm sddm
+            fi
         fi
         install_file "$SRC_DIR/zz-wayland-greeter.conf" "$GREETER_DROPIN" 0644
         caelestia_sudo systemctl enable sddm.service
         mkdir -p "$STATE_DIR"
         : > "$SDDM_ENABLED_FLAG"
+        # Fedora Everything and other minimal installs boot to multi-user.target, which starts no
+        # login manager however many are enabled. Remember the change so uninstall.sh can undo it.
+        if [[ "$BASE_DISTRO" == "fedora" ]] && \
+           [[ "$(systemctl get-default 2>/dev/null || true)" != "graphical.target" ]]; then
+            caelestia_sudo systemctl set-default graphical.target
+            : > "$GRAPHICAL_FLAG"
+            ok "The boot target is now graphical.target (it was a text console)."
+        fi
         ok "SDDM enabled with a Wayland greeter. Reboot to reach the login screen."
         ;;
     other)

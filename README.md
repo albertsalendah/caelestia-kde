@@ -30,7 +30,7 @@ curl -fsSL https://raw.githubusercontent.com/ladybug-me/caelestia-kde/main/insta
 
 > [!NOTE]
 > The one-liner installs upstream's `main`. This branch, `independent-session`, adds an
-> [independent session](#independent-session-arch-based); install it from a clone:
+> [independent session](#independent-session-arch-based-and-fedora); install it from a clone:
 >
 > ```bash
 > git clone --recurse-submodules --branch independent-session https://github.com/albertsalendah/caelestia-kde.git
@@ -83,7 +83,7 @@ bash ./uninstall.sh
 A packaged install has no script to run: the row names the package manager's command
 instead.
 
-## Independent session (Arch-based)
+## Independent session (Arch-based and Fedora)
 
 This branch installs one more login-screen entry, **Caelestia**, that starts KWin and the Caelestia
 shell without `plasmashell`. Nothing is removed: the Plasma session and any other session stay as
@@ -105,7 +105,7 @@ The step looks at the login manager the machine uses:
 | --- | --- |
 | Plasma Login | installs the entry only |
 | SDDM | installs the entry and a drop-in that switches SDDM to a Wayland greeter, and hides the Plasma entry if no Plasma desktop is installed |
-| none enabled | installs SDDM, adds the drop-in and enables it, and hides the Plasma entry if no Plasma desktop is installed |
+| none enabled | installs SDDM, adds the drop-in and enables it, and hides the Plasma entry if no Plasma desktop is installed. On Fedora a minimal install (Fedora Everything) boots to a text console, so the step also sets the boot target to `graphical.target`; `uninstall.sh` sets it back |
 | anything else | installs the entry and warns that the login manager may not list it |
 
 The Wayland greeter matters. With SDDM's default Xorg greeter, about 4 in 9 logins on the test
@@ -122,7 +122,18 @@ this with a file in `/usr/local/share/wayland-sessions`, and touches nothing the
 `plasma-desktop` and run the installer again to show the entry. When foot is not installed and you have not chosen a
 terminal, the installer records Konsole as the shell's terminal.
 
-**Removing the Plasma desktop.** The installer does not do it. To do it yourself, from the Caelestia
+**Fedora.** The same step runs on Fedora, with the same files. The packages are `plasma-workspace`,
+`kwin-wayland` (the `kwin_wayland_wrapper` the session starts), `kscreenlocker`, `plasma5support`,
+`layer-shell-qt`, `xdg-desktop-portal-kde`, `xorg-x11-server-Xwayland`, `polkit-kde`, `powerdevil`,
+`kscreen`, `konsole`, `dolphin`, `ark` and `plasma-systemsettings`, plus `pipewire-pulseaudio`,
+`pipewire-alsa`, `bluedevil` and `bluez`; the same menu switches turn System Settings, PipeWire and
+Bluetooth off. The step has been written from Fedora's package lists and tested against stubs, and
+has not run on a real Fedora machine yet. Debian is still skipped. The Fedora installer does not
+guard a system upgrade the way the Arch one does (an upgrade of KWin or Qt inside a running session),
+so run `sudo dnf upgrade` from a text console, not from inside the session.
+
+**Removing the Plasma desktop.** (Arch commands; on Fedora remove `plasma-desktop` with `dnf remove` and
+keep the packages above.) The installer does not do it. To do it yourself, from the Caelestia
 session (not from a Plasma session): first mark the session's packages as explicitly installed, so that
 removing `plasma-desktop` does not leave them as orphans for a later clean-up, then remove the desktop
 without `-s`, which leaves its dependencies in place, and run the installer once more so the Plasma

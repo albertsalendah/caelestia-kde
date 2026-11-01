@@ -34,6 +34,9 @@ info "Installing Fedora packages..."
 INSTALL_FISH="${INSTALL_FISH:-true}"
 INSTALL_PAPIRUS="${INSTALL_PAPIRUS:-true}"
 INSTALL_DARKLY="${INSTALL_DARKLY:-true}"
+INSTALL_PIPEWIRE="${INSTALL_PIPEWIRE:-true}"
+INSTALL_BLUEDEVIL="${INSTALL_BLUEDEVIL:-true}"
+INSTALL_SYSTEMSETTINGS="${INSTALL_SYSTEMSETTINGS:-true}"
 
 PACKAGE_GROUP="${PACKAGE_GROUP:-all}"
 
@@ -76,6 +79,21 @@ UTILITY_PACKAGES=(
     xdg-utils sassc bat ripgrep xdg-user-dirs
 )
 
+# What the independent session (KWin + the Caelestia shell, no plasmashell) needs from KDE; the
+# same set as installer/distro/arch/packages.sh under Fedora's names. The shell calls these
+# directly, so they are listed here instead of relying on plasmashell's dependencies:
+# plasma-workspace (plasma-apply-colorscheme, the logout service), kwin-wayland (kwin_wayland and
+# kwin_wayland_wrapper, which the session starts; the kwin package alone is the X11 build),
+# kscreenlocker (the lockscreen greeter) with plasma5support (a module the lockscreen imports),
+# layer-shell-qt (the SDDM Wayland greeter and the lockscreen), the portal and polkit agent,
+# powerdevil (brightness, idle, lid and Keep Awake), kscreen (monitor settings page) and the
+# default apps. plasma-systemsettings is optional and hosts the kscreen page.
+SESSION_PACKAGES=(
+    plasma-workspace kwin-wayland kscreenlocker plasma5support layer-shell-qt
+    xdg-desktop-portal-kde xorg-x11-server-Xwayland polkit-kde powerdevil kscreen
+    konsole dolphin ark
+)
+
 COPR_CORE=(app2unit libcava)
 COPR_SHELL=(quickshell-git matugen)
 COPR_UTILS=()
@@ -87,7 +105,8 @@ case "$PACKAGE_GROUP" in
     shell)  PACKAGES=("${SHELL_PACKAGES[@]}");  COPR_PKGS=("${COPR_SHELL[@]}") ;;
     themes) PACKAGES=("${THEME_PACKAGES[@]}");  COPR_PKGS=() ;;
     utils)  PACKAGES=("${UTILITY_PACKAGES[@]}"); COPR_PKGS=("${COPR_UTILS[@]}") ;;
-    all|*)  PACKAGES=("${CORE_PACKAGES[@]}" "${SHELL_PACKAGES[@]}" "${THEME_PACKAGES[@]}" "${UTILITY_PACKAGES[@]}")
+    session) PACKAGES=("${SESSION_PACKAGES[@]}"); COPR_PKGS=() ;;
+    all|*)  PACKAGES=("${CORE_PACKAGES[@]}" "${SHELL_PACKAGES[@]}" "${THEME_PACKAGES[@]}" "${UTILITY_PACKAGES[@]}" "${SESSION_PACKAGES[@]}")
             COPR_PKGS=("quickshell-git" "gpu-screen-recorder" "app2unit" "starship" "libcava" "wl-clip-persist" "matugen") ;;
 esac
 
@@ -99,6 +118,26 @@ if [[ "$PACKAGE_GROUP" == "all" || "$PACKAGE_GROUP" == "shell" ]]; then
 fi
 
 info "Installing packages (group: $PACKAGE_GROUP)..."
+
+if [[ "$PACKAGE_GROUP" == "all" || "$PACKAGE_GROUP" == "session" ]]; then
+    if [[ "$INSTALL_SYSTEMSETTINGS" == "true" ]]; then
+        PACKAGES+=(plasma-systemsettings)
+    else
+        info "Skipping System Settings installation by user choice."
+    fi
+    # Sound and Bluetooth for a session without Plasma's own panels. Fedora already runs
+    # PipeWire; the PulseAudio and ALSA bridges are named here so a minimal install has them.
+    if [[ "$INSTALL_PIPEWIRE" == "true" ]]; then
+        PACKAGES+=(pipewire pipewire-pulseaudio pipewire-alsa)
+    else
+        info "Skipping PipeWire installation by user choice."
+    fi
+    if [[ "$INSTALL_BLUEDEVIL" == "true" ]]; then
+        PACKAGES+=(bluedevil bluez)
+    else
+        info "Skipping Bluetooth (bluedevil) installation by user choice."
+    fi
+fi
 
 if [[ "$PACKAGE_GROUP" == "all" || "$PACKAGE_GROUP" == "shell" ]]; then
     if [[ "$INSTALL_FISH" == "true" ]]; then

@@ -785,6 +785,16 @@ if [[ -f "$SESSION_SDDM_FLAG" ]]; then
     rm -f "$SESSION_SDDM_FLAG"
 fi
 
+SESSION_GRAPHICAL_FLAG="${XDG_STATE_HOME:-$HOME/.local/state}/caelestia/session-set-graphical-target"
+if [[ -f "$SESSION_GRAPHICAL_FLAG" ]]; then
+    if caelestia_sudo systemctl set-default multi-user.target 2>/dev/null; then
+        ok "The boot target is back to multi-user.target (the session install had changed it)."
+    else
+        warn "Could not restore the boot target; run 'sudo systemctl set-default multi-user.target' to undo it."
+    fi
+    rm -f "$SESSION_GRAPHICAL_FLAG"
+fi
+
 if [[ -f /usr/local/bin/caelestia-greeter-sync ]]; then
     caelestia_sudo rm -f /usr/local/bin/caelestia-greeter-sync
     ok "Removed login screen sync helper: caelestia-greeter-sync"

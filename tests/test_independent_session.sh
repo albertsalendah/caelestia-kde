@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # The independent session: KWin + the Caelestia shell as their own login-screen session.
 # The first half reads the shipped files, the second runs scripts/12-independent-session.sh
-# against a scratch root with stubbed systemctl, pacman and sudo.
+# against a scratch root with stubbed systemctl, pacman, dnf, rpm and sudo.
 
 set -uo pipefail
 
@@ -116,6 +116,7 @@ case \"\$*\" in
     'enable sddm.service') exit 0 ;;
     '--user is-active --quiet caelestia-kwin.service') [ \"\${STUB_SESSION_RUNNING:-}\" = 1 ] ;;
     '--user daemon-reload'|'--user cat caelestia-shell.service') exit 0 ;;
+    'get-default') printf '%s\\n' \"\${STUB_BOOT_TARGET:-multi-user.target}\" ;;
     *plasmalogin.service) [ \"\${STUB_LOGIN_MANAGER:-}\" = plasmalogin ] ;;
     *sddm.service) [ \"\${STUB_LOGIN_MANAGER:-}\" = sddm ] ;;
 esac"
@@ -125,6 +126,10 @@ esac"
 [ \"\$*\" = '-Qq plasma-desktop' ] && [ \"\${STUB_PLASMA_DESKTOP:-}\" = 1 ] && exit 0
 case \"\$1\" in -Q*) exit 1 ;; esac
 exit 0"
+    stub_bin "$MACHINE/bin" dnf "printf 'dnf %s\\n' \"\$*\" >> '$LOG'"
+    # rpm -q reports "not installed" except for plasma-desktop when the test asks for it
+    stub_bin "$MACHINE/bin" rpm "[ \"\$*\" = '-q plasma-desktop' ] && [ \"\${STUB_PLASMA_DESKTOP:-}\" = 1 ] && exit 0
+exit 1"
 }
 
 run_step() {
@@ -133,7 +138,7 @@ run_step() {
         CAELESTIA_SESSION_ROOT="$MACHINE/root" CAELESTIA_INSTALL_KIND="${STUB_KIND:-source}" \
         CAELESTIA_SUDO_BIN="$MACHINE/bin/sudo" \
         STUB_LOGIN_MANAGER="${STUB_LOGIN_MANAGER:-}" STUB_SESSION_RUNNING="${STUB_SESSION_RUNNING:-}" \
-        STUB_PLASMA_DESKTOP="${STUB_PLASMA_DESKTOP:-}" \
+        STUB_PLASMA_DESKTOP="${STUB_PLASMA_DESKTOP:-}" STUB_BOOT_TARGET="${STUB_BOOT_TARGET:-}" \
         bash "$STEP" 2>&1
 }
 
@@ -179,6 +184,54 @@ test_with_no_login_manager_sddm_is_installed_given_the_greeter_and_enabled() {
     assert_contains "$(cat "$LOG")" 'pacman -S --needed --noconfirm sddm' "SDDM should be installed when it is missing"
     assert_contains "$(cat "$LOG")" 'systemctl enable sddm.service' "and enabled, or there is no login screen to choose the session on"
     assert_file_exists "$MACHINE/home/.local/state/caelestia/session-enabled-sddm" "and the step should remember it did, so uninstall can undo it"
+    assert_not_contains "$(cat "$LOG")" 'set-default' "the boot target is Fedora's business, not Arch's"
+    rm -rf "$MACHINE"
+}
+
+test_fedora_with_no_login_manager_gets_sddm_by_dnf_and_a_graphical_boot() {
+    setup_machine
+    local out status
+    out="$(STUB_DISTRO=fedora run_step)"; status=$?
+
+    assert_status 0 "$status" "the step should succeed on Fedora"
+    assert_file_exists "$MACHINE/root/usr/local/bin/caelestia-wm-session"
+    assert_file_exists "$MACHINE/root/usr/local/share/wayland-sessions/caelestia.desktop"
+    assert_file_exists "$MACHINE/root/etc/sddm.conf.d/zz-wayland-greeter.conf"
+    assert_contains "$(cat "$LOG")" 'dnf install -y sddm' "SDDM comes from dnf there"
+    assert_not_contains "$(cat "$LOG")" 'pacman' "and pacman is never asked"
+    assert_contains "$(cat "$LOG")" 'systemctl enable sddm.service' "SDDM is enabled"
+    assert_contains "$(cat "$LOG")" 'systemctl set-default graphical.target' "a minimal install boots to a text console, which starts no login manager"
+    assert_file_exists "$MACHINE/home/.local/state/caelestia/session-set-graphical-target" "and the change is remembered so uninstall can undo it"
+    assert_file_exists "$MACHINE/root/usr/local/share/wayland-sessions/plasma.desktop" "with no plasma-desktop its entry is hidden, as on Arch"
+    rm -rf "$MACHINE"
+}
+
+test_fedora_that_already_boots_graphically_keeps_its_boot_target() {
+    setup_machine
+    STUB_DISTRO=fedora STUB_BOOT_TARGET=graphical.target run_step > /dev/null
+
+    assert_contains "$(cat "$LOG")" 'systemctl enable sddm.service' "SDDM is still enabled"
+    assert_not_contains "$(cat "$LOG")" 'set-default' "but the boot target is left alone"
+    assert_file_missing "$MACHINE/home/.local/state/caelestia/session-set-graphical-target"
+    rm -rf "$MACHINE"
+}
+
+test_fedora_with_a_login_manager_gets_the_entry_and_no_install() {
+    setup_machine
+    STUB_DISTRO=fedora STUB_LOGIN_MANAGER=sddm run_step > /dev/null
+
+    assert_file_exists "$MACHINE/root/etc/sddm.conf.d/zz-wayland-greeter.conf"
+    assert_not_contains "$(cat "$LOG")" 'dnf install' "SDDM is already there"
+    assert_not_contains "$(cat "$LOG")" 'set-default' "and the machine already boots to its login screen"
+    rm -rf "$MACHINE"
+}
+
+test_fedora_with_a_plasma_desktop_shows_the_plasma_entry() {
+    setup_machine
+    STUB_DISTRO=fedora STUB_PLASMA_DESKTOP=1 run_step > /dev/null
+
+    assert_file_exists "$MACHINE/root/usr/local/share/wayland-sessions/caelestia.desktop"
+    assert_file_missing "$MACHINE/root/usr/local/share/wayland-sessions/plasma.desktop"
     rm -rf "$MACHINE"
 }
 
@@ -201,8 +254,8 @@ test_another_login_manager_keeps_the_machine_and_only_gets_the_entry() {
 test_other_distros_and_packaged_installs_are_left_alone() {
     setup_machine
     local out
-    out="$(STUB_DISTRO=fedora run_step)"
-    assert_contains "$out" 'only tested on Arch' "an untested distro should be told why nothing happened"
+    out="$(STUB_DISTRO=debian run_step)"
+    assert_contains "$out" 'only tested on Arch-based systems and Fedora' "an untested distro should be told why nothing happened"
     assert_file_missing "$MACHINE/root/usr/local/bin/caelestia-wm-session"
 
     out="$(STUB_KIND=package run_step)"
@@ -373,6 +426,28 @@ test_the_step_installs_the_tray_wait_script_and_its_two_drop_ins() {
     assert_eq "$(cat "$SESSION_SRC/app-wait-for-tray.conf")" "$(cat "$unit_dir/app-.service.d/10-caelestia-wait-for-tray.conf")" "the app drop-in should be the shipped one, in the folder named for every app- unit"
     assert_eq "$(cat "$SESSION_SRC/xembedsniproxy-wait-for-tray.conf")" "$(cat "$unit_dir/plasma-xembedsniproxy.service.d/10-caelestia-wait-for-tray.conf")" "and the proxy drop-in too"
     rm -rf "$MACHINE"
+}
+
+# The block of uninstall.sh that undoes the boot target change, run with stubs for sudo and the
+# log helpers: it acts only when the install step left its flag, and clears the flag.
+test_uninstall_restores_the_text_boot_target_only_when_the_step_changed_it() {
+    local m block calls
+    m="$(new_tmpdir)"; mkdir -p "$m/state/caelestia"; calls="$m/calls"; : > "$calls"
+    block="$(sed -n '/^SESSION_GRAPHICAL_FLAG=/,/^fi$/p' "$REPO_ROOT/uninstall.sh")"
+    [[ -n "$block" ]] || fail "uninstall.sh should have a block for the boot target flag"
+
+    run_block() {
+        XDG_STATE_HOME="$m/state" CALLS_FILE="$calls" BLOCK="$block" bash -c 'caelestia_sudo() { echo "sudo $*" >> "$CALLS_FILE"; }; ok() { :; }; warn() { echo "warn $*" >> "$CALLS_FILE"; }; eval "$BLOCK"'
+    }
+
+    run_block
+    assert_eq "" "$(cat "$calls")" "without the flag the boot target is not touched"
+
+    : > "$m/state/caelestia/session-set-graphical-target"
+    run_block
+    assert_contains "$(cat "$calls")" 'sudo systemctl set-default multi-user.target' "with the flag the text console is restored"
+    assert_file_missing "$m/state/caelestia/session-set-graphical-target" "and the flag is cleared"
+    rm -rf "$m"
 }
 
 test_uninstall_removes_the_tray_wait_files_and_their_folders() {

@@ -22,9 +22,11 @@ re-attach the fork's part.
 | File | What the fork adds |
 |---|---|
 | `installer/tui/Runner.cpp` | the step "Install independent session" (`scripts/12-independent-session.sh`), the only fork change left in the installer's C++ |
+| `installer/distro/fedora/packages.sh` | the session package set (`SESSION_PACKAGES`, the `session` group, System Settings, PipeWire and Bluetooth switches), under Fedora's package names, as `installer/distro/arch/packages.sh` has it |
 | `installer/data/menu.json` | the Packages, Applications and "Theming for other apps" menus |
 | `src/bin/caelestia-color`, `src/dots-extra/fish/config.fish`, `src/matugen/README.md` | terminals reached over SSH and Konsole are not sent the palette; `theme.enableKonsole` is off unless set, so Konsole keeps its own colours |
 | `scripts/08-build-shell.sh`, `scripts/10-autostart.sh` | with the independent session `plasmashellrc` and `kscreenlockerrc` are not written (the lock screen package is selected by the Caelestia session through `PLASMA_DEFAULT_SHELL`); other installs keep the old self-heal |
+| `uninstall.sh` | the boot target set by the session step on a minimal Fedora install is set back, with the SDDM flag |
 | `scripts/09-system-tweaks.sh` | the OSD, panel and splash tweaks are skipped with the independent session (`scripts/lib/independent-session.sh`) |
 | `scripts/04-deploy-kde.sh` | the cliphist unit is wanted by `graphical-session.target` |
 | `scripts/setup.sh` | the compiled installer is reused only when its stamp (`tui.version` plus a hash of `installer/tui` and `installer/data`) matches the sources: `installer_stamp`, `compiled_installer_is_current` |

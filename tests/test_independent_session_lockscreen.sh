@@ -42,8 +42,13 @@ test_the_lock_screen_package_is_not_selected_in_plasmashellrc_with_the_independe
     assert_contains "$OUT" "skip: Independent session" "and the step should say why"
 }
 
-test_other_installs_still_select_it() {
+test_the_lock_screen_package_is_not_selected_in_plasmashellrc_on_fedora_either() {
     DISTRO=fedora configure
+    assert_eq "" "$CALLS" "plasmashellrc must not be written on Fedora with the independent session"
+}
+
+test_other_installs_still_select_it() {
+    DISTRO=debian configure
     assert_contains "$CALLS" 'kwriteconfig6 --file plasmashellrc --group Shell --key ShellPackage caelestia.desktop' "the shell runs on top of Plasma there"
 }
 
@@ -72,8 +77,15 @@ test_the_wrapper_of_an_independent_session_install_writes_no_plasma_settings() {
     assert_contains "$WRAPPER" 'exec ' "and it still starts the shell"
 }
 
-test_the_wrapper_of_other_installs_keeps_the_self_heal() {
+test_the_wrapper_of_a_fedora_install_writes_no_plasma_settings() {
     generate fedora
+
+    assert_not_contains "$WRAPPER" "kwriteconfig6 --file plasmashellrc" "Fedora has the independent session too"
+    assert_contains "$WRAPPER" "PLASMA_DEFAULT_SHELL" "and gets its lock screen from the session"
+}
+
+test_the_wrapper_of_other_installs_keeps_the_self_heal() {
+    generate debian
 
     assert_contains "$WRAPPER" 'kwriteconfig6 --file plasmashellrc --group "Shell" --key "ShellPackage" "caelestia.desktop"' "it selects the package again after a KDE update"
     assert_contains "$WRAPPER" 'kwriteconfig6 --file kscreenlockerrc --group "Greeter" --key "Theme" --delete' "and clears the lock screen theme, as before"

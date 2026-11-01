@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # With the independent session installed, Plasma sessions keep their own panels, KDE popups and
-# startup splash: step 09 does not remove or turn off any of them. Without it (Fedora, Debian,
+# startup splash: step 09 does not remove or turn off any of them. Without it (Debian,
 # packaged installs) the shell runs on top of Plasma and the tweaks stay as they were.
 
 set -uo pipefail
@@ -60,9 +60,16 @@ test_it_applies_to_a_source_install_on_an_arch_based_system() {
     rm -rf "$root"
 }
 
-test_it_does_not_apply_on_fedora_debian_or_an_unknown_system() {
+test_it_applies_to_a_source_install_on_fedora() {
+    local root; root="$(new_tmpdir)"
+    DISTRO=fedora KIND=source applies "$root" || fail "a source install on Fedora gets the independent session"
+    DISTRO=fedora KIND=package applies "$root" && fail "a packaged install on Fedora owns its session files"
+    rm -rf "$root"
+}
+
+test_it_does_not_apply_on_debian_or_an_unknown_system() {
     local root d; root="$(new_tmpdir)"
-    for d in fedora debian ""; do
+    for d in debian ""; do
         if DISTRO="$d" KIND=source applies "$root"; then fail "'$d' has no independent session"; fi
     done
     rm -rf "$root"
@@ -110,15 +117,15 @@ test_the_update_flow_leaves_them_alone_too() {
 }
 
 test_without_the_independent_session_the_tweaks_do_what_they_did() {
-    DISTRO=fedora run_tweak tweak_disable_kde_osd
+    DISTRO=debian run_tweak tweak_disable_kde_osd
     assert_contains "$CALLS" "kwriteconfig6 --file plasmarc --group OSD --key Enabled false" "the popups are turned off"
     assert_contains "$CALLS" "kwriteconfig6 --file kdeglobals --group KDE --key OSDEnabled false" "in every file they were"
     assert_contains "$CALLS" "kwriteconfig6 --file powerdevilrc --group BrightnessControl --key showOSD false" "powerdevil's too"
 
-    DISTRO=fedora run_tweak tweak_remove_panels
+    DISTRO=debian run_tweak tweak_remove_panels
     assert_contains "$CALLS" "qdbus6 org.kde.plasmashell /PlasmaShell org.kde.PlasmaShell.evaluateScript" "the panels are removed"
 
-    DISTRO=fedora run_tweak tweak_no_splash_screen
+    DISTRO=debian run_tweak tweak_no_splash_screen
     assert_contains "$CALLS" "kwriteconfig6 --file ksplashrc --group KSplash --key Engine none" "the splash is turned off"
 }
 
