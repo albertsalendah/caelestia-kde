@@ -290,6 +290,40 @@ else
     install_theme_files
 fi
 
+# The greeter runs as the sddm user, which cannot see ~/.local/share/fonts, and the theme draws its
+# icons with Material Symbols Rounded. Arch installs that font system-wide with a package; the
+# Fedora and Debian package steps put it in the home folder, so the icons showed as empty boxes.
+# A system copy is made only when the font is not already somewhere the greeter can read.
+install_greeter_icon_font() {
+    local user_font="${XDG_DATA_HOME:-$HOME/.local/share}/fonts/MaterialSymbolsRounded.ttf"
+    local target_dir="${GREETER_FONT_DIR:-/usr/local/share/fonts/caelestia}"
+    local dir found=""
+
+    [[ -f "$user_font" ]] || return 0
+
+    for dir in ${SYSTEM_FONT_DIRS:-/usr/share/fonts /usr/local/share/fonts}; do
+        [[ -d "$dir" ]] || continue
+        found="$(find "$dir" -iname '*MaterialSymbolsRounded*' -print -quit 2>/dev/null)"
+        [[ -n "$found" ]] && break
+    done
+    if [[ -n "$found" ]]; then
+        return 0
+    fi
+
+    if caelestia_sudo mkdir -p "$target_dir" && caelestia_sudo cp "$user_font" "$target_dir/MaterialSymbolsRounded.ttf"; then
+        caelestia_sudo chmod 644 "$target_dir/MaterialSymbolsRounded.ttf"
+        command -v fc-cache >/dev/null 2>&1 && caelestia_sudo fc-cache -f "$target_dir" >/dev/null 2>&1
+        ok "Material Symbols font copied to $target_dir so the login screen can draw its icons."
+    else
+        warn "Could not copy the Material Symbols font to $target_dir: the login screen icons may show as boxes."
+    fi
+    return 0
+}
+
+if ! install_is_packaged; then
+    install_greeter_icon_font
+fi
+
 for required in theme.conf metadata.desktop Main.qml; do
     if [[ ! -e "/usr/share/sddm/themes/$THEME_NAME/$required" ]]; then
         warn "$INSTALL_DIR/$required is missing: SDDM will ignore this theme and show the default."

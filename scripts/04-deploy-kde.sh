@@ -37,15 +37,27 @@ set -uo pipefail
 
 private_mime_types='application/x-krita-|image/x-inkscape-svg'
 
-for helper in wl-paste cliphist wl-clip-persist; do
+for helper in wl-paste cliphist; do
     command -v "$helper" >/dev/null 2>&1 || { echo "missing: $helper" >&2; exit 1; }
 done
 
 wl-paste --type text --watch cliphist store &
+text_watcher=$!
 wl-paste --type image --watch cliphist store &
-wl-clip-persist --clipboard regular \
-    --all-mime-type-regex "(?i)^(?!(?:${private_mime_types})).+" &
-wait -n
+image_watcher=$!
+
+# The persister only keeps a copied clip alive after the app that copied it closes; the history
+# does not need it. A build that cannot talk to the compositor must not take the watchers down
+# with it: wl-clip-persist 0.4 speaks wlr-data-control only, which KWin dropped in Plasma 6.5, and
+# the service then restarted every few seconds and stored nothing.
+(
+    wl-clip-persist --clipboard regular \
+        --all-mime-type-regex "(?i)^(?!(?:${private_mime_types})).+"
+    status=$?
+    echo "wl-clip-persist stopped (exit $status): a clip is lost when the app that copied it closes" >&2
+) &
+
+wait -n "$text_watcher" "$image_watcher"
 RUNNER
     chmod +x "$HOME/.local/bin/caelestia-cliphist"
 

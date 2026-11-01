@@ -329,4 +329,15 @@ test_the_clipboard_page_is_found_by_the_new_words() {
         "and lands on the Status icons page"
 }
 
+# The popout host sets scaleOffset, fontScale and _isSidebarOpen on whatever popout it shows
+# (the Bindings at the end of popouts/Content.qml). A popout without one of them logs a warning
+# each time it opens: "Property '_isSidebarOpen' does not exist on ClipHistory".
+test_the_popout_has_every_property_the_host_sets_on_popouts() {
+    local name
+    for name in $(awk '/target: popout.item/ { t = 1 } t && /property: "/ { gsub(/.*property: "|".*/, ""); print; t = 0 }' "$POPOUTS/Content.qml" | sort -u); do
+        grep -Eq "^    property [a-z]+ $name:" "$POPOUT" || fail "ClipHistory should declare $name"
+    done
+    assert_contains "$(awk '/target: popout.item/ { t = 1 } t && /property: "/ { gsub(/.*property: "|".*/, ""); print; t = 0 }' "$POPOUTS/Content.qml")" '_isSidebarOpen' "the host should still set it, or this test checks nothing"
+}
+
 run_tests

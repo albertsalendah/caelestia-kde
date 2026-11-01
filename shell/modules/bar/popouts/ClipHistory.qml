@@ -25,6 +25,8 @@ ColumnLayout {
 
     property real scaleOffset: 1.0
     property real fontScale: 1.0
+    // Set by the popout host for every popout, whether this one uses it or not.
+    property bool _isSidebarOpen: false
 
     // Set while the "clear everything?" question is up, when the launcher's
     // confirm setting is on.

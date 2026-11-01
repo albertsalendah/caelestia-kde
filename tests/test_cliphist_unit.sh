@@ -120,19 +120,77 @@ test_the_runner_starts_both_watchers_and_the_persister() {
 }
 
 test_a_missing_helper_is_reported() {
+    local home root status helper
+    for helper in wl-paste cliphist; do
+        root="$(new_tmpdir)"
+        home="$root/home"
+        mkdir -p "$home"
+        write_service "$home" >/dev/null
+        stub_helpers "$root"
+        rm -f "$root/bin/$helper"
+
+        status="$(start_service "$home" "$root/bin")"
+
+        assert_status 1 "$status" "the unit should fail rather than run without $helper"
+        assert_contains "$(cat "$home/runner.log")" "missing: $helper" \
+            "the journal should name the helper that is missing"
+    done
+}
+
+# The watchers wait a second, as real ones do; the persister's fate is then the only thing
+# that could end the runner early.
+slow_watchers() {
+    local root="$1"
+    mkfifo "$root/hold"
+    stub_bin "$root/bin" wl-paste "exec 9<>'$root/hold'; read -r -t 1 -u 9; exit \${WATCHER_EXIT:-0}"
+}
+
+test_a_persister_that_cannot_start_does_not_take_the_watchers_down() {
     local home root status
     root="$(new_tmpdir)"
     home="$root/home"
     mkdir -p "$home"
     write_service "$home" >/dev/null
     stub_helpers "$root"
+    slow_watchers "$root"
+    stub_bin "$root/bin" wl-clip-persist 'echo "Failed to get clipboard manager" >&2; exit 1'
+
+    status="$(start_service "$home" "$root/bin")"
+
+    assert_status 0 "$status" "wl-clip-persist failing is not the runner's failure: the history still works"
+    assert_contains "$(cat "$home/runner.log")" 'wl-clip-persist stopped (exit 1)' \
+        "the journal should say the persister stopped, and why it matters"
+}
+
+test_a_missing_persister_is_reported_but_not_fatal() {
+    local home root status
+    root="$(new_tmpdir)"
+    home="$root/home"
+    mkdir -p "$home"
+    write_service "$home" >/dev/null
+    stub_helpers "$root"
+    slow_watchers "$root"
     rm -f "$root/bin/wl-clip-persist"
 
     status="$(start_service "$home" "$root/bin")"
 
-    assert_status 1 "$status" "the unit should fail rather than run half a clipboard stack"
-    assert_contains "$(cat "$home/runner.log")" 'missing: wl-clip-persist' \
-        "the journal should name the helper that is missing"
+    assert_status 0 "$status" "the clipboard history does not need the persister"
+    assert_contains "$(cat "$home/runner.log")" 'wl-clip-persist stopped' "but the journal says it is not running"
+}
+
+test_a_watcher_that_dies_ends_the_runner_so_systemd_restarts_it() {
+    local home root status
+    root="$(new_tmpdir)"
+    home="$root/home"
+    mkdir -p "$home"
+    write_service "$home" >/dev/null
+    stub_helpers "$root"
+    slow_watchers "$root"
+    stub_bin "$root/bin" wl-clip-persist 'exec 9<>"'"$root"'/hold"; read -r -t 3 -u 9; exit 0'
+
+    status="$(WATCHER_EXIT=3 start_service "$home" "$root/bin")"
+
+    assert_status 3 "$status" "a dead watcher is the runner's failure"
 }
 
 test_the_private_formats_are_left_to_their_owner() {
