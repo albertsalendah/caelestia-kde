@@ -96,6 +96,7 @@ Item {
             avatarCandidateIndex = 0;
         }
 
+        source: avatarCandidates.length > 0 ? avatarCandidates[Math.min(avatarCandidateIndex, avatarCandidates.length - 1)] : ""
         mipmap: true
         smooth: true
         anchors.fill: parent

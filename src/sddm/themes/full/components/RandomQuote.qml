@@ -32,8 +32,9 @@ Item {
             id: quote
 
             width: 100
+            renderType: Text.NativeRendering
             text: ""
-            color: "white"
+            color: config.text
             font.pointSize: 20
             font.family: "Rubik"
             font.italic: true

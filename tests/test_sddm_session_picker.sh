@@ -50,4 +50,19 @@ test_the_picker_fills_its_list_when_the_sessions_appear_not_only_at_completion()
     assert_contains "$qml" 'sessions[i].name ?? ""' "a session with no name gives an empty label, not undefined"
 }
 
+# On Fedora 44 (Qt 6.11) the label next to the session icon stayed blank while the dropdown,
+# built from the same names, showed them. The label is now anchored between the icon and the edge
+# of its pill instead of sitting in a Row, and drawn with native rendering like the password hint.
+test_the_label_is_anchored_and_drawn_natively_so_it_shows() {
+    local qml label
+    qml="$(cat "$FULL_THEME/components/SessionPicker.qml")"
+    label="$(awk '/id: labelText/ { on = 1 } on { print } on && /^        }$/ { exit }' "$FULL_THEME/components/SessionPicker.qml")"
+
+    assert_not_contains "$qml" 'id: labelRow' "no Row around the label"
+    assert_contains "$label" 'anchors.left: labelIcon.right' "it starts after the icon"
+    assert_contains "$label" 'anchors.right: parent.right' "and stops at the edge, so eliding has a width"
+    assert_contains "$label" 'renderType: Text.NativeRendering' "drawn like the text that already shows"
+    assert_contains "$label" 'text: root.currentText' "and it shows the selected session"
+}
+
 run_tests

@@ -67,32 +67,32 @@ Item {
 
         width: 210
 
-        Row {
-            id: labelRow
+        Text {
+            id: labelIcon
 
-            anchors.verticalCenter: labelRect.verticalCenter
-            anchors.left: labelRect.left
+            anchors.left: parent.left
             anchors.leftMargin: 15
-            spacing: 6
+            anchors.verticalCenter: parent.verticalCenter
+            font.family: "Material Symbols Rounded"
+            font.pointSize: 16
+            text: "widgets"
+            color: config.primary
+        }
 
-            Text {
-                anchors.verticalCenter: parent.verticalCenter
-                font.family: "Material Symbols Rounded"
-                font.pointSize: 16
-                text: "widgets"
-                color: config.primary
-            }
+        Text {
+            id: labelText
 
-            Text {
-                id: labelText
-
-                anchors.verticalCenter: parent.verticalCenter
-                text: root.currentText
-                color: config.text
-                font.pixelSize: 14
-                font.family: "Rubik"
-                elide: Text.ElideRight
-            }
+            anchors.left: labelIcon.right
+            anchors.leftMargin: 6
+            anchors.right: parent.right
+            anchors.rightMargin: 12
+            anchors.verticalCenter: parent.verticalCenter
+            renderType: Text.NativeRendering
+            text: root.currentText
+            color: config.text
+            font.pixelSize: 14
+            font.family: "Rubik"
+            elide: Text.ElideRight
         }
 
         LayerState {
