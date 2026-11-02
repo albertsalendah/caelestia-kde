@@ -115,7 +115,7 @@ Item {
                     type: TextButton.Tonal
                     icon: "logout"
                     text: qsTr("Log Out")
-                    onClicked: root.triggerSessionCommand(["sh", "-c", "qdbus6 org.kde.Shutdown /Shutdown org.kde.Shutdown.logout 2>/dev/null"])
+                    onClicked: root.triggerSessionCommand(["sh", "-c", "qdbus6 org.kde.Shutdown /Shutdown org.kde.Shutdown.logout 2>/dev/null || systemctl --user stop caelestia-kwin.service"])
                 }
 
                 IconTextButton {

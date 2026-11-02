@@ -24,7 +24,7 @@ Column {
         id: logout
 
         icon: Config.session.icons.logout
-        command: ["sh", "-c", "qdbus6 org.kde.Shutdown /Shutdown org.kde.Shutdown.logout 2>/dev/null"]
+        command: ["sh", "-c", "qdbus6 org.kde.Shutdown /Shutdown org.kde.Shutdown.logout 2>/dev/null || systemctl --user stop caelestia-kwin.service"]
 
         KeyNavigation.down: shutdown
 

@@ -152,7 +152,7 @@ Item {
                 return;
             } catch(e) {}
         }
-        sessionActionSource.connectSource("qdbus6 org.kde.Shutdown /Shutdown org.kde.Shutdown.logout 2>/dev/null");
+        sessionActionSource.connectSource("qdbus6 org.kde.Shutdown /Shutdown org.kde.Shutdown.logout 2>/dev/null || systemctl --user stop caelestia-kwin.service");
     }
 
     function reboot(): void {

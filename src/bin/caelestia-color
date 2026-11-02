@@ -654,6 +654,69 @@ def cmd_smart_variant(image: str) -> int:
     return 0
 
 
+def cmd_kde_apply_scheme(scheme_file: str, kdeglobals: str, name: str) -> int:
+    """Put a KDE color scheme into kdeglobals the way plasma-apply-colorscheme does.
+
+    plasma-apply-colorscheme ships with plasma-workspace, which a Plasma-free install does
+    not have. The scheme's color groups replace the same groups in kdeglobals, ColorScheme
+    names the scheme, and everything else in the file is left exactly as it was. An accent
+    set in System Settings is dropped, as apply_kde does on the other path.
+    """
+
+    def split(text: str) -> tuple[list[str], dict[str, list[str]]]:
+        order = [""]
+        sections: dict[str, list[str]] = {"": []}
+        current = ""
+        for line in text.splitlines():
+            stripped = line.strip()
+            if stripped.startswith("[") and stripped.endswith("]"):
+                current = stripped
+                if current not in sections:
+                    sections[current] = []
+                    order.append(current)
+                continue
+            sections[current].append(line)
+        for lines in sections.values():
+            while lines and not lines[-1].strip():
+                lines.pop()
+        return order, sections
+
+    target = pathlib.Path(kdeglobals)
+    target_text = target.read_text(encoding="utf-8") if target.exists() else ""
+    order, sections = split(target_text)
+    scheme_order, scheme_sections = split(pathlib.Path(scheme_file).read_text(encoding="utf-8"))
+
+    for header in scheme_order:
+        if header in ("", "[General]"):
+            continue
+        if header not in sections:
+            order.append(header)
+        sections[header] = [line for line in scheme_sections[header] if line.strip()]
+
+    if "[General]" not in sections:
+        order.append("[General]")
+        sections["[General]"] = []
+    sections["[General]"] = [
+        line
+        for line in sections["[General]"]
+        if not re.match(r"\s*(ColorScheme|ColorSchemeHash|AccentColor|AccentColorFromWallpaper)\s*=", line)
+    ]
+    sections["[General]"].append(f"ColorScheme={name}")
+
+    blocks = []
+    for header in order:
+        lines = list(sections[header])
+        while lines and not lines[-1].strip():
+            lines.pop()
+        if header == "":
+            if lines:
+                blocks.append("\n".join(lines))
+            continue
+        blocks.append("\n".join([header, *lines]))
+    atomic_write(target, "\n\n".join(blocks) + "\n")
+    return 0
+
+
 def cmd_konsole_scheme(scheme_file: str, out: str) -> int:
     """Write a Konsole color scheme from the palette in effect.
 
@@ -755,6 +818,8 @@ def main(argv: list[str]) -> int:
         return cmd_smart_variant(*args)
     if command == "konsole-scheme":
         return cmd_konsole_scheme(*args)
+    if command == "kde-apply-scheme":
+        return cmd_kde_apply_scheme(*args)
     raise SystemExit(f"unknown python helper: {command}")
 
 
@@ -1085,14 +1150,40 @@ apply_terms() {
     done
 }
 
+# Running KDE apps learn of a new palette from this signal, the one the Colors page of System
+# Settings sends (type 0 is PaletteChanged). Without a tool to send it they pick the palette up
+# when they next start.
+notify_kde_palette() {
+    if command -v dbus-send >/dev/null 2>&1; then
+        dbus-send --session --type=signal /KGlobalSettings org.kde.KGlobalSettings.notifyChange int32:0 int32:0 2>/dev/null || true
+    elif command -v gdbus >/dev/null 2>&1; then
+        gdbus emit --session --object-path /KGlobalSettings --signal org.kde.KGlobalSettings.notifyChange 0 0 >/dev/null 2>&1 || true
+    fi
+}
+
+# plasma-apply-colorscheme belongs to plasma-workspace, which a Plasma-free install lacks: write
+# the scheme into kdeglobals ourselves and send the signal.
+apply_kde_directly() {
+    local scheme="$1"
+
+    if ! py kde-apply-scheme "$scheme" "$CONFIG_HOME/kdeglobals" Matugen; then
+        warn "could not write the palette into kdeglobals"
+        return 0
+    fi
+    notify_kde_palette
+}
+
 # KDE applies a scheme only when told to and refuses the name in effect, hence two names.
 # An accent set in System Settings is dropped: Plasma would rewrite focus/link/selection from it.
 apply_kde() {
     local scheme="$DATA_HOME/color-schemes/Matugen.colors" current="" target
 
     [[ -f "$scheme" ]] || return 0
-    if ! command -v plasma-apply-colorscheme >/dev/null 2>&1 ||
-        ! command -v kreadconfig6 >/dev/null 2>&1 ||
+    if ! command -v plasma-apply-colorscheme >/dev/null 2>&1; then
+        apply_kde_directly "$scheme"
+        return 0
+    fi
+    if ! command -v kreadconfig6 >/dev/null 2>&1 ||
         ! command -v kwriteconfig6 >/dev/null 2>&1; then
         warn "the KDE command line tools are missing; the palette was written but not applied"
         return 0

@@ -28,6 +28,8 @@ re-attach the fork's part.
 | `scripts/08-build-shell.sh`, `scripts/10-autostart.sh` | with the independent session `plasmashellrc` and `kscreenlockerrc` are not written (the lock screen package is selected by the Caelestia session through `PLASMA_DEFAULT_SHELL`); other installs keep the old self-heal |
 | `uninstall.sh` | the boot target set by the session step on a minimal Fedora install is set back, with the SDDM flag |
 | `scripts/09-system-tweaks.sh` | the OSD, panel and splash tweaks are skipped with the independent session (`scripts/lib/independent-session.sh`) |
+| `src/bin/caelestia-color` | `apply_kde_directly`: without `plasma-apply-colorscheme` (plasma-workspace) the scheme is merged into kdeglobals and `KGlobalSettings.notifyChange` is sent |
+| `shell/modules/launcher/Content.qml`, `shell/modules/session/Content.qml`, `shell/modules/nexus/pages/desktop/KrohnkitePage.qml`, the lock screen's `Session.qml` | logout falls back to `systemctl --user stop caelestia-kwin.service` when `org.kde.Shutdown` is missing |
 | `scripts/04-deploy-kde.sh` | the cliphist unit is wanted by `graphical-session.target`; the runner keeps the `wl-paste` watchers alive when `wl-clip-persist` cannot start (Fedora's 0.4.1 speaks wlr-data-control only) |
 | `shell/modules/dashboard/Wrapper.qml` | a new profile picture runs `shell/scripts/sync_greeter.sh`, so the login screen shows it |
 | `src/sddm/themes/full/components/SessionPicker.qml` | the list and the label are built each time a session appears (`refresh()`), not once at completion; the label is anchored and drawn natively so it shows on Qt 6.11 |
