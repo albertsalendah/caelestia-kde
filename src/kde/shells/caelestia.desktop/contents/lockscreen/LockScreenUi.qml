@@ -4,13 +4,10 @@ import QtQuick.Layouts
 import Qt5Compat.GraphicalEffects
 
 import org.kde.plasma.components as PlasmaComponents3
-import org.kde.plasma.workspace.components as PW
-import org.kde.plasma.private.keyboardindicator as KeyboardIndicator
 import org.kde.plasma.plasma5support as Plasma5Support
 import org.kde.kirigami as Kirigami
 import org.kde.kscreenlocker as ScreenLocker
 
-import org.kde.plasma.private.sessions
 import Caelestia.Services
 
 import "components"
@@ -413,20 +410,12 @@ Item {
         }
     }
 
-    SessionManagement {
-        id: sessionManagement
-    }
-
-    KeyboardIndicator.KeyState {
+    CapsLockState {
         id: capsLockState
-
-        key: Qt.Key_CapsLock
     }
 
-    Connections {
-        function onAboutToSuspend() { root.clearPassword(); }
-
-        target: sessionManagement
+    KeyboardLayoutState {
+        id: keyboardLayout
     }
 
     Connections {
@@ -528,6 +517,7 @@ Item {
         opacity: lockScreenUi.ready ? 1.0 : 0.0
 
         Keys.onPressed: event => {
+            capsLockState.refresh();
             authHandler.ensureAuthenticating();
             if (activePasswordPill) activePasswordPill.forceActiveFocus();
             event.accepted = false;
@@ -781,7 +771,7 @@ Item {
                             isAuthenticating: lockScreenUi.isAuthenticating
                             clPrimary: lockScreenUi.clPrimary
                             clSurfaceVariantFg: lockScreenUi.clSurfaceVariantFg
-                            sessionManagement: sessionManagement
+                            onAboutToSuspend: root.clearPassword()
                             customIcons: lockScreenUi.sessionIcons
                             showSleep: lockScreenUi.showSleep
                             showHibernate: lockScreenUi.showHibernate
@@ -1045,7 +1035,7 @@ Item {
                     isAuthenticating: lockScreenUi.isAuthenticating
                     clPrimary: lockScreenUi.clPrimary
                     clSurfaceVariantFg: lockScreenUi.clSurfaceVariantFg
-                    sessionManagement: sessionManagement
+                    onAboutToSuspend: root.clearPassword()
                     customIcons: lockScreenUi.sessionIcons
                     showSleep: lockScreenUi.showSleep
                     showHibernate: lockScreenUi.showHibernate
@@ -1123,17 +1113,10 @@ Item {
 
                 PlasmaComponents3.ToolButton {
                     icon.name: "input-keyboard"
-                    text: kls.layoutNames.longName
-                    visible: kls.hasMultipleKeyboardLayouts
+                    text: keyboardLayout.longName
+                    visible: keyboardLayout.hasMultipleLayouts
                     Layout.fillHeight: true
-                    onClicked: kls.keyboardLayout.switchToNextLayout()
-
-                    PW.KeyboardLayoutSwitcher {
-                        id: kls
-
-                        anchors.fill: parent
-                        acceptedButtons: Qt.NoButton
-                    }
+                    onClicked: keyboardLayout.switchToNext()
                 }
 
                 Item {

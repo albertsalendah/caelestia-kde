@@ -2,8 +2,8 @@
 import QtQuick
 import QtQuick.Layouts
 import org.kde.plasma.plasma5support as Plasma5Support
-import org.kde.plasma.private.sessions
 import ".."
+import "../LockScreenHelpers.js" as Helpers
 
 Item {
     id: root
@@ -20,8 +20,6 @@ Item {
     property color clSurfaceVariantFg
     property color clSurfaceFg: clPrimary
 
-    property SessionManagement sessionManagement: null
-    property int confirmationMode: 0 // SessionManagement.ConfirmationMode.Skip
     property var customIcons: ({})
 
     property bool showSleep: true
@@ -35,15 +33,20 @@ Item {
     property string hoveredLabel: ""
 
     signal actionTriggered(string action)
+    signal aboutToSuspend()
 
-    readonly property SessionManagement activeSessionManagement: root.sessionManagement || defaultSessionManagement
-
-    readonly property bool canSuspend: activeSessionManagement ? Boolean(activeSessionManagement.canSuspend) : true
-    readonly property bool canHibernate: activeSessionManagement ? Boolean(activeSessionManagement.canHibernate) : false
-    readonly property bool canSwitchUser: activeSessionManagement ? Boolean(activeSessionManagement.canSwitchUser) : true
-    readonly property bool canLogout: activeSessionManagement ? Boolean(activeSessionManagement.canLogout) : true
-    readonly property bool canReboot: activeSessionManagement ? Boolean(activeSessionManagement.canReboot) : true
-    readonly property bool canShutdown: activeSessionManagement ? Boolean(activeSessionManagement.canShutdown) : true
+    // What the system allows, asked of logind and the display manager at start (the defaults hold
+    // until it answers). These replace org.kde.plasma.private.sessions, which only plasma-workspace has.
+    readonly property string capabilitiesCommand: "for m in CanSuspend CanHibernate CanReboot CanPowerOff; do printf '%s=%s\\n' \"$m\" \"$(busctl --system call org.freedesktop.login1 /org/freedesktop/login1 org.freedesktop.login1.Manager \"$m\" 2>/dev/null | cut -d'\"' -f2)\"; done; if busctl --system introspect org.freedesktop.DisplayManager \"${XDG_SEAT_PATH:-/org/freedesktop/DisplayManager/Seat0}\" org.freedesktop.DisplayManager.Seat >/dev/null 2>&1; then echo SwitchUser=yes; else echo SwitchUser=no; fi"
+    // Switch user asks the display manager for its greeter (SDDM and GDM answer on the system bus,
+    // LightDM through dm-tool); the session stays logged in and the lock screen stays up.
+    readonly property string switchUserCommand: "busctl --system call org.freedesktop.DisplayManager \"${XDG_SEAT_PATH:-/org/freedesktop/DisplayManager/Seat0}\" org.freedesktop.DisplayManager.Seat SwitchToGreeter 2>/dev/null || dm-tool switch-to-greeter 2>/dev/null"
+    property bool canSuspend: true
+    property bool canHibernate: false
+    property bool canSwitchUser: false
+    readonly property bool canLogout: true
+    property bool canReboot: true
+    property bool canShutdown: true
 
     readonly property var visibleActions: {
         var actions = [];
@@ -109,71 +112,37 @@ Item {
 
     function suspend(): void {
         root.actionTriggered("suspend");
+        root.aboutToSuspend();
         Qt.callLater(root.requestSuspend);
     }
 
     function requestSuspend(): void {
-        if (activeSessionManagement && activeSessionManagement.canSuspend) {
-            try {
-                activeSessionManagement.suspend();
-                return;
-            } catch(e) {}
-        }
         sessionActionSource.connectSource("systemctl suspend 2>/dev/null");
     }
 
     function hibernate(): void {
         root.actionTriggered("hibernate");
-        if (activeSessionManagement && activeSessionManagement.canHibernate) {
-            try {
-                activeSessionManagement.hibernate();
-                return;
-            } catch(e) {}
-        }
+        root.aboutToSuspend();
         sessionActionSource.connectSource("systemctl hibernate 2>/dev/null");
     }
 
     function switchUser(): void {
         root.actionTriggered("switchUser");
-        if (activeSessionManagement && activeSessionManagement.canSwitchUser) {
-            try {
-                activeSessionManagement.switchUser();
-                return;
-            } catch(e) {}
-        }
-        sessionActionSource.connectSource("qdbus6 org.kde.ksmserver /KSMServer org.kde.KSMServerInterface.openSwitchUser 2>/dev/null || dm-tool switch-to-greeter 2>/dev/null");
+        sessionActionSource.connectSource(root.switchUserCommand);
     }
 
     function logout(): void {
         root.actionTriggered("logout");
-        if (activeSessionManagement && activeSessionManagement.canLogout) {
-            try {
-                activeSessionManagement.requestLogout(root.confirmationMode);
-                return;
-            } catch(e) {}
-        }
         sessionActionSource.connectSource("qdbus6 org.kde.Shutdown /Shutdown org.kde.Shutdown.logout 2>/dev/null || systemctl --user stop caelestia-kwin.service");
     }
 
     function reboot(): void {
         root.actionTriggered("reboot");
-        if (activeSessionManagement && activeSessionManagement.canReboot) {
-            try {
-                activeSessionManagement.requestReboot(root.confirmationMode);
-                return;
-            } catch(e) {}
-        }
         sessionActionSource.connectSource("qdbus6 org.kde.Shutdown /Shutdown org.kde.Shutdown.logoutAndReboot 2>/dev/null || systemctl reboot 2>/dev/null");
     }
 
     function shutdown(): void {
         root.actionTriggered("shutdown");
-        if (activeSessionManagement && activeSessionManagement.canShutdown) {
-            try {
-                activeSessionManagement.requestShutdown(root.confirmationMode);
-                return;
-            } catch(e) {}
-        }
         sessionActionSource.connectSource("qdbus6 org.kde.Shutdown /Shutdown org.kde.Shutdown.logoutAndShutdown 2>/dev/null || systemctl poweroff 2>/dev/null");
     }
 
@@ -186,8 +155,21 @@ Item {
         }
     }
 
-    SessionManagement {
-        id: defaultSessionManagement
+    Component.onCompleted: capabilitiesSource.connectSource(root.capabilitiesCommand)
+
+    Plasma5Support.DataSource {
+        id: capabilitiesSource
+        engine: "executable"
+        connectedSources: []
+        onNewData: (source, data) => {
+            const can = Helpers.parseCapabilities(data.stdout);
+            root.canSuspend = can.suspend;
+            root.canHibernate = can.hibernate;
+            root.canReboot = can.reboot;
+            root.canShutdown = can.shutdown;
+            root.canSwitchUser = can.switchUser;
+            disconnectSource(source);
+        }
     }
 
     Plasma5Support.DataSource {
