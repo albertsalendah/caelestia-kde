@@ -46,13 +46,18 @@ test_caps_lock_is_read_from_the_keyboard_led() {
     assert_contains "$(cat "$LOCK/components/CapsLockState.qml")" 'cat /sys/class/leds/*::capslock/brightness 2>/dev/null'
 }
 
-test_caps_lock_is_refreshed_on_each_key_press_and_not_polled() {
+test_caps_lock_is_refreshed_when_the_password_changes_and_on_key_presses_and_not_polled() {
     local ui state
     ui="$(cat "$LOCK/LockScreenUi.qml")"
     state="$(cat "$LOCK/components/CapsLockState.qml")"
 
     assert_contains "$ui" 'Keys.onPressed: event => {
-            capsLockState.refresh();' "a key press asks for the LED again"
+            capsLockState.refresh();' "a key that reaches the lock screen asks for the LED again"
+    assert_contains "$state" 'target: PasswordSync
+
+        function onPasswordChanged(): void {
+            root.refresh();' "and so does every change of the typed password: the password field takes printable keys before the lock screen's handler sees them"
+    assert_contains "$state" 'import ".."' "PasswordSync lives in the lock screen folder"
     assert_not_contains "$state" 'interval: 1000' "no polling timer"
     assert_contains "$state" 'interval: 60' "only the short wait for the LED to change after the key"
     assert_not_contains "$state" 'repeat: true' "and nothing repeats"

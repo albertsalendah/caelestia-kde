@@ -1,10 +1,13 @@
 import QtQuick
 import org.kde.plasma.plasma5support as Plasma5Support
+import ".."
 import "../LockScreenHelpers.js" as Helpers
 
 // Whether Caps Lock is on, read from the keyboard's LED. It replaces
 // org.kde.plasma.private.keyboardindicator, which only plasma-workspace has. Nothing is polled:
-// call refresh() when a key is pressed (the LED changes a moment after the key).
+// it is read again when the typed password changes (the password field takes the keys, so the
+// lock screen's own key handler never sees them) and when a key reaches the lock screen's
+// handler, a moment after the key because the LED changes a moment later.
 Item {
     id: root
 
@@ -16,6 +19,14 @@ Item {
     }
 
     Component.onCompleted: root.refresh()
+
+    Connections {
+        target: PasswordSync
+
+        function onPasswordChanged(): void {
+            root.refresh();
+        }
+    }
 
     Timer {
         id: settle
