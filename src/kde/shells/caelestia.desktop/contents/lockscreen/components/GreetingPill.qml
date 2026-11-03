@@ -37,12 +37,14 @@ Rectangle {
         RowLayout {
             spacing: Math.max(2, Math.round(4 * root.centerScale))
             Text {
+                renderType: Text.NativeRendering
                 text: (root.greetingInfo ? root.greetingInfo.greeting : "") + ","
                 color: root.clSurfaceVariantFg
                 font { pixelSize: Math.max(11, Math.round(13 * root.centerScale)); family: "Rubik" }
                 elide: Text.ElideRight
             }
             Text {
+                renderType: Text.NativeRendering
                 text: root.userName || qsTr("User")
                 color: root.clPrimary
                 font { pixelSize: Math.max(11, Math.round(13 * root.centerScale)); family: "Rubik"; weight: Font.Bold }

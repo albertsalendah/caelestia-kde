@@ -247,6 +247,7 @@ Item {
                 }
 
                 Text {
+                    renderType: Text.NativeRendering
                     anchors.centerIn: parent
                     text: root.items[delegateItem.index]
                     color: config.text

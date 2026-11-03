@@ -100,6 +100,7 @@ Rectangle {
             }
 
             Text {
+                renderType: Text.NativeRendering
                 Layout.fillWidth: true
                 Layout.maximumWidth: detailsSection.Layout.maximumWidth
                 text: qsTr("Feels like %1").arg(Weather.hasWeather ? Weather.feelsLike : "--°C")

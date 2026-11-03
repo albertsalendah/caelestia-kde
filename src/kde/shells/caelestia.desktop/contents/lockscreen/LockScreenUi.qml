@@ -805,6 +805,7 @@ Item {
                             Text {
                                 id: capsText
 
+                                renderType: Text.NativeRendering
                                 width: parent.width
                                 horizontalAlignment: Text.AlignHCenter
                                 visible: capsLockState.locked && !lockScreenUi.authMessage
@@ -822,6 +823,7 @@ Item {
                             Text {
                                 id: errorText
 
+                                renderType: Text.NativeRendering
                                 width: parent.width
                                 horizontalAlignment: Text.AlignHCenter
                                 visible: false
@@ -836,6 +838,7 @@ Item {
                             Text {
                                 id: fpHint
 
+                                renderType: Text.NativeRendering
                                 width: parent.width
                                 horizontalAlignment: Text.AlignHCenter
                                 visible: lockScreenUi.hasFingerprint
@@ -1064,6 +1067,7 @@ Item {
                         Text {
                             id: portraitCapsText
 
+                            renderType: Text.NativeRendering
                             width: parent.width
                             horizontalAlignment: Text.AlignHCenter
                             visible: capsLockState.locked && !lockScreenUi.authMessage
@@ -1081,6 +1085,7 @@ Item {
                         Text {
                             id: portraitErrorText
 
+                            renderType: Text.NativeRendering
                             width: parent.width
                             horizontalAlignment: Text.AlignHCenter
                             visible: false
@@ -1095,6 +1100,7 @@ Item {
                         Text {
                             id: portraitFpHint
 
+                            renderType: Text.NativeRendering
                             width: parent.width
                             horizontalAlignment: Text.AlignHCenter
                             visible: lockScreenUi.hasFingerprint

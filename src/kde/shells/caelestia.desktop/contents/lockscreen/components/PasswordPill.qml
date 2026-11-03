@@ -253,6 +253,7 @@ FocusScope {
                 }
 
                 Text {
+                    renderType: Text.NativeRendering
                     anchors.fill: parent
                     anchors.leftMargin: 2
                     anchors.rightMargin: 2

@@ -116,6 +116,7 @@ Rectangle {
         Behavior on opacity { NumberAnimation { duration: 250 } }
 
             Text {
+                renderType: Text.NativeRendering
                 Layout.fillWidth: true
                 text: root.hideNotifs
                       ? qsTr("Unlock for Notifications")
@@ -319,6 +320,7 @@ Rectangle {
                             spacing: 8 * root.centerScale
 
                             Text {
+                                renderType: Text.NativeRendering
                                 Layout.fillWidth: true
                                 text: modelData.appName
                                 font { pixelSize: LockScreenConfig.sizeMedium; family: LockScreenConfig.fontBody; weight: Font.Medium }
@@ -327,6 +329,7 @@ Rectangle {
                             }
 
                             Text {
+                                renderType: Text.NativeRendering
                                 text: root.formatNotifTime(modelData.latestTime)
                                 font { pixelSize: LockScreenConfig.sizeSmall; family: LockScreenConfig.fontBody }
                                 color: root.clOutline
@@ -346,6 +349,7 @@ Rectangle {
                                     spacing: 4
 
                                     Text {
+                                        renderType: Text.NativeRendering
                                         text: modelData.notifs.length
                                         font { pixelSize: LockScreenConfig.sizeVerySmall; family: LockScreenConfig.fontBody; weight: Font.Medium }
                                         color: root.clSurfaceFg
@@ -376,6 +380,7 @@ Rectangle {
 
                                 Text {
                                     id: lineText
+                                    renderType: Text.NativeRendering
                                     anchors.left: parent.left
                                     anchors.right: parent.right
                                     textFormat: Text.StyledText

@@ -248,6 +248,7 @@ Item {
             anchors.horizontalCenter: parent.horizontalCenter
 
             Text {
+                renderType: Text.NativeRendering
                 anchors.centerIn: parent
                 text: root.hoveredLabel
                 font.family: LockScreenConfig.fontBody

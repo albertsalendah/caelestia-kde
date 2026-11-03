@@ -158,6 +158,7 @@ Item {
         }
 
         Text {
+            renderType: Text.NativeRendering
             Layout.alignment: Qt.AlignHCenter
             text: qsTr("All up to date!")
             font { pixelSize: LockScreenConfig.sizeSmall; family: LockScreenConfig.fontBody; weight: Font.Medium }
@@ -166,6 +167,7 @@ Item {
         }
 
         Text {
+            renderType: Text.NativeRendering
             Layout.alignment: Qt.AlignHCenter
             text: qsTr("Click or press Space to play")
             font { pixelSize: LockScreenConfig.sizeVerySmall; family: LockScreenConfig.fontBody }
@@ -252,12 +254,14 @@ Item {
             spacing: 6
 
             Text {
+                renderType: Text.NativeRendering
                 anchors.horizontalCenter: parent.horizontalCenter
                 text: qsTr("G A M E   O V E R")
                 font { pixelSize: LockScreenConfig.sizeSmall; family: LockScreenConfig.fontBody; weight: Font.Medium }
                 color: root.activeColor
             }
             Text {
+                renderType: Text.NativeRendering
                 anchors.horizontalCenter: parent.horizontalCenter
                 text: qsTr("Click to restart")
                 font { pixelSize: LockScreenConfig.sizeVerySmall; family: LockScreenConfig.fontBody }
@@ -273,12 +277,14 @@ Item {
             spacing: 6
 
             Text {
+                renderType: Text.NativeRendering
                 anchors.horizontalCenter: parent.horizontalCenter
                 text: qsTr("Y O U   W I N !")
                 font { pixelSize: LockScreenConfig.sizeSmall; family: LockScreenConfig.fontBody; weight: Font.Medium }
                 color: root.activeColor
             }
             Text {
+                renderType: Text.NativeRendering
                 anchors.horizontalCenter: parent.horizontalCenter
                 text: qsTr("Now go touch grass")
                 font { pixelSize: LockScreenConfig.sizeVerySmall; family: LockScreenConfig.fontBody }
