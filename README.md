@@ -95,6 +95,7 @@ they were, and you choose one at the login screen.
 | KWin unit and session target | `/usr/local/lib/systemd/user/caelestia-kwin.service` and `caelestia-session.target` |
 | Starts the shell in this session only (a drop-in for `caelestia-shell.service`, so a Plasma session does not get the Caelestia shell on top of `plasmashell`) | `/usr/local/lib/systemd/user/caelestia-shell.service.d/10-caelestia-session-only.conf`, refers to `caelestia-shell-session-only.conf` in the repository |
 | Holds autostarted tray apps back until the shell provides the tray, and starts the proxy for old X11 tray icons (the apps would otherwise ask for a tray that is not there yet and give up; does nothing in a Plasma session) | `/usr/local/bin/caelestia-wait-for-tray`, with the drop-ins `app-.service.d/10-caelestia-wait-for-tray.conf` and `plasma-xembedsniproxy.service.d/10-caelestia-wait-for-tray.conf` under `/usr/local/lib/systemd/user/`, which refer to `app-wait-for-tray.conf` and `xembedsniproxy-wait-for-tray.conf` in the repository |
+| The proxy for old X11 tray icons, built from `src/xembed-sni-proxy` and installed only when `plasma-workspace` (which ships it) is not installed | `/usr/local/bin/caelestia-xembedsniproxy` and `/usr/local/lib/systemd/user/plasma-xembedsniproxy.service`, which refers to `plasma-xembedsniproxy-standalone.service` in the repository |
 | Login-screen entry | `/usr/local/share/wayland-sessions/caelestia.desktop` |
 | Wayland greeter (SDDM only) | `/etc/sddm.conf.d/zz-wayland-greeter.conf` |
 | Hides the Plasma login entry (SDDM only, and only with no Plasma desktop installed) | `/usr/local/share/wayland-sessions/plasma.desktop` |
@@ -128,7 +129,7 @@ terminal, the installer records Konsole as the shell's terminal.
 `kscreen`, `konsole`, `dolphin`, `ark` and `plasma-systemsettings`, plus `pipewire-pulseaudio`,
 `pipewire-alsa`, `bluedevil` and `bluez`; the same menu switches turn System Settings, PipeWire and
 Bluetooth off. The step has been written from Fedora's package lists and tested against stubs, and
-has not run on a real Fedora machine yet. Debian is still skipped. The Fedora installer does not
+has not run on a real Fedora machine yet. The icons of old X11 apps (Java and Compose apps such as AB Download Manager) need KDE's `xembedsniproxy`, which ships only inside `plasma-workspace`; when `plasma-workspace` is not installed the step builds a copy of it (`src/xembed-sni-proxy`, taken from `plasma-workspace` v6.8.2) with CMake and installs it under `/usr/local`, and a failed build only costs those icons. Debian is still skipped. The Fedora installer does not
 guard a system upgrade the way the Arch one does (an upgrade of KWin or Qt inside a running session),
 so run `sudo dnf upgrade` from a text console, not from inside the session.
 

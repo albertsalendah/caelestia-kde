@@ -757,6 +757,8 @@ SESSION_FILES=(
     /usr/local/bin/caelestia-wait-for-tray
     /usr/local/lib/systemd/user/app-.service.d/10-caelestia-wait-for-tray.conf
     /usr/local/lib/systemd/user/plasma-xembedsniproxy.service.d/10-caelestia-wait-for-tray.conf
+    /usr/local/bin/caelestia-xembedsniproxy
+    /usr/local/lib/systemd/user/plasma-xembedsniproxy.service
     /usr/local/share/wayland-sessions/caelestia.desktop
     /etc/sddm.conf.d/zz-wayland-greeter.conf
 )
@@ -766,6 +768,7 @@ for session_file in "${SESSION_FILES[@]}"; do
         ok "Removed independent session file: $session_file"
     fi
 done
+rm -f "${XDG_STATE_HOME:-$HOME/.local/state}/caelestia/xembed-proxy.stamp"
 # The file that hid the Plasma login entry, only if it is the one the installer wrote: a
 # plasma.desktop that someone else put there is theirs.
 PLASMA_ENTRY=/usr/local/share/wayland-sessions/plasma.desktop

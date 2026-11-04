@@ -16,6 +16,10 @@
 #                                                          autostarted apps and the old-tray proxy
 #                                                          wait for the shell's tray (in this
 #                                                          session only)
+#   /usr/local/bin/caelestia-xembedsniproxy and /usr/local/lib/systemd/user/plasma-xembedsniproxy.service
+#                                                          only without plasma-workspace: the old-tray
+#                                                          proxy built from src/xembed-sni-proxy
+#                                                          (scripts/lib/xembed-proxy.sh)
 #   /usr/local/share/wayland-sessions/caelestia.desktop    the login-screen entry
 #   /etc/sddm.conf.d/zz-wayland-greeter.conf               SDDM only: a Wayland greeter
 #   /usr/local/share/wayland-sessions/plasma.desktop       SDDM only, and only with no Plasma desktop
@@ -43,6 +47,8 @@ source "$(dirname "${BASH_SOURCE[0]}")/lib/log.sh"
 source "$(dirname "${BASH_SOURCE[0]}")/lib/privileges.sh"
 # shellcheck source=scripts/lib/packages.sh
 source "$(dirname "${BASH_SOURCE[0]}")/lib/packages.sh"
+# shellcheck source=scripts/lib/xembed-proxy.sh
+source "$(dirname "${BASH_SOURCE[0]}")/lib/xembed-proxy.sh"
 
 BUNDLE_DIR="${BUNDLE_DIR:?BUNDLE_DIR not set}"
 SRC_DIR="$BUNDLE_DIR/src/session"
@@ -81,7 +87,8 @@ esac
 
 for file in caelestia-wm-session caelestia-kwin.service caelestia-session.target \
             caelestia.desktop zz-wayland-greeter.conf plasma.desktop caelestia-shell-session-only.conf \
-            caelestia-wait-for-tray app-wait-for-tray.conf xembedsniproxy-wait-for-tray.conf; do
+            caelestia-wait-for-tray app-wait-for-tray.conf xembedsniproxy-wait-for-tray.conf \
+            plasma-xembedsniproxy-standalone.service; do
     [[ -f "$SRC_DIR/$file" ]] || die "Missing $SRC_DIR/$file"
 done
 
@@ -141,6 +148,12 @@ install_file "$SRC_DIR/app-wait-for-tray.conf"    "$APP_DROPIN"                 
 install_file "$SRC_DIR/xembedsniproxy-wait-for-tray.conf" "$PROXY_DROPIN"              0644
 install_file "$SRC_DIR/caelestia.desktop"         "$ENTRY"                             0644
 ok "Session files installed under /usr/local."
+
+# Old X11 tray icons: plasma-workspace ships the proxy; a machine without it builds the vendored copy.
+# (Not under the tests' scratch root: they would try to build.)
+if [[ -z "$ROOT" ]]; then
+    install_xembed_proxy
+fi
 
 # A copy of either unit in the user's own config wins over the system-wide one. An old
 # prototype install leaves such copies.
