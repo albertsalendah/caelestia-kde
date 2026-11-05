@@ -238,7 +238,7 @@ int main(int argc, char** argv) {
 
     if (g_logout) {
         cout << "\nLogging out...\n";
-        if (run_shell("qdbus6 org.kde.Shutdown /Shutdown org.kde.Shutdown.logout 2>/dev/null") != 0)
+        if (run_shell("qdbus6 org.kde.Shutdown /Shutdown org.kde.Shutdown.logout 2>/dev/null || systemctl --user stop caelestia-kwin.service") != 0)
             cerr << "[installer] warning: the session did not accept the logout request; log out manually." << endl;
     } else {
         cout << "\nCaelestia installation complete. Remember to log out to activate your new session.\n";

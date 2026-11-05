@@ -80,16 +80,21 @@ UTILITY_PACKAGES=(
 )
 
 # What the independent session (KWin + the Caelestia shell, no plasmashell) needs from KDE; the
-# same set as installer/distro/arch/packages.sh under Fedora's names. The shell calls these
-# directly, so they are listed here instead of relying on plasmashell's dependencies:
-# plasma-workspace (plasma-apply-colorscheme, the logout service), kwin (kwin_wayland and
-# kwin_wayland_wrapper, which the session starts; Fedora 44 has no separate kwin-wayland),
+# same set as installer/distro/arch/packages.sh under Fedora's names, except plasma-workspace:
+# Fedora's packaging does not need it, so it is not installed (the shell has fallbacks for
+# plasma-apply-colorscheme and the logout service, and the session builds the tray proxy
+# itself). Nothing listed here requires or recommends it, so it does not come back. The shell
+# calls these directly, so they are listed here instead of relying on plasmashell's dependencies:
+# plasma-integration (the Qt platform theme that gives Qt apps the KDE colours and file dialogs;
+# a dependency of plasma-workspace, so naming it here keeps it when plasma-workspace goes),
+# kwin (kwin_wayland and kwin_wayland_wrapper, which the session starts; Fedora 44 has no
+# separate kwin-wayland),
 # kscreenlocker (the lockscreen greeter) with plasma5support (a module the lockscreen imports),
 # layer-shell-qt (the SDDM Wayland greeter and the lockscreen), the portal and polkit agent,
 # powerdevil (brightness, idle, lid and Keep Awake), kscreen (monitor settings page) and the
 # default apps. plasma-systemsettings is optional and hosts the kscreen page.
 SESSION_PACKAGES=(
-    plasma-workspace kwin kscreenlocker plasma5support layer-shell-qt
+    plasma-integration kwin kscreenlocker plasma5support layer-shell-qt
     xdg-desktop-portal-kde xorg-x11-server-Xwayland polkit-kde powerdevil kscreen
     konsole dolphin ark
 )

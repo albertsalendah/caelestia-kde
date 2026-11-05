@@ -210,10 +210,12 @@ case "$LOGIN_MANAGER" in
 esac
 
 # --- the Plasma login entry ---------------------------------------------------------------
-# plasma-workspace, which the session needs, ships a login entry for a Plasma session. A machine
-# with no Plasma desktop (plasma-desktop is what makes one) gets an entry that starts plasmashell
-# with nothing to show, so it is hidden: SDDM reads /usr/local/share/wayland-sessions first, takes
-# the first file of a name, and skips one marked NoDisplay. Nothing the package owns is touched.
+# plasma-workspace ships a login entry for a Plasma session. A machine with no Plasma desktop
+# (plasma-desktop is what makes one) but with plasma-workspace (Arch keeps it) gets an entry that
+# starts plasmashell with nothing to show, so it is hidden: SDDM reads
+# /usr/local/share/wayland-sessions first, takes the first file of a name, and skips one marked
+# NoDisplay. Nothing the package owns is touched. A machine without plasma-workspace (Fedora)
+# has no such entry, so nothing is hidden there and a file this step wrote earlier is removed.
 # Only SDDM is handled; what other login managers do with the same file has not been tried.
 is_ours() { [[ -f "$1" ]] && grep -q '^X-Caelestia-Managed=true$' "$1"; }
 
@@ -222,6 +224,12 @@ if package_present plasma-desktop; then
     if is_ours "$PLASMA_ENTRY"; then
         caelestia_sudo rm -f "$PLASMA_ENTRY"
         ok "A Plasma desktop is installed; its login entry is shown again."
+    fi
+elif ! package_present plasma-workspace; then
+    # Neither package is installed: there is no Plasma entry to hide.
+    if is_ours "$PLASMA_ENTRY"; then
+        caelestia_sudo rm -f "$PLASMA_ENTRY"
+        ok "plasma-workspace is not installed, so there is no Plasma login entry; the file that hid it is removed."
     fi
 elif [[ "$LOGIN_MANAGER" == sddm || "$LOGIN_MANAGER" == none ]]; then
     if [[ -e "$PLASMA_ENTRY" ]] && ! is_ours "$PLASMA_ENTRY"; then

@@ -124,11 +124,14 @@ esac"
     # pacman -Q reports "not installed"; anything else is just recorded
     stub_bin "$MACHINE/bin" pacman "printf 'pacman %s\\n' \"\$*\" >> '$LOG'
 [ \"\$*\" = '-Qq plasma-desktop' ] && [ \"\${STUB_PLASMA_DESKTOP:-}\" = 1 ] && exit 0
+[ \"\$*\" = '-Qq plasma-workspace' ] && [ \"\${STUB_NO_PLASMA_WORKSPACE:-}\" != 1 ] && exit 0
 case \"\$1\" in -Q*) exit 1 ;; esac
 exit 0"
     stub_bin "$MACHINE/bin" dnf "printf 'dnf %s\\n' \"\$*\" >> '$LOG'"
-    # rpm -q reports "not installed" except for plasma-desktop when the test asks for it
+    # rpm -q reports "not installed" except for plasma-desktop when the test asks for it, and for
+    # plasma-workspace unless the test says the machine has none (Arch keeps it, Fedora drops it)
     stub_bin "$MACHINE/bin" rpm "[ \"\$*\" = '-q plasma-desktop' ] && [ \"\${STUB_PLASMA_DESKTOP:-}\" = 1 ] && exit 0
+[ \"\$*\" = '-q plasma-workspace' ] && [ \"\${STUB_NO_PLASMA_WORKSPACE:-}\" != 1 ] && exit 0
 exit 1"
 }
 
@@ -139,6 +142,7 @@ run_step() {
         CAELESTIA_SUDO_BIN="$MACHINE/bin/sudo" \
         STUB_LOGIN_MANAGER="${STUB_LOGIN_MANAGER:-}" STUB_SESSION_RUNNING="${STUB_SESSION_RUNNING:-}" \
         STUB_PLASMA_DESKTOP="${STUB_PLASMA_DESKTOP:-}" STUB_BOOT_TARGET="${STUB_BOOT_TARGET:-}" \
+        STUB_NO_PLASMA_WORKSPACE="${STUB_NO_PLASMA_WORKSPACE:-}" \
         bash "$STEP" 2>&1
 }
 
@@ -344,6 +348,40 @@ test_a_plasma_desktop_keeps_its_entry_and_gets_back_the_one_we_hid() {
     setup_machine
     STUB_LOGIN_MANAGER=sddm STUB_PLASMA_DESKTOP=1 run_step > /dev/null
     assert_file_missing "$MACHINE/$PLASMA_ENTRY_REL" "a machine that has Plasma from the start never gets it hidden"
+    rm -rf "$MACHINE"
+}
+
+test_without_plasma_workspace_there_is_no_plasma_entry_to_hide() {
+    setup_machine
+    local out
+    out="$(STUB_DISTRO=fedora STUB_LOGIN_MANAGER=sddm STUB_NO_PLASMA_WORKSPACE=1 run_step)"
+
+    assert_file_exists "$MACHINE/root/usr/local/share/wayland-sessions/caelestia.desktop" "the Caelestia entry is still installed"
+    assert_file_missing "$MACHINE/$PLASMA_ENTRY_REL" "no package ships a Plasma entry, so there is nothing to hide"
+    assert_not_contains "$out" 'the Plasma login entry is hidden' "and the step does not claim it"
+    rm -rf "$MACHINE"
+}
+
+test_the_file_that_hid_the_entry_goes_when_plasma_workspace_does() {
+    setup_machine
+    STUB_DISTRO=fedora STUB_LOGIN_MANAGER=sddm run_step > /dev/null
+    assert_file_exists "$MACHINE/$PLASMA_ENTRY_REL" "while plasma-workspace is installed (and no desktop) the entry is hidden"
+
+    local out
+    out="$(STUB_DISTRO=fedora STUB_LOGIN_MANAGER=sddm STUB_NO_PLASMA_WORKSPACE=1 run_step)"
+
+    assert_file_missing "$MACHINE/$PLASMA_ENTRY_REL" "after plasma-workspace is removed the stale hiding file is not left behind"
+    assert_contains "$out" 'there is no Plasma login entry' "and the step says so"
+    rm -rf "$MACHINE"
+}
+
+test_a_plasma_entry_somebody_else_wrote_stays_when_plasma_workspace_is_gone() {
+    setup_machine
+    mkdir -p "$MACHINE/root/usr/local/share/wayland-sessions"
+    printf '[Desktop Entry]\nName=My own Plasma\nExec=/opt/mine\n' > "$MACHINE/$PLASMA_ENTRY_REL"
+    STUB_DISTRO=fedora STUB_LOGIN_MANAGER=sddm STUB_NO_PLASMA_WORKSPACE=1 run_step > /dev/null
+
+    assert_contains "$(cat "$MACHINE/$PLASMA_ENTRY_REL")" 'My own Plasma' "a file we did not write is never removed"
     rm -rf "$MACHINE"
 }
 

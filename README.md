@@ -113,7 +113,7 @@ The Wayland greeter matters. With SDDM's default Xorg greeter, about 4 in 9 logi
 machine ended on a black screen. The Caelestia SDDM theme shows a session picker below the password
 field (full variant), so you can pick Caelestia or Plasma.
 
-**Packages.** The session installs `plasma-workspace`, `kscreenlocker`, `plasma5support`,
+**Packages.** (Arch; Fedora's list is under "Fedora" below.) The session installs `plasma-workspace`, `kscreenlocker`, `plasma5support`,
 `layer-shell-qt`, `xdg-desktop-portal-kde`, `xorg-xwayland`, `polkit-kde-agent`, `powerdevil`,
 `kscreen`, `konsole`, `dolphin`, `ark` and `systemsettings`, because the shell calls their tools.
 `plasma-workspace` brings the `plasmashell` binary and a Plasma login entry with it, but nothing in
@@ -123,18 +123,36 @@ this with a file in `/usr/local/share/wayland-sessions`, and touches nothing the
 `plasma-desktop` and run the installer again to show the entry. When foot is not installed and you have not chosen a
 terminal, the installer records Konsole as the shell's terminal.
 
-**Fedora.** The same step runs on Fedora, with the same files. A minimal install (Fedora Everything) boots to a text console, so with any of the three login managers above the step also sets the boot target to `graphical.target`; `uninstall.sh` sets it back. The packages are `plasma-workspace`,
+**Fedora.** The same step runs on Fedora, with the same files. A minimal install (Fedora Everything) boots to a text console, so with any of the three login managers above the step also sets the boot target to `graphical.target`; `uninstall.sh` sets it back. The packages are `plasma-integration` (the Qt platform theme that gives Qt apps the KDE colours and file dialogs),
 `kwin` (it ships the `kwin_wayland_wrapper` the session starts), `kscreenlocker`, `plasma5support`,
 `layer-shell-qt`, `xdg-desktop-portal-kde`, `xorg-x11-server-Xwayland`, `polkit-kde`, `powerdevil`,
 `kscreen`, `konsole`, `dolphin`, `ark` and `plasma-systemsettings`, plus `pipewire-pulseaudio`,
 `pipewire-alsa`, `bluedevil` and `bluez`; the same menu switches turn System Settings, PipeWire and
-Bluetooth off. The step has been written from Fedora's package lists and tested against stubs, and
-has not run on a real Fedora machine yet. The icons of old X11 apps (Java and Compose apps such as AB Download Manager) need KDE's `xembedsniproxy`, which ships only inside `plasma-workspace`; when `plasma-workspace` is not installed the step builds a copy of it (`src/xembed-sni-proxy`, taken from `plasma-workspace` v6.8.2) with CMake and installs it under `/usr/local`, and a failed build only costs those icons. Debian is still skipped. The Fedora installer does not
+Bluetooth off. `plasma-workspace` and `plasma-desktop` are not installed on Fedora, and nothing in the list requires or
+recommends them; the shell has fallbacks for the two things only `plasma-workspace` provided (the KDE colour-scheme command and the logout service). The icons of old X11 apps (Java and Compose apps such as AB Download Manager) need KDE's `xembedsniproxy`, which ships only inside `plasma-workspace`; when `plasma-workspace` is not installed the step builds a copy of it (`src/xembed-sni-proxy`, taken from `plasma-workspace` v6.8.2) with CMake and installs it under `/usr/local`, and a failed build only costs those icons. Debian is still skipped. The Fedora installer does not
 guard a system upgrade the way the Arch one does (an upgrade of KWin or Qt inside a running session),
 so run `sudo dnf upgrade` from a text console, not from inside the session.
 
-**Removing the Plasma desktop.** (Arch commands; on Fedora remove `plasma-desktop` with `dnf remove` and
-keep the packages above.) The installer does not do it. To do it yourself, from the Caelestia
+**Removing the Plasma desktop on Fedora.** The installer does not do it. If a Plasma desktop is already
+installed, remove it from the Caelestia session (not from a Plasma session), after
+`sudo dnf history list` so you know where you started. `plasma-integration` must be marked as installed by
+you first, or `dnf` removes it with the rest as an unused dependency and Qt apps lose the KDE colours.
+`--assumeno` shows the list and removes nothing; `powerdevil`, `xdg-desktop-portal-kde`, `kscreenlocker`,
+`kwin`, `sddm` and `konsole` stay. KDE Wallet (`kf6-kwallet`) cannot be removed with it (too many packages
+depend on it); `kwriteconfig6 --file kwalletrc --group Wallet --key Enabled false` switches it off.
+
+```bash
+sudo dnf mark user plasma-integration
+sudo dnf remove --assumeno plasma-workspace
+sudo dnf remove plasma-workspace
+bash scripts/setup.sh
+```
+
+`setup.sh` builds the old-tray proxy (a failed build only costs the icons of old X11 apps) and removes the
+file that hid the Plasma login entry, which no longer exists once `plasma-workspace` is gone. To go back:
+`sudo dnf history undo last`.
+
+**Removing the Plasma desktop on Arch.** (Arch commands.) The installer does not do it. To do it yourself, from the Caelestia
 session (not from a Plasma session): first mark the session's packages as explicitly installed, so that
 removing `plasma-desktop` does not leave them as orphans for a later clean-up, then remove the desktop
 without `-s`, which leaves its dependencies in place, and run the installer once more so the Plasma
@@ -160,8 +178,8 @@ env BUNDLE_DIR=$PWD BASE_DISTRO=arch bash scripts/12-independent-session.sh
 
 For example: `INSTALL_WALLPAPER_PACK=true bash scripts/setup.sh`.
 
-**Tested on.** CachyOS with SDDM. The Plasma Login and no-login-manager paths have only unit tests.
-Fedora, Debian and packaged installs skip this step.
+**Tested on.** CachyOS with SDDM, and Fedora 44 with SDDM. The Plasma Login and no-login-manager paths have
+only unit tests. Debian and packaged installs skip this step.
 
 **Uninstalling.** `bash ./uninstall.sh` removes the session files listed above. It leaves the login
 manager alone, except SDDM when this step was the one that enabled it.
