@@ -148,9 +148,14 @@ sudo dnf remove plasma-workspace
 bash scripts/setup.sh
 ```
 
-`setup.sh` builds the old-tray proxy (a failed build only costs the icons of old X11 apps) and removes the
-file that hid the Plasma login entry, which no longer exists once `plasma-workspace` is gone. To go back:
-`sudo dnf history undo last`.
+Run `setup.sh` right after the removal, and do not lock the screen before it has run: on Fedora
+`plasma-workspace` ships the lock screen's PAM services (`/etc/pam.d/kde`, `kde-fingerprint`,
+`kde-smartcard`), and without them a locked screen cannot check any password and stays locked
+(Ctrl+Alt+F3, log in, `loginctl unlock-session`). `setup.sh` writes those files when they are missing
+(`uninstall.sh` leaves them: they are harmless), builds the old-tray proxy (a failed build only costs the
+icons of old X11 apps) and removes the file that hid the Plasma login entry, which no longer exists once
+`plasma-workspace` is gone. The lock screen draws the shell's current wallpaper itself, because KDE's
+wallpaper plugin went with the package. To go back: `sudo dnf history undo last`.
 
 **Removing the Plasma desktop on Arch.** (Arch commands.) The installer does not do it. To do it yourself, from the Caelestia
 session (not from a Plasma session): first mark the session's packages as explicitly installed, so that

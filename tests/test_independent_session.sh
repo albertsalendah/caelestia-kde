@@ -385,6 +385,55 @@ test_a_plasma_entry_somebody_else_wrote_stays_when_plasma_workspace_is_gone() {
     rm -rf "$MACHINE"
 }
 
+test_the_lock_screens_pam_services_ship_the_files_fedora_has() {
+    local svc stack
+    for pair in kde:password-auth kde-fingerprint:fingerprint-auth kde-smartcard:smartcard-auth; do
+        svc="${pair%%:*}"; stack="${pair##*:}"
+        assert_file_exists "$SESSION_SRC/pam.d/$svc" "$svc"
+        assert_contains "$(cat "$SESSION_SRC/pam.d/$svc")" "auth        substack      $stack" "$svc checks the password through $stack, as Fedora's file does"
+        assert_contains "$(cat "$SESSION_SRC/pam.d/$svc")" "# X-Caelestia-Managed=true" "$svc is marked as ours"
+    done
+}
+
+test_without_plasma_workspace_the_pam_services_of_the_lock_screen_are_written() {
+    setup_machine
+    local out
+    out="$(STUB_DISTRO=fedora STUB_LOGIN_MANAGER=sddm STUB_NO_PLASMA_WORKSPACE=1 run_step)"
+
+    for svc in kde kde-fingerprint kde-smartcard; do
+        assert_eq "$(cat "$SESSION_SRC/pam.d/$svc")" "$(cat "$MACHINE/root/etc/pam.d/$svc")" "/etc/pam.d/$svc is the shipped file"
+    done
+    assert_contains "$out" 'lock screen' "the step says what it wrote"
+    rm -rf "$MACHINE"
+}
+
+test_with_plasma_workspace_the_pam_services_are_left_to_the_package() {
+    setup_machine
+    STUB_DISTRO=fedora STUB_LOGIN_MANAGER=sddm run_step > /dev/null
+
+    assert_file_missing "$MACHINE/root/etc/pam.d/kde" "plasma-workspace ships it"
+    rm -rf "$MACHINE"
+}
+
+test_a_pam_service_that_exists_is_never_replaced() {
+    setup_machine
+    mkdir -p "$MACHINE/root/etc/pam.d"
+    printf 'auth required pam_permit.so\n' > "$MACHINE/root/etc/pam.d/kde"
+    STUB_DISTRO=fedora STUB_LOGIN_MANAGER=sddm STUB_NO_PLASMA_WORKSPACE=1 run_step > /dev/null
+
+    assert_eq 'auth required pam_permit.so' "$(cat "$MACHINE/root/etc/pam.d/kde")" "the existing file stays"
+    assert_file_exists "$MACHINE/root/etc/pam.d/kde-fingerprint" "the missing ones are still written"
+    rm -rf "$MACHINE"
+}
+
+test_arch_does_not_get_the_pam_services_written() {
+    setup_machine
+    STUB_DISTRO=arch STUB_LOGIN_MANAGER=sddm STUB_NO_PLASMA_WORKSPACE=1 run_step > /dev/null
+
+    assert_file_missing "$MACHINE/root/etc/pam.d/kde" "Arch's packaging provides its own"
+    rm -rf "$MACHINE"
+}
+
 test_a_plasma_entry_somebody_else_wrote_is_left_alone() {
     setup_machine
     mkdir -p "$MACHINE/root/usr/local/share/wayland-sessions"

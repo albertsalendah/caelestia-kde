@@ -1,0 +1,19 @@
+# X-Caelestia-Managed=true
+# Installed by caelestia-kde. Fedora ships this file with plasma-workspace, which this machine does
+# not have, and kscreenlocker needs it to check the password of the lock screen (a lock screen
+# without it cannot be unlocked). It is the file Fedora ships, unchanged.
+auth        substack      password-auth
+auth        include       postlogin
+
+account     required      pam_nologin.so
+account     include       password-auth
+
+password    include       password-auth
+
+session     required      pam_selinux.so close
+session     required      pam_loginuid.so
+session     required      pam_selinux.so open
+session     optional      pam_keyinit.so force revoke
+session     required      pam_namespace.so
+session     include       password-auth
+session     include       postlogin

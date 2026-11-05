@@ -482,11 +482,41 @@ Item {
         PropertyAction { target: portraitErrorText; property: "visible"; value: false }
     }
 
+    // The greeter gets its wallpaper from KDE's wallpaper plugin (org.kde.image), which ships with
+    // plasma-workspace. Without that package `wallpaper` is null and the lock screen was blank,
+    // so it draws the shell's current wallpaper itself then. With the plugin (a Plasma session,
+    // or Arch) nothing changes: the greeter's wallpaper is used.
+    readonly property bool useOwnWallpaper: typeof wallpaper === "undefined" || !wallpaper
+    property string shellWallpaperPath: ""
+
+    Plasma5Support.DataSource {
+        id: shellWallpaperLoader
+
+        engine: "executable"
+        connectedSources: lockScreenUi.useOwnWallpaper ? ["cat ~/.local/state/caelestia/wallpaper/path.txt 2>/dev/null"] : []
+        onNewData: (source, data) => {
+            disconnectSource(source);
+            lockScreenUi.shellWallpaperPath = (data["stdout"] || "").trim();
+        }
+    }
+
+    Image {
+        id: ownWallpaper
+
+        z: -1000
+        anchors.fill: parent
+        visible: lockScreenUi.useOwnWallpaper && status === Image.Ready
+        source: lockScreenUi.shellWallpaperPath ? "file://" + encodeURI(lockScreenUi.shellWallpaperPath).replace(/[?#]/g, c => encodeURIComponent(c)) : ""
+        fillMode: Image.PreserveAspectCrop
+        asynchronous: true
+        smooth: true
+    }
+
     FastBlur {
         id: wallpaperBlur
 
         anchors.fill: parent
-        source: wallpaper
+        source: lockScreenUi.useOwnWallpaper ? ownWallpaper : wallpaper
         radius: 64
         visible: false
     }

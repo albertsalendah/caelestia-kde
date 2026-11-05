@@ -240,6 +240,26 @@ elif [[ "$LOGIN_MANAGER" == sddm || "$LOGIN_MANAGER" == none ]]; then
     fi
 fi
 
+# --- the lock screen's PAM services -----------------------------------------------------------
+# kscreenlocker checks the password through the PAM service "kde" (and "kde-fingerprint" and
+# "kde-smartcard" for the other two ways). On Fedora those three files belong to plasma-workspace,
+# so once it is removed the lock screen cannot check any password and cannot be unlocked: every
+# attempt fails and the fingerprint reader is retried for ever. Write them when they are missing
+# (the files Fedora ships, marked as ours); a file that exists is never touched. uninstall.sh
+# leaves them: they are harmless, and removing them would make a lock screen unlockable only by
+# a login on another console.
+if [[ "$BASE_DISTRO" == fedora ]] && ! package_present plasma-workspace; then
+    pam_written=0
+    for pam_service in kde kde-fingerprint kde-smartcard; do
+        [[ -e "$ROOT/etc/pam.d/$pam_service" ]] && continue
+        install_file "$SRC_DIR/pam.d/$pam_service" "$ROOT/etc/pam.d/$pam_service" 0644
+        pam_written=1
+    done
+    if (( pam_written )); then
+        ok "plasma-workspace is not installed, so the lock screen's PAM services (kde, kde-fingerprint, kde-smartcard) were written to /etc/pam.d."
+    fi
+fi
+
 # --- tell the user manager about the new units --------------------------------------------
 # A reload during a running Caelestia session is harmless with these units (no BusName=), but
 # the session itself keeps running the old files, so say so.

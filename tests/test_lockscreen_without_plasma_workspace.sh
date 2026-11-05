@@ -155,4 +155,15 @@ test_the_layout_button_talks_to_kwin_and_shows_only_with_several_layouts() {
     assert_contains "$ui" 'onClicked: keyboardLayout.switchToNext()'
 }
 
+test_without_the_kde_wallpaper_plugin_the_lock_screen_draws_the_shells_wallpaper() {
+    local ui
+    ui="$(cat "$LOCK/LockScreenUi.qml")"
+
+    assert_contains "$ui" 'readonly property bool useOwnWallpaper: typeof wallpaper === "undefined" || !wallpaper' "the greeter passes a null wallpaper when org.kde.image (plasma-workspace) is missing"
+    assert_contains "$ui" 'cat ~/.local/state/caelestia/wallpaper/path.txt' "the shell's current wallpaper is the one the shell keeps there"
+    assert_contains "$ui" 'visible: lockScreenUi.useOwnWallpaper && status === Image.Ready' "its own image is shown only when KDE's is missing"
+    assert_contains "$ui" 'source: lockScreenUi.useOwnWallpaper ? ownWallpaper : wallpaper' "the blur behind the panels follows the same choice"
+    assert_contains "$ui" 'z: -1000' "behind everything, where the greeter puts its own wallpaper"
+}
+
 run_tests
