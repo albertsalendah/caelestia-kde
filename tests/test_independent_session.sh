@@ -588,6 +588,21 @@ case \"\$*\" in
 esac"
     stub_bin "$PROG_DIR/bin" dbus-update-activation-environment 'exit 0'
     stub_bin "$PROG_DIR/bin" logger 'exit 0'
+    if [[ -n "${BUTTONS_LEFT+x}" ]]; then
+        # KWin's button letters from kwinrc, and the GTK setting as it is now. kreadconfig6 answers
+        # false to anything else, which also keeps the login splash off in this harness.
+        printf '%s' "$BUTTONS_LEFT" > "$PROG_DIR/kw-left"
+        printf '%s' "$BUTTONS_RIGHT" > "$PROG_DIR/kw-right"
+        printf "%s" "${GTK_NOW:-'appmenu:close'}" > "$PROG_DIR/gtk-now"
+        stub_bin "$PROG_DIR/bin" kreadconfig6 "case \"\$*\" in
+    *'--key ButtonsOnLeft'*) cat '$PROG_DIR/kw-left' ;;
+    *'--key ButtonsOnRight'*) cat '$PROG_DIR/kw-right' ;;
+    *) echo false ;;
+esac"
+        stub_bin "$PROG_DIR/bin" gsettings "echo \"gsettings \$*\" >> '$PROG_DIR/gsettings-calls'
+[ \"\$1\" = get ] && cat '$PROG_DIR/gtk-now'
+exit 0"
+    fi
     env -i PATH="$PROG_DIR/bin:/usr/bin:/bin" HOME="$PROG_DIR/home" XDG_RUNTIME_DIR="$PROG_RUN" \
         XDG_CONFIG_DIRS="$PROG_DIR/none" \
         "$(command -v bash)" "$SESSION_SRC/caelestia-wm-session" > "$PROG_DIR/out" 2>&1
@@ -622,6 +637,39 @@ test_without_the_lock_screen_package_nothing_is_selected() {
     PACKAGE=no run_program up
 
     assert_not_contains "$(cat "$PROG_DIR/calls")" "set-environment PLASMA_DEFAULT_SHELL" "a package that is not installed must not be pointed at"
+    rm -rf "$PROG_DIR"
+}
+
+test_the_gtk_button_layout_follows_kwin_so_browsers_get_minimize_and_maximize() {
+    BUTTONS_LEFT=MS BUTTONS_RIGHT=HIAX run_program up
+    local calls
+    calls="$(cat "$PROG_DIR/gsettings-calls")"
+
+    assert_contains "$calls" "gsettings set org.gnome.desktop.wm.preferences button-layout :minimize,maximize,close" "KWin's default order, reduced to the three buttons GTK apps know"
+    rm -rf "$PROG_DIR"
+
+    BUTTONS_LEFT=IA BUTTONS_RIGHT=X run_program up
+    assert_contains "$(cat "$PROG_DIR/gsettings-calls")" "button-layout minimize,maximize:close" "buttons on the left stay on the left"
+    rm -rf "$PROG_DIR"
+
+    BUTTONS_LEFT=MS BUTTONS_RIGHT=XAI run_program up
+    assert_contains "$(cat "$PROG_DIR/gsettings-calls")" "button-layout :close,maximize,minimize" "and the order is KWin's"
+    rm -rf "$PROG_DIR"
+}
+
+test_the_gtk_button_layout_is_not_written_when_it_already_matches() {
+    GTK_NOW="':minimize,maximize,close'" BUTTONS_LEFT=MS BUTTONS_RIGHT=HIAX run_program up
+
+    assert_not_contains "$(cat "$PROG_DIR/gsettings-calls")" "gsettings set" "nothing to change, nothing written"
+    assert_contains "$(cat "$PROG_DIR/gsettings-calls")" "gsettings get org.gnome.desktop.wm.preferences button-layout" "it did look"
+    rm -rf "$PROG_DIR"
+}
+
+test_a_session_without_gsettings_still_starts() {
+    run_program up
+
+    assert_status 0 "$PROG_STATUS" "no gsettings or kreadconfig6 in the harness: the program just goes on"
+    assert_file_missing "$PROG_DIR/gsettings-calls"
     rm -rf "$PROG_DIR"
 }
 

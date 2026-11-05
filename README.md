@@ -120,7 +120,10 @@ field (full variant), so you can pick Caelestia or Plasma.
 the Caelestia session starts `plasmashell`. With SDDM and no Plasma desktop (`plasma-desktop` not
 installed) the installer hides that Plasma entry, so the login screen offers only Caelestia; it does
 this with a file in `/usr/local/share/wayland-sessions`, and touches nothing the package owns. Install
-`plasma-desktop` and run the installer again to show the entry. When foot is not installed and you have not chosen a
+`plasma-desktop` and run the installer again to show the entry. Chrome, Firefox and other apps that
+draw their own title bar take the button layout from the GNOME setting `button-layout`, whose default is
+a close button only; a Plasma session fills it from KWin's settings, so the Caelestia session does the same at
+login (KWin's order, minimize, maximize and close). When foot is not installed and you have not chosen a
 terminal, the installer records Konsole as the shell's terminal.
 
 **Fedora.** The same step runs on Fedora, with the same files. A minimal install (Fedora Everything) boots to a text console, so with any of the three login managers above the step also sets the boot target to `graphical.target`; `uninstall.sh` sets it back. The packages are `plasma-integration` (the Qt platform theme that gives Qt apps the KDE colours and file dialogs),
@@ -155,7 +158,9 @@ Run `setup.sh` right after the removal, and do not lock the screen before it has
 (`uninstall.sh` leaves them: they are harmless), builds the old-tray proxy (a failed build only costs the
 icons of old X11 apps) and removes the file that hid the Plasma login entry, which no longer exists once
 `plasma-workspace` is gone. The lock screen draws the shell's current wallpaper itself, because KDE's
-wallpaper plugin went with the package. To go back: `sudo dnf history undo last`.
+wallpaper plugin went with the package. System Settings loses its Users page with `plasma-desktop`; add an
+account from a terminal (`sudo useradd -m -G wheel NAME && sudo passwd NAME`). To go back:
+`sudo dnf history undo last`.
 
 **Removing the Plasma desktop on Arch.** (Arch commands.) The installer does not do it. To do it yourself, from the Caelestia
 session (not from a Plasma session): first mark the session's packages as explicitly installed, so that

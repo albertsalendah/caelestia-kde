@@ -210,6 +210,43 @@ for unit in plasma-polkit-agent.service plasma-powerdevil.service plasma-xembeds
     fi
 done
 
+# 3c. Title-bar buttons of apps that draw their own (Chrome, Firefox, GTK 4 apps). They take the
+#     layout from the GNOME setting org.gnome.desktop.wm.preferences button-layout, whose default
+#     is a close button only. A Plasma session fills it in from kwinrc through kded6, which this
+#     session does not run, so the same is done here: KWin's own button order, minimize,
+#     maximize and close only (the other buttons mean nothing to those apps). Nothing is written
+#     when it already matches, a missing gsettings or schema is only logged, and the timeouts
+#     keep a dead dconf from holding anything up (the session is already running here).
+gtk_buttons() {
+    local letters="$1" out="" word i
+    for (( i = 0; i < ${#letters}; i++ )); do
+        case "${letters:i:1}" in
+            I) word=minimize ;;
+            A) word=maximize ;;
+            X) word=close ;;
+            *) continue ;;
+        esac
+        out="${out:+$out,}$word"
+    done
+    printf '%s' "$out"
+}
+
+sync_gtk_button_layout() {
+    command -v gsettings >/dev/null 2>&1 || return 0
+    command -v kreadconfig6 >/dev/null 2>&1 || return 0
+    local left right layout current
+    left="$(kreadconfig6 --file kwinrc --group org.kde.kdecoration2 --key ButtonsOnLeft --default MS)"
+    right="$(kreadconfig6 --file kwinrc --group org.kde.kdecoration2 --key ButtonsOnRight --default HIAX)"
+    layout="$(gtk_buttons "$left"):$(gtk_buttons "$right")"
+    current="$(timeout 3 gsettings get org.gnome.desktop.wm.preferences button-layout 2>/dev/null)" \
+        || { say "gsettings has no button-layout (is gsettings-desktop-schemas installed?); browsers keep their own"; return 0; }
+    [ "$current" = "'$layout'" ] && return 0
+    timeout 3 gsettings set org.gnome.desktop.wm.preferences button-layout "$layout" \
+        && say "title-bar buttons for GTK apps set to $layout" \
+        || say "could not set the GTK button layout"
+}
+sync_gtk_button_layout || true
+
 # 4. Stay alive until KWin exits; the EXIT trap (cleanup) then tears everything down. The wait
 #    builtin lets a signal interrupt the sleep at once.
 while systemctl --user is-active --quiet caelestia-kwin.service; do
