@@ -49,6 +49,14 @@ Singleton {
 
     Component.onCompleted: root.evaluate()
 
+    // The PipeWire thread behind PipewireStreamWatcher is only needed for do-not-disturb while
+    // streaming, so it runs only while that setting is on.
+    Binding {
+        target: PipewireStreamWatcher
+        property: "enabled"
+        value: Config.utilities.toasts.dndWhileStreaming
+    }
+
     Timer {
         id: stopTimer
 

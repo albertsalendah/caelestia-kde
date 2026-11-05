@@ -253,6 +253,7 @@ Settings are written to `~/.config/caelestia/shell.json`. The login splash setti
 | --- | --- |
 | Widgets not appearing | Log out and back in, or run `caelestia shell -d` |
 | Colors not applying | Run `caelestia scheme set -n dynamic`, or `caelestia wallpaper -f <image>`. See [TROUBLESHOOTING.md](docs/TROUBLESHOOTING.md#34-colors-not-applying) |
+| The shell restarts by itself and `coredumpctl info` shows a crash in `libpipewire` | The PipeWire thread behind "do not disturb while streaming" now runs only while that setting is on. To keep it off whatever the setting says, put `[Service]` and `Environment=CAELESTIA_STREAM_WATCHER=0` in `~/.config/systemd/user/caelestia-shell.service.d/stream-watcher.conf`, then `systemctl --user daemon-reload` and log in again |
 | Install failed mid-way | Re-run `bash ./scripts/setup.sh` |
 | Full reset needed | See [TROUBLESHOOTING.md](docs/TROUBLESHOOTING.md) |
 

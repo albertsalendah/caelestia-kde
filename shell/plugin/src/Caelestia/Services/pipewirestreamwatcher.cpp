@@ -70,6 +70,8 @@ public:
     spa_hook registryListener{};
     spa_hook coreListener{};
     QTimer* reconnectTimer = nullptr;
+    bool enabled = false;
+    bool pwInitialized = false;
 
     mutable QMutex mutex;
     QHash<uint32_t, TrackedNode> trackedNodes;
@@ -93,13 +95,16 @@ public:
 
 void PipewireStreamWatcherPrivate::init() {
     pw_init(nullptr, nullptr);
+    pwInitialized = true;
 
-    reconnectTimer = new QTimer(q);
-    reconnectTimer->setInterval(3000);
-    reconnectTimer->setSingleShot(true);
-    QObject::connect(reconnectTimer, &QTimer::timeout, q, [this]() {
-        tryConnect();
-    });
+    if (!reconnectTimer) {
+        reconnectTimer = new QTimer(q);
+        reconnectTimer->setInterval(3000);
+        reconnectTimer->setSingleShot(true);
+        QObject::connect(reconnectTimer, &QTimer::timeout, q, [this]() {
+            tryConnect();
+        });
+    }
 
     tryConnect();
 }
@@ -137,7 +142,12 @@ void PipewireStreamWatcherPrivate::cleanup() {
         threadLoop = nullptr;
     }
 
-    pw_deinit();
+    // pw_deinit() pairs with the pw_init() of init() or tryConnect(); without one (the watcher
+    // was never switched on) there is nothing to undo.
+    if (pwInitialized) {
+        pw_deinit();
+        pwInitialized = false;
+    }
 
     {
         QMutexLocker locker(&mutex);
@@ -149,6 +159,7 @@ void PipewireStreamWatcherPrivate::tryConnect() {
     if (threadLoop) {
         cleanup();
         pw_init(nullptr, nullptr);
+        pwInitialized = true;
     }
 
     threadLoop = pw_thread_loop_new("caelestia-stream-watcher", nullptr);
@@ -332,12 +343,38 @@ void PipewireStreamWatcherPrivate::onCoreError(void* data, uint32_t id, int seq,
 
 PipewireStreamWatcher::PipewireStreamWatcher(QObject* parent)
     : QObject(parent)
-    , d(std::make_unique<PipewireStreamWatcherPrivate>(this)) {
-    d->init();
-}
+    , d(std::make_unique<PipewireStreamWatcherPrivate>(this)) {}
 
 PipewireStreamWatcher::~PipewireStreamWatcher() {
     d->cleanup();
+}
+
+bool PipewireStreamWatcher::isEnabled() const {
+    return d->enabled;
+}
+
+void PipewireStreamWatcher::setEnabled(bool enabled) {
+    if (d->enabled == enabled) {
+        return;
+    }
+
+    // The watcher only exists for "do not disturb while streaming", so its PipeWire thread runs
+    // only while that is on. CAELESTIA_STREAM_WATCHER=0 keeps it off whatever the setting says
+    // (the shell crashed inside libpipewire on a thread like this one; this is the way to test
+    // without it).
+    if (enabled && qEnvironmentVariable("CAELESTIA_STREAM_WATCHER") == QLatin1String("0")) {
+        qCInfo(lcPipewireStreamWatcher) << "Disabled by CAELESTIA_STREAM_WATCHER=0";
+        return;
+    }
+
+    d->enabled = enabled;
+    if (enabled) {
+        d->init();
+    } else {
+        d->cleanup();
+        d->updateState(false, 0, {});
+    }
+    emit enabledChanged(enabled);
 }
 
 bool PipewireStreamWatcher::isStreaming() const {
