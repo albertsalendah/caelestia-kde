@@ -63,7 +63,7 @@ CORE_PACKAGES=(
 )
 
 SHELL_PACKAGES=(
-    foot eza fastfetch starship btop bash
+    eza fastfetch starship btop bash
     pciutils
 )
 
@@ -327,25 +327,60 @@ done
 
 if [[ "$PACKAGE_GROUP" == "all" || "$PACKAGE_GROUP" == "themes" ]]; then
 
-info "Downloading and installing required custom fonts (parallel)..."
-mkdir -p "${XDG_DATA_HOME:-$HOME/.local/share}/fonts"
+info "Checking the required custom fonts..."
+install_custom_fonts() {
+    local fonts_dir="${XDG_DATA_HOME:-$HOME/.local/share}/fonts" changed=0 pids=()
+    local need_ms=1 need_cc=1 need_jb=1
+    mkdir -p "$fonts_dir"
 
-curl -sL "https://github.com/google/material-design-icons/raw/master/variablefont/MaterialSymbolsRounded%5BFILL%2CGRAD%2Copsz%2Cwght%5D.ttf" -o "${XDG_DATA_HOME:-$HOME/.local/share}/fonts/MaterialSymbolsRounded.ttf" &
-_pid_ms=$!
+    # Only fetch what is missing: an update used to download all three archives every time.
+    # (The list is read once into a variable: with pipefail, grep -q closing the pipe early can
+    # make a font that is there look missing.)
+    local font_list
+    font_list="$(fc-list 2>/dev/null || true)"
+    grep -qi "Material Symbols Rounded" <<< "$font_list" && need_ms=0
+    grep -qi "CaskaydiaCove Nerd Font" <<< "$font_list" && need_cc=0
+    grep -qi "JetBrainsMono Nerd Font" <<< "$font_list" && need_jb=0
 
-curl -sL "https://github.com/ryanoasis/nerd-fonts/releases/download/v3.0.2/CascadiaCode.zip" -o "/tmp/CascadiaCode.zip" &
-_pid_cc=$!
+    if (( need_ms )); then
+        curl -sL "https://github.com/google/material-design-icons/raw/master/variablefont/MaterialSymbolsRounded%5BFILL%2CGRAD%2Copsz%2Cwght%5D.ttf" -o "$fonts_dir/MaterialSymbolsRounded.ttf" &
+        pids+=($!)
+    fi
+    if (( need_cc )); then
+        curl -sL "https://github.com/ryanoasis/nerd-fonts/releases/download/v3.0.2/CascadiaCode.zip" -o "/tmp/CascadiaCode.zip" &
+        pids+=($!)
+    fi
+    if (( need_jb )); then
+        curl -sL "https://github.com/ryanoasis/nerd-fonts/releases/download/v3.0.2/JetBrainsMono.zip" -o "/tmp/JetBrainsMono.zip" &
+        pids+=($!)
+    fi
+    if (( ${#pids[@]} )); then
+        info "Downloading the missing fonts (parallel)..."
+        wait "${pids[@]}"
+    fi
 
-curl -sL "https://github.com/ryanoasis/nerd-fonts/releases/download/v3.0.2/JetBrainsMono.zip" -o "/tmp/JetBrainsMono.zip" &
-_pid_jb=$!
+    if (( need_cc )); then
+        changed=1
+        unzip -qo "/tmp/CascadiaCode.zip" -d "$fonts_dir" 2>/dev/null && rm -f "/tmp/CascadiaCode.zip" || { err "Failed to extract CascadiaCode font."; FAILED_PKGS+=("CascadiaCode font"); }
+    fi
+    if (( need_jb )); then
+        changed=1
+        unzip -qo "/tmp/JetBrainsMono.zip" -d "$fonts_dir" 2>/dev/null && rm -f "/tmp/JetBrainsMono.zip" || { err "Failed to extract JetBrains Mono Nerd Font."; FAILED_PKGS+=("JetBrains Mono Nerd Font"); }
+    fi
+    if (( need_ms )); then
+        changed=1
+        [[ -f "$fonts_dir/MaterialSymbolsRounded.ttf" ]] || { err "Failed to download Material Symbols font."; FAILED_PKGS+=("Material Symbols font"); }
+    fi
 
-wait $_pid_ms $_pid_cc $_pid_jb
-
-unzip -qo "/tmp/CascadiaCode.zip" -d "${XDG_DATA_HOME:-$HOME/.local/share}/fonts" 2>/dev/null && rm -f "/tmp/CascadiaCode.zip" || { err "Failed to extract CascadiaCode font."; FAILED_PKGS+=("CascadiaCode font"); }
-unzip -qo "/tmp/JetBrainsMono.zip" -d "${XDG_DATA_HOME:-$HOME/.local/share}/fonts" 2>/dev/null && rm -f "/tmp/JetBrainsMono.zip" || { err "Failed to extract JetBrains Mono Nerd Font."; FAILED_PKGS+=("JetBrains Mono Nerd Font"); }
-[[ -f "${XDG_DATA_HOME:-$HOME/.local/share}/fonts/MaterialSymbolsRounded.ttf" ]] || { err "Failed to download Material Symbols font."; FAILED_PKGS+=("Material Symbols font"); }
-
-fc-cache -f
+    # Only the user's font folder needs a new cache, and only when something was added. The
+    # installer runs under stdbuf, which preloads a 64-bit library; Fedora's fc-cache also starts
+    # fc-cache-32 when fontconfig.i686 is installed, and that 32-bit program cannot load it (it
+    # printed "wrong ELF class" on every run), so the preload is dropped for this one command.
+    if (( changed )); then
+        env -u LD_PRELOAD fc-cache -f "$fonts_dir"
+    fi
+}
+install_custom_fonts
 
 info "Installing Darkly KDE Theme from COPR..."
 if [[ "$INSTALL_DARKLY" == "true" ]]; then
