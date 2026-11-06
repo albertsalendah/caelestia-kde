@@ -20,6 +20,11 @@
 #                                                          only without plasma-workspace: the old-tray
 #                                                          proxy built from src/xembed-sni-proxy
 #                                                          (scripts/lib/xembed-proxy.sh)
+#   /usr/local/share/caelestia/qml/org/kde/taskmanager/    only without plasma-workspace: a stand-in for
+#   /usr/local/lib/systemd/user/plasma-xdg-desktop-portal-kde.service.d/10-caelestia-taskmanager-stub.conf
+#                                                          KDE's org.kde.taskmanager QML module, which the
+#                                                          screen-sharing picker of xdg-desktop-portal-kde
+#                                                          needs (src/session/taskmanager-stub)
 #   /usr/local/share/wayland-sessions/caelestia.desktop    the login-screen entry
 #   /etc/sddm.conf.d/zz-wayland-greeter.conf               SDDM only: a Wayland greeter
 #   /usr/local/share/wayland-sessions/plasma.desktop       SDDM only, and only with no Plasma desktop
@@ -63,6 +68,8 @@ PROXY_DROPIN="$UNIT_DIR/plasma-xembedsniproxy.service.d/10-caelestia-wait-for-tr
 ENTRY="$ROOT/usr/local/share/wayland-sessions/caelestia.desktop"
 GREETER_DROPIN="$ROOT/etc/sddm.conf.d/zz-wayland-greeter.conf"
 PLASMA_ENTRY="$ROOT/usr/local/share/wayland-sessions/plasma.desktop"
+TASKMANAGER_STUB_DIR="$ROOT/usr/local/share/caelestia/qml/org/kde/taskmanager"
+PORTAL_DROPIN="$UNIT_DIR/plasma-xdg-desktop-portal-kde.service.d/10-caelestia-taskmanager-stub.conf"
 DISPLAY_MANAGER_LINK="$ROOT/etc/systemd/system/display-manager.service"
 PLASMALOGIN_CONF="$ROOT/etc/plasmalogin.conf"
 STATE_DIR="${XDG_STATE_HOME:-$HOME/.local/state}/caelestia"
@@ -88,7 +95,8 @@ esac
 for file in caelestia-wm-session caelestia-kwin.service caelestia-session.target \
             caelestia.desktop zz-wayland-greeter.conf plasma.desktop caelestia-shell-session-only.conf \
             caelestia-wait-for-tray app-wait-for-tray.conf xembedsniproxy-wait-for-tray.conf \
-            plasma-xembedsniproxy-standalone.service; do
+            plasma-xembedsniproxy-standalone.service xdg-portal-taskmanager-stub.conf \
+            taskmanager-stub/qmldir taskmanager-stub/ScreencastingRequest.qml taskmanager-stub/TasksModel.qml; do
     [[ -f "$SRC_DIR/$file" ]] || die "Missing $SRC_DIR/$file"
 done
 
@@ -258,6 +266,44 @@ if [[ "$BASE_DISTRO" == fedora ]] && ! package_present plasma-workspace; then
     if (( pam_written )); then
         ok "plasma-workspace is not installed, so the lock screen's PAM services (kde, kde-fingerprint, kde-smartcard) were written to /etc/pam.d."
     fi
+fi
+
+# --- the screen-sharing picker (a machine without plasma-workspace) ---------------------------
+# The picker that xdg-desktop-portal-kde opens when a browser asks to share a screen or a window
+# imports the QML module org.kde.taskmanager, which only plasma-workspace ships. Without it the
+# picker fails to load and the share fails with no dialog from KDE. A small stand-in for the two
+# types the picker uses (no live thumbnails, an empty window list) goes under /usr/local, and a
+# drop-in points the portal at it. The stand-in would hide the real module if plasma-workspace came
+# back, so this step takes it away again as soon as the real module is found (the portal then
+# starts without the drop-in at its next start).
+real_taskmanager_module() {
+    local qmldir
+    for qmldir in "$ROOT"/usr/lib*/qt6/qml/org/kde/taskmanager/qmldir \
+                  "$ROOT"/usr/lib/*/qt6/qml/org/kde/taskmanager/qmldir; do
+        [[ -f "$qmldir" ]] && return 0
+    done
+    return 1
+}
+# A drop-in this step wrote carries the marker as a comment line.
+conf_is_ours() { [[ -f "$1" ]] && grep -q '^# X-Caelestia-Managed=true$' "$1"; }
+
+if package_present xdg-desktop-portal-kde && ! real_taskmanager_module; then
+    if [[ -e "$PORTAL_DROPIN" ]] && ! conf_is_ours "$PORTAL_DROPIN"; then
+        info "$PORTAL_DROPIN is not ours; leaving it as it is."
+    else
+        for stub_file in qmldir ScreencastingRequest.qml TasksModel.qml; do
+            install_file "$SRC_DIR/taskmanager-stub/$stub_file" "$TASKMANAGER_STUB_DIR/$stub_file" 0644
+        done
+        install_file "$SRC_DIR/xdg-portal-taskmanager-stub.conf" "$PORTAL_DROPIN" 0644
+        ok "plasma-workspace is not installed, so the screen-sharing picker gets a stand-in for org.kde.taskmanager."
+    fi
+elif conf_is_ours "$PORTAL_DROPIN"; then
+    caelestia_sudo rm -f "$PORTAL_DROPIN" \
+        "$TASKMANAGER_STUB_DIR/qmldir" "$TASKMANAGER_STUB_DIR/ScreencastingRequest.qml" "$TASKMANAGER_STUB_DIR/TasksModel.qml"
+    caelestia_sudo rmdir "$TASKMANAGER_STUB_DIR" "$ROOT/usr/local/share/caelestia/qml/org/kde" \
+        "$ROOT/usr/local/share/caelestia/qml/org" "$ROOT/usr/local/share/caelestia/qml" \
+        "$ROOT/usr/local/share/caelestia" "$(dirname "$PORTAL_DROPIN")" 2>/dev/null || true
+    ok "The real org.kde.taskmanager module is available (or the KDE portal is gone); the stand-in for it is removed."
 fi
 
 # --- tell the user manager about the new units --------------------------------------------

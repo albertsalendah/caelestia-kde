@@ -125,13 +125,15 @@ esac"
     stub_bin "$MACHINE/bin" pacman "printf 'pacman %s\\n' \"\$*\" >> '$LOG'
 [ \"\$*\" = '-Qq plasma-desktop' ] && [ \"\${STUB_PLASMA_DESKTOP:-}\" = 1 ] && exit 0
 [ \"\$*\" = '-Qq plasma-workspace' ] && [ \"\${STUB_NO_PLASMA_WORKSPACE:-}\" != 1 ] && exit 0
+[ \"\$*\" = '-Qq xdg-desktop-portal-kde' ] && [ \"\${STUB_PORTAL_KDE:-}\" = 1 ] && exit 0
 case \"\$1\" in -Q*) exit 1 ;; esac
 exit 0"
     stub_bin "$MACHINE/bin" dnf "printf 'dnf %s\\n' \"\$*\" >> '$LOG'"
-    # rpm -q reports "not installed" except for plasma-desktop when the test asks for it, and for
+    # rpm -q reports "not installed" except for plasma-desktop and xdg-desktop-portal-kde when the test asks for them, and for
     # plasma-workspace unless the test says the machine has none (Arch keeps it, Fedora drops it)
     stub_bin "$MACHINE/bin" rpm "[ \"\$*\" = '-q plasma-desktop' ] && [ \"\${STUB_PLASMA_DESKTOP:-}\" = 1 ] && exit 0
 [ \"\$*\" = '-q plasma-workspace' ] && [ \"\${STUB_NO_PLASMA_WORKSPACE:-}\" != 1 ] && exit 0
+[ \"\$*\" = '-q xdg-desktop-portal-kde' ] && [ \"\${STUB_PORTAL_KDE:-}\" = 1 ] && exit 0
 exit 1"
 }
 
@@ -142,7 +144,7 @@ run_step() {
         CAELESTIA_SUDO_BIN="$MACHINE/bin/sudo" \
         STUB_LOGIN_MANAGER="${STUB_LOGIN_MANAGER:-}" STUB_SESSION_RUNNING="${STUB_SESSION_RUNNING:-}" \
         STUB_PLASMA_DESKTOP="${STUB_PLASMA_DESKTOP:-}" STUB_BOOT_TARGET="${STUB_BOOT_TARGET:-}" \
-        STUB_NO_PLASMA_WORKSPACE="${STUB_NO_PLASMA_WORKSPACE:-}" \
+        STUB_NO_PLASMA_WORKSPACE="${STUB_NO_PLASMA_WORKSPACE:-}" STUB_PORTAL_KDE="${STUB_PORTAL_KDE:-}" \
         bash "$STEP" 2>&1
 }
 
@@ -432,6 +434,119 @@ test_arch_does_not_get_the_pam_services_written() {
 
     assert_file_missing "$MACHINE/root/etc/pam.d/kde" "Arch's packaging provides its own"
     rm -rf "$MACHINE"
+}
+
+PORTAL_DROPIN_REL="root/usr/local/lib/systemd/user/plasma-xdg-desktop-portal-kde.service.d/10-caelestia-taskmanager-stub.conf"
+TASKMANAGER_STUB_REL="root/usr/local/share/caelestia/qml/org/kde/taskmanager"
+
+test_the_picker_stand_in_ships_the_two_types_the_portal_uses() {
+    local dir="$SESSION_SRC/taskmanager-stub"
+    assert_eq 'module org.kde.taskmanager' "$(grep '^module ' "$dir/qmldir")" "the module has exactly the name the portal imports"
+    assert_contains "$(cat "$dir/qmldir")" 'ScreencastingRequest ScreencastingRequest.qml' "it offers ScreencastingRequest"
+    assert_contains "$(cat "$dir/qmldir")" 'TasksModel TasksModel.qml' "and TasksModel"
+    for prop in 'property string outputName' 'property string uuid' 'property var objectSerial: 0' 'property int nodeId: 0'; do
+        assert_contains "$(cat "$dir/ScreencastingRequest.qml")" "$prop" "ScreencastingRequest has what the picker sets and reads: $prop"
+    done
+    assert_contains "$(cat "$dir/TasksModel.qml")" 'ListModel {' "TasksModel is a model, so the picker can count it and filter it"
+    assert_contains "$(cat "$dir/TasksModel.qml")" 'SortLastActivated' "with the sort mode the picker names"
+    for prop in 'property bool filterByScreen' 'property rect screenGeometry' 'property int sortMode'; do
+        assert_contains "$(cat "$dir/TasksModel.qml")" "$prop" "TasksModel has what the picker sets: $prop"
+    done
+    local conf
+    conf="$(cat "$SESSION_SRC/xdg-portal-taskmanager-stub.conf")"
+    assert_contains "$conf" '# X-Caelestia-Managed=true' "the drop-in is marked as ours"
+    assert_contains "$conf" 'Environment=QML_IMPORT_PATH=/usr/local/share/caelestia/qml' "it points the portal at the stand-in"
+    assert_contains "$conf" 'Environment=QML2_IMPORT_PATH=/usr/local/share/caelestia/qml' "under both names Qt reads"
+}
+
+test_without_the_taskmanager_module_the_picker_stand_in_is_installed() {
+    setup_machine
+    local out
+    out="$(STUB_DISTRO=fedora STUB_LOGIN_MANAGER=sddm STUB_NO_PLASMA_WORKSPACE=1 STUB_PORTAL_KDE=1 run_step)"
+
+    for f in qmldir ScreencastingRequest.qml TasksModel.qml; do
+        assert_eq "$(cat "$SESSION_SRC/taskmanager-stub/$f")" "$(cat "$MACHINE/$TASKMANAGER_STUB_REL/$f")" "the stand-in's $f is installed unchanged"
+    done
+    assert_eq "$(cat "$SESSION_SRC/xdg-portal-taskmanager-stub.conf")" "$(cat "$MACHINE/$PORTAL_DROPIN_REL")" "and so is the portal drop-in"
+    assert_contains "$out" 'stand-in for org.kde.taskmanager' "the step says what it did"
+    rm -rf "$MACHINE"
+}
+
+test_with_the_taskmanager_module_present_nothing_is_installed() {
+    setup_machine
+    mkdir -p "$MACHINE/root/usr/lib64/qt6/qml/org/kde/taskmanager"
+    : > "$MACHINE/root/usr/lib64/qt6/qml/org/kde/taskmanager/qmldir"
+    STUB_DISTRO=fedora STUB_LOGIN_MANAGER=sddm STUB_PORTAL_KDE=1 run_step > /dev/null
+
+    assert_file_missing "$MACHINE/$PORTAL_DROPIN_REL" "plasma-workspace ships the module, so the portal needs no help"
+    assert_file_missing "$MACHINE/$TASKMANAGER_STUB_REL/qmldir" "and no stand-in is written"
+    rm -rf "$MACHINE"
+}
+
+test_the_module_is_also_found_in_archs_library_folder() {
+    setup_machine
+    mkdir -p "$MACHINE/root/usr/lib/qt6/qml/org/kde/taskmanager"
+    : > "$MACHINE/root/usr/lib/qt6/qml/org/kde/taskmanager/qmldir"
+    STUB_DISTRO=arch STUB_LOGIN_MANAGER=sddm STUB_PORTAL_KDE=1 run_step > /dev/null
+
+    assert_file_missing "$MACHINE/$PORTAL_DROPIN_REL" "Arch keeps its Qt modules under /usr/lib"
+    rm -rf "$MACHINE"
+}
+
+test_without_the_kde_portal_no_stand_in_is_installed() {
+    setup_machine
+    STUB_DISTRO=fedora STUB_LOGIN_MANAGER=sddm STUB_NO_PLASMA_WORKSPACE=1 run_step > /dev/null
+
+    assert_file_missing "$MACHINE/$PORTAL_DROPIN_REL" "there is no KDE portal to point at it"
+    assert_file_missing "$MACHINE/$TASKMANAGER_STUB_REL/qmldir"
+    rm -rf "$MACHINE"
+}
+
+test_the_stand_in_goes_when_the_real_module_comes_back() {
+    setup_machine
+    STUB_DISTRO=fedora STUB_LOGIN_MANAGER=sddm STUB_NO_PLASMA_WORKSPACE=1 STUB_PORTAL_KDE=1 run_step > /dev/null
+    assert_file_exists "$MACHINE/$PORTAL_DROPIN_REL" "first the stand-in is installed"
+
+    mkdir -p "$MACHINE/root/usr/lib64/qt6/qml/org/kde/taskmanager"
+    : > "$MACHINE/root/usr/lib64/qt6/qml/org/kde/taskmanager/qmldir"
+    local out
+    out="$(STUB_DISTRO=fedora STUB_LOGIN_MANAGER=sddm STUB_PORTAL_KDE=1 run_step)"
+
+    assert_file_missing "$MACHINE/$PORTAL_DROPIN_REL" "plasma-workspace came back: the drop-in would hide its module, so it goes"
+    assert_file_missing "$MACHINE/$TASKMANAGER_STUB_REL/qmldir" "and so do the stand-in's files"
+    assert_file_missing "$MACHINE/$TASKMANAGER_STUB_REL/TasksModel.qml"
+    assert_file_exists "$MACHINE/root/usr/lib64/qt6/qml/org/kde/taskmanager/qmldir" "the real module is not touched"
+    assert_contains "$out" 'stand-in for it is removed' "the step says so"
+    rm -rf "$MACHINE"
+}
+
+test_a_portal_drop_in_somebody_else_wrote_is_left_alone() {
+    setup_machine
+    mkdir -p "$(dirname "$MACHINE/$PORTAL_DROPIN_REL")"
+    printf '[Service]\nEnvironment=QML_IMPORT_PATH=/opt/mine\n' > "$MACHINE/$PORTAL_DROPIN_REL"
+    STUB_DISTRO=fedora STUB_LOGIN_MANAGER=sddm STUB_NO_PLASMA_WORKSPACE=1 STUB_PORTAL_KDE=1 run_step > /dev/null
+
+    assert_contains "$(cat "$MACHINE/$PORTAL_DROPIN_REL")" '/opt/mine' "a file we did not write is never replaced"
+    assert_file_missing "$MACHINE/$TASKMANAGER_STUB_REL/qmldir" "and nothing is written next to it"
+
+    STUB_DISTRO=fedora STUB_LOGIN_MANAGER=sddm STUB_PORTAL_KDE=1 run_step > /dev/null
+    assert_contains "$(cat "$MACHINE/$PORTAL_DROPIN_REL")" '/opt/mine' "nor removed"
+    rm -rf "$MACHINE"
+}
+
+test_uninstall_removes_the_picker_stand_in_and_its_folders() {
+    local uninstall
+    uninstall="$(cat "$REPO_ROOT/uninstall.sh")"
+
+    assert_contains "$uninstall" '    /usr/local/lib/systemd/user/plasma-xdg-desktop-portal-kde.service.d/10-caelestia-taskmanager-stub.conf' "uninstall.sh removes the portal drop-in"
+    for f in qmldir ScreencastingRequest.qml TasksModel.qml; do
+        assert_contains "$uninstall" "    /usr/local/share/caelestia/qml/org/kde/taskmanager/$f" "and the stand-in's $f"
+    done
+    assert_contains "$uninstall" 'rmdir /usr/local/lib/systemd/user/plasma-xdg-desktop-portal-kde.service.d /usr/local/share/caelestia/qml/org/kde/taskmanager /usr/local/share/caelestia/qml/org/kde /usr/local/share/caelestia/qml/org /usr/local/share/caelestia/qml /usr/local/share/caelestia 2>/dev/null' "and their folders, children before parents"
+    local lines
+    lines="$(grep -n 'rmdir /usr/local/lib/systemd/user/plasma-xdg-desktop-portal-kde.service.d\|rmdir /usr/local/share/wayland-sessions' "$REPO_ROOT/uninstall.sh" | cut -d: -f1 | tr '\n' ' ')"
+    local first="${lines%% *}"
+    assert_contains "$(sed -n "${first}p" "$REPO_ROOT/uninstall.sh")" 'plasma-xdg-desktop-portal-kde.service.d' "the portal folder goes before /usr/local/lib/systemd/user, which holds it"
 }
 
 test_a_plasma_entry_somebody_else_wrote_is_left_alone() {

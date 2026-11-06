@@ -759,6 +759,10 @@ SESSION_FILES=(
     /usr/local/lib/systemd/user/plasma-xembedsniproxy.service.d/10-caelestia-wait-for-tray.conf
     /usr/local/bin/caelestia-xembedsniproxy
     /usr/local/lib/systemd/user/plasma-xembedsniproxy.service
+    /usr/local/lib/systemd/user/plasma-xdg-desktop-portal-kde.service.d/10-caelestia-taskmanager-stub.conf
+    /usr/local/share/caelestia/qml/org/kde/taskmanager/qmldir
+    /usr/local/share/caelestia/qml/org/kde/taskmanager/ScreencastingRequest.qml
+    /usr/local/share/caelestia/qml/org/kde/taskmanager/TasksModel.qml
     /usr/local/share/wayland-sessions/caelestia.desktop
     /etc/sddm.conf.d/zz-wayland-greeter.conf
 )
@@ -776,6 +780,9 @@ if [[ -f "$PLASMA_ENTRY" ]] && grep -q '^X-Caelestia-Managed=true$' "$PLASMA_ENT
     caelestia_sudo rm -f "$PLASMA_ENTRY"
     ok "Removed the file that hid the Plasma login entry: $PLASMA_ENTRY"
 fi
+# The stand-in for org.kde.taskmanager (only written without plasma-workspace) and the drop-in that
+# points the KDE portal at it; each folder only when empty, children before parents.
+caelestia_sudo rmdir /usr/local/lib/systemd/user/plasma-xdg-desktop-portal-kde.service.d /usr/local/share/caelestia/qml/org/kde/taskmanager /usr/local/share/caelestia/qml/org/kde /usr/local/share/caelestia/qml/org /usr/local/share/caelestia/qml /usr/local/share/caelestia 2>/dev/null || true
 caelestia_sudo rmdir /usr/local/share/wayland-sessions /usr/local/lib/systemd/user/caelestia-shell.service.d /usr/local/lib/systemd/user/app-.service.d /usr/local/lib/systemd/user/plasma-xembedsniproxy.service.d /usr/local/lib/systemd/user 2>/dev/null || true
 
 SESSION_SDDM_FLAG="${XDG_STATE_HOME:-$HOME/.local/state}/caelestia/session-enabled-sddm"

@@ -1,0 +1,7 @@
+# X-Caelestia-Managed=true
+# Installed by caelestia-kde to /usr/local/share/caelestia/qml/org/kde/taskmanager. A stand-in for KDE's
+# org.kde.taskmanager module, which plasma-workspace ships. xdg-desktop-portal-kde's screen picker
+# imports it, and without it the picker cannot open, so a screen share asks nothing and fails.
+module org.kde.taskmanager
+ScreencastingRequest ScreencastingRequest.qml
+TasksModel TasksModel.qml

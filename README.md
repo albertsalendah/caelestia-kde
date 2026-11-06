@@ -96,6 +96,7 @@ they were, and you choose one at the login screen.
 | Starts the shell in this session only (a drop-in for `caelestia-shell.service`, so a Plasma session does not get the Caelestia shell on top of `plasmashell`) | `/usr/local/lib/systemd/user/caelestia-shell.service.d/10-caelestia-session-only.conf`, refers to `caelestia-shell-session-only.conf` in the repository |
 | Holds autostarted tray apps back until the shell provides the tray, and starts the proxy for old X11 tray icons (the apps would otherwise ask for a tray that is not there yet and give up; does nothing in a Plasma session) | `/usr/local/bin/caelestia-wait-for-tray`, with the drop-ins `app-.service.d/10-caelestia-wait-for-tray.conf` and `plasma-xembedsniproxy.service.d/10-caelestia-wait-for-tray.conf` under `/usr/local/lib/systemd/user/`, which refer to `app-wait-for-tray.conf` and `xembedsniproxy-wait-for-tray.conf` in the repository |
 | The proxy for old X11 tray icons, built from `src/xembed-sni-proxy` and installed only when `plasma-workspace` (which ships it) is not installed | `/usr/local/bin/caelestia-xembedsniproxy` and `/usr/local/lib/systemd/user/plasma-xembedsniproxy.service`, which refers to `plasma-xembedsniproxy-standalone.service` in the repository |
+| A stand-in for KDE's `org.kde.taskmanager` QML module, which the screen-sharing picker of `xdg-desktop-portal-kde` needs; installed only when that module is missing (no `plasma-workspace`) and removed again when it is back | `/usr/local/share/caelestia/qml/org/kde/taskmanager/` and the drop-in `/usr/local/lib/systemd/user/plasma-xdg-desktop-portal-kde.service.d/10-caelestia-taskmanager-stub.conf`, which refers to `src/session/taskmanager-stub` and `xdg-portal-taskmanager-stub.conf` in the repository |
 | Login-screen entry | `/usr/local/share/wayland-sessions/caelestia.desktop` |
 | Wayland greeter (SDDM only) | `/etc/sddm.conf.d/zz-wayland-greeter.conf` |
 | Hides the Plasma login entry (SDDM only, and only with no Plasma desktop installed) | `/usr/local/share/wayland-sessions/plasma.desktop` |
@@ -159,7 +160,19 @@ Run `setup.sh` right after the removal, and do not lock the screen before it has
 icons of old X11 apps) and removes the file that hid the Plasma login entry, which no longer exists once
 `plasma-workspace` is gone. The lock screen draws the shell's current wallpaper itself, because KDE's
 wallpaper plugin went with the package. System Settings loses its Users page with `plasma-desktop`; add an
-account from a terminal (`sudo useradd -m -G wheel NAME && sudo passwd NAME`). To go back:
+account from a terminal (`sudo useradd -m -G wheel NAME && sudo passwd NAME`).
+
+Screen sharing needs one more thing the package took with it. The picker of `xdg-desktop-portal-kde` (the
+window that asks which screen or window to share) imports KDE's QML module `org.kde.taskmanager`, which only
+`plasma-workspace` ships; without it the picker cannot open and a share from a browser fails without any
+KDE dialog. `setup.sh` installs a small stand-in under `/usr/local/share/caelestia/qml` and a drop-in
+(`plasma-xdg-desktop-portal-kde.service.d/10-caelestia-taskmanager-stub.conf`) that points the portal at it,
+and removes both again as soon as the real module is installed. The picker lists your screens and windows
+and returns the one you choose, but it shows the application's icon instead of a live thumbnail and writes
+"No windows open" next to each screen. After `setup.sh` the change applies at the next login; to apply it in
+the running session run `systemctl --user daemon-reload && systemctl --user restart plasma-xdg-desktop-portal-kde.service`.
+Chrome shows its own "Choose what to share" window first and opens KDE's picker when you pick Window or Entire
+Screen in it; that order is Chrome's, and Firefox shows only KDE's picker. To go back:
 `sudo dnf history undo last`.
 
 **Removing the Plasma desktop on Arch.** (Arch commands.) The installer does not do it. To do it yourself, from the Caelestia
