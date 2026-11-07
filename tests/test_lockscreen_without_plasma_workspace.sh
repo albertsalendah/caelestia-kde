@@ -63,6 +63,22 @@ test_caps_lock_is_refreshed_when_the_password_changes_and_on_key_presses_and_not
     assert_not_contains "$state" 'repeat: true' "and nothing repeats"
 }
 
+test_caps_lock_is_read_again_on_every_press_and_release_in_the_password_field() {
+    local pill ui
+    pill="$(cat "$LOCK/components/PasswordPill.qml")"
+    ui="$(cat "$LOCK/LockScreenUi.qml")"
+
+    assert_contains "$pill" 'signal keyActivity' "the pill reports key activity"
+    assert_contains "$pill" 'Keys.onPressed: event => {
+                        root.keyActivity();
+                        event.accepted = false;' "a press in the password field is reported and still handled by the field"
+    assert_contains "$pill" 'Keys.onReleased: event => {
+                        root.keyActivity();
+                        event.accepted = false;' "so is a release: turning Caps Lock off leaves the password unchanged and the LED may lag the press"
+    assert_eq "2" "$(grep -c 'onKeyActivity: capsLockState.refresh()' "$LOCK/LockScreenUi.qml")" "the landscape and the portrait pill both ask for the LED"
+    assert_contains "$ui" 'id: capsLockState' "and the state they refresh exists"
+}
+
 test_the_probe_command_reports_what_logind_and_the_display_manager_allow() {
     local root cmd out
     root="$(new_tmpdir)"; mkdir -p "$root/bin"

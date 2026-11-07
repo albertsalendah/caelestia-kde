@@ -37,6 +37,9 @@ FocusScope {
     readonly property bool canReveal: !root.graceLocked && !root.isAuthenticating
 
     signal loginRequested(string password)
+    // Every key the password field sees, pressed or released, whether or not it types anything
+    // (Caps Lock itself types nothing). The lock screen reads the Caps Lock LED again on it.
+    signal keyActivity
 
     function focusInput() {
         if (passwordBox.enabled)
@@ -290,6 +293,18 @@ FocusScope {
                         while (charModel.count > targetLen) {
                             charModel.remove(charModel.count - 1);
                         }
+                    }
+
+                    // Seen before the field handles the key and passed on untouched. The LED changes a
+                    // moment after the press, so the release is reported too: a Caps Lock that was just
+                    // turned off leaves the password as it was, and nothing else would ask again.
+                    Keys.onPressed: event => {
+                        root.keyActivity();
+                        event.accepted = false;
+                    }
+                    Keys.onReleased: event => {
+                        root.keyActivity();
+                        event.accepted = false;
                     }
 
                     onAccepted: if (!root.graceLocked && !root.isAuthenticating) root.loginRequested(passwordBox.text)

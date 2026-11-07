@@ -792,6 +792,7 @@ Item {
                             clPrimary: lockScreenUi.clPrimary
                             clPrimaryFg: lockScreenUi.clPrimaryFg
                             onLoginRequested: pass => lockScreenUi.startLogin(pass)
+                            onKeyActivity: capsLockState.refresh()
                         }
 
                         Session {
@@ -1058,6 +1059,7 @@ Item {
                     clPrimary: lockScreenUi.clPrimary
                     clPrimaryFg: lockScreenUi.clPrimaryFg
                     onLoginRequested: pass => lockScreenUi.startLogin(pass)
+                    onKeyActivity: capsLockState.refresh()
                 }
 
                 Session {
