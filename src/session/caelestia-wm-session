@@ -37,6 +37,14 @@ cleanup() {
     # session chosen next does not get it. Removed first: the shell exits when KWin goes, and
     # its automatic restart must find the file gone.
     rm -f "$XDG_RUNTIME_DIR/caelestia-session-active"
+    # graphical-session.target first. The shell, powerdevil, the polkit agent and the tray proxy are
+    # PartOf it, so this stops them while KWin is still there (left running, they outlived KWin: the
+    # shell exited 255 and the others aborted at every logout). It also makes the target really go
+    # inactive. If something else keeps it up (the user manager lives on for about 10 seconds after a
+    # logout, and xdg-desktop-portal.service is still wanting it), the next login finds it active,
+    # starts nothing under it, and the shell never starts: a black screen with only a cursor. The
+    # timeout keeps a unit that will not stop from holding KWin up.
+    timeout 20 systemctl --user stop graphical-session.target 2>/dev/null || true
     systemctl --user stop caelestia-session.target 2>/dev/null || true
     systemctl --user unset-environment WAYLAND_DISPLAY DISPLAY PLASMA_DEFAULT_SHELL 2>/dev/null || true
 }
@@ -84,6 +92,29 @@ if [ -f "$HOME/.local/share/plasma/shells/caelestia.desktop/metadata.json" ] \
     || [ -f /usr/share/plasma/shells/caelestia.desktop/metadata.json ]; then
     systemctl --user set-environment PLASMA_DEFAULT_SHELL=caelestia.desktop \
         || say "could not select the Caelestia lock screen"
+fi
+
+# 1c. A user manager that outlived the last session (logind keeps it for about 10 seconds after a
+#     logout, and a session that ended without cleaning up leaves it too) can still hold
+#     graphical-session.target active. caelestia-shell.service is WantedBy= that target and only
+#     starts when the target starts, so with it already active the shell never starts: a black
+#     screen with only a cursor. Stop the stale target, so starting the session brings it up for real.
+#     Not while a compositor of this user is running (a session of ours or Plasma's): that
+#     session still needs it. Then the shell is started by hand in 3b, which does no harm.
+stale_target=0
+if systemctl --user is-active --quiet graphical-session.target; then
+    stale_target=1
+    if ! systemctl --user is-active --quiet caelestia-kwin.service \
+        && ! pgrep -u "$(id -u)" -x kwin_wayland >/dev/null 2>&1; then
+        say "graphical-session.target was still active from an earlier session; stopping it"
+        if timeout 20 systemctl --user stop graphical-session.target; then
+            stale_target=0
+        else
+            say "could not stop graphical-session.target; the shell will be started by hand"
+        fi
+    else
+        say "graphical-session.target is active and a compositor is running; leaving it, the shell will be started by hand"
+    fi
 fi
 
 # 2. Start the session (KWin, then graphical-session.target, then caelestia-shell.service).
@@ -209,6 +240,13 @@ for unit in plasma-polkit-agent.service plasma-powerdevil.service plasma-xembeds
         say "$unit is not installed; skipped"
     fi
 done
+
+# 3b2. The shell comes from graphical-session.target starting. When that target was already active
+#      and could not be stopped in 1c, nothing would start it, so start it here. --no-block, and
+#      only in that case: normally the target does it.
+if [ "$stale_target" = 1 ]; then
+    systemctl --user start --no-block caelestia-shell.service || say "could not start caelestia-shell.service"
+fi
 
 # 3c. Title-bar buttons of apps that draw their own (Chrome, Firefox, GTK 4 apps). They take the
 #     layout from the GNOME setting org.gnome.desktop.wm.preferences button-layout, whose default

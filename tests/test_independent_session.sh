@@ -45,6 +45,7 @@ test_the_session_program_cleans_up_however_it_ends() {
     assert_contains "$program" 'plasma-workspace/env' "it should read the Plasma environment scripts, which is where the installer's caelestia.sh lives"
     assert_contains "$program" 'unset WAYLAND_DISPLAY DISPLAY' "it should forget a display left from an earlier session, or KWin starts nested"
     assert_contains "$program" 'plasma-polkit-agent.service plasma-powerdevil.service plasma-xembedsniproxy.service' "and start the helpers once KWin is up"
+    assert_contains "$program" 'systemctl --user stop graphical-session.target' "the graphical session has to go inactive too, or the next login starts nothing under it"
 }
 
 test_the_session_entry_points_at_a_system_wide_program() {
@@ -700,7 +701,11 @@ case \"\$*\" in
         if [ -e '$PROG_RUN/caelestia-session-active' ]; then echo present >> '$PROG_DIR/marker-at-stop'; else echo absent >> '$PROG_DIR/marker-at-stop'; fi ;;
     '--user show-environment') echo WAYLAND_DISPLAY=wayland-0 ;;
     '--user is-active --quiet caelestia-kwin.service') exit 1 ;;
+    '--user is-active --quiet graphical-session.target') [ '${STALE_TARGET:-no}' = yes ] ;;
+    '--user stop graphical-session.target') [ '${STOP_FAILS:-no}' != yes ] ;;
 esac"
+    # A compositor of this user that is running (another session's), as pgrep would report it.
+    stub_bin "$PROG_DIR/bin" pgrep "[ '${KWIN_RUNNING:-no}' = yes ]"
     stub_bin "$PROG_DIR/bin" dbus-update-activation-environment 'exit 0'
     stub_bin "$PROG_DIR/bin" logger 'exit 0'
     if [[ -n "${BUTTONS_LEFT+x}" ]]; then
@@ -794,6 +799,73 @@ test_a_session_that_fails_to_start_leaves_no_marker() {
     assert_status 1 "$PROG_STATUS" "a failed start should end the program"
     assert_eq "present" "$(cat "$PROG_DIR/marker-at-start" 2>/dev/null)" "the marker is made before the start"
     assert_file_missing "$PROG_RUN/caelestia-session-active" "but it must not outlive the failed start"
+    rm -rf "$PROG_DIR"
+}
+
+# The number of the first line of $PROG_DIR/calls that contains a fixed string.
+call_line() {
+    grep -n -F -- "$1" "$PROG_DIR/calls" | head -1 | cut -d: -f1
+}
+
+test_at_logout_the_graphical_session_stops_before_the_session_target() {
+    run_program up
+    local graphical session
+    graphical="$(grep -n -F -- '--user stop graphical-session.target' "$PROG_DIR/calls" | tail -1 | cut -d: -f1)"
+    session="$(grep -n -F -- '--user stop caelestia-session.target' "$PROG_DIR/calls" | tail -1 | cut -d: -f1)"
+
+    [[ -n "$graphical" && -n "$session" ]] || fail "both targets should be stopped at the end (graphical '$graphical', session '$session')"
+    [[ "$graphical" -lt "$session" ]] || fail "the units under graphical-session.target must stop while KWin is still up (graphical at line $graphical, session at line $session)"
+    rm -rf "$PROG_DIR"
+}
+
+test_a_normal_login_does_not_stop_the_graphical_session_or_start_the_shell_by_hand() {
+    run_program up
+    local start before
+    start="$(call_line '--user start caelestia-session.target')"
+    before="$(head -n "$start" "$PROG_DIR/calls")"
+
+    assert_not_contains "$before" '--user stop graphical-session.target' "nothing is stale, so nothing is stopped before the session starts"
+    assert_not_contains "$(cat "$PROG_DIR/calls")" 'start --no-block caelestia-shell.service' "the target starts the shell, as it always did"
+    rm -rf "$PROG_DIR"
+}
+
+test_a_graphical_session_left_active_by_the_last_login_is_stopped_before_the_session_starts() {
+    STALE_TARGET=yes run_program up
+    local stop start
+    stop="$(call_line '--user stop graphical-session.target')"
+    start="$(call_line '--user start caelestia-session.target')"
+
+    [[ -n "$stop" && -n "$start" && "$stop" -lt "$start" ]] || fail "a target that is still active would start nothing under it (stop at line '$stop', start at line '$start')"
+    assert_contains "$(cat "$PROG_DIR/out")" 'graphical-session.target was still active' "and the journal says why"
+    assert_not_contains "$(cat "$PROG_DIR/calls")" 'start --no-block caelestia-shell.service' "stopped, so the target starts the shell itself"
+    rm -rf "$PROG_DIR"
+}
+
+test_a_stale_graphical_session_that_will_not_stop_gets_the_shell_started_by_hand() {
+    STALE_TARGET=yes STOP_FAILS=yes run_program up
+
+    assert_contains "$(cat "$PROG_DIR/calls")" '--user start --no-block caelestia-shell.service' "the screen must not stay black"
+    assert_contains "$(cat "$PROG_DIR/out")" 'could not stop graphical-session.target' "and the journal says what happened"
+    rm -rf "$PROG_DIR"
+}
+
+test_a_graphical_session_that_another_compositor_needs_is_left_alone() {
+    STALE_TARGET=yes KWIN_RUNNING=yes run_program up
+    local start before
+    start="$(call_line '--user start caelestia-session.target')"
+    before="$(head -n "$start" "$PROG_DIR/calls")"
+
+    assert_not_contains "$before" '--user stop graphical-session.target' "a running session of this user still needs it"
+    assert_contains "$(cat "$PROG_DIR/calls")" '--user start --no-block caelestia-shell.service' "ours still gets its shell"
+    rm -rf "$PROG_DIR"
+}
+
+test_a_failed_start_with_a_stale_graphical_session_still_cleans_up() {
+    STALE_TARGET=yes run_program down
+
+    assert_status 1 "$PROG_STATUS" "a failed start should end the program"
+    assert_file_missing "$PROG_RUN/caelestia-session-active" "no marker is left behind"
+    assert_contains "$(cat "$PROG_DIR/calls")" '--user stop caelestia-session.target' "and the session target is stopped"
     rm -rf "$PROG_DIR"
 }
 
