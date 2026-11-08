@@ -60,7 +60,7 @@ PageBase {
             Process {
                 id: restartProcess
 
-                command: ["bash", "-c", "nohup bash -c 'qdbus6 org.kde.Shutdown /Shutdown org.kde.Shutdown.logout 2>/dev/null || systemctl --user stop caelestia-kwin.service' >/dev/null 2>&1"]
+                command: ["bash", "-c", "nohup bash -c 'qdbus6 org.kde.Shutdown /Shutdown org.kde.Shutdown.logout 2>/dev/null || systemctl --user stop graphical-session.target' >/dev/null 2>&1"]
             }
         }
     ]

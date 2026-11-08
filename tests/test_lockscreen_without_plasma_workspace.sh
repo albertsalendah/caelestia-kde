@@ -133,7 +133,7 @@ test_the_power_actions_do_not_depend_on_the_private_module() {
     assert_contains "$qml" 'sessionActionSource.connectSource("systemctl hibernate 2>/dev/null");'
     assert_contains "$qml" 'systemctl reboot 2>/dev/null' "reboot works without KDE's service"
     assert_contains "$qml" 'systemctl poweroff 2>/dev/null' "and so does shutdown"
-    assert_contains "$qml" 'systemctl --user stop caelestia-kwin.service' "and logout"
+    assert_contains "$qml" 'systemctl --user stop graphical-session.target' "and logout"
 }
 
 test_the_password_is_cleared_before_the_machine_sleeps() {

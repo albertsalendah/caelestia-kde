@@ -133,7 +133,7 @@ Item {
 
     function logout(): void {
         root.actionTriggered("logout");
-        sessionActionSource.connectSource("qdbus6 org.kde.Shutdown /Shutdown org.kde.Shutdown.logout 2>/dev/null || systemctl --user stop caelestia-kwin.service");
+        sessionActionSource.connectSource("qdbus6 org.kde.Shutdown /Shutdown org.kde.Shutdown.logout 2>/dev/null || systemctl --user stop graphical-session.target");
     }
 
     function reboot(): void {
