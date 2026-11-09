@@ -286,8 +286,32 @@ sync_gtk_button_layout() {
 sync_gtk_button_layout || true
 
 # 4. Stay alive until KWin exits; the EXIT trap (cleanup) then tears everything down. The wait
-#    builtin lets a signal interrupt the sleep at once.
-while systemctl --user is-active --quiet caelestia-kwin.service; do
+#    builtin lets a signal interrupt the sleep at once. Only a plain "inactive" or "failed" from
+#    the user manager counts as KWin having exited. The manager gives no answer for a moment when
+#    it reloads, which every "systemctl daemon-reload" makes it do and a package upgrade runs
+#    several times; a program that ended on a missing answer ended the login session (the login
+#    screen came back) while KWin and the shell were still running, without a display. No answer
+#    is asked again, for about 30 s at most, and what was seen goes to the journal.
+missed=0
+while :; do
+    state="$(systemctl --user is-active caelestia-kwin.service 2>/dev/null)" || true
+    case "$state" in
+        active|activating|reloading|deactivating)
+            if [ "$missed" -gt 0 ]; then
+                say "the user manager answers again ($state) after $missed missed polls of caelestia-kwin.service"
+                missed=0
+            fi ;;
+        inactive|failed)
+            say "caelestia-kwin.service is $state; ending the session"
+            break ;;
+        *)
+            missed=$((missed + 1))
+            [ "$missed" -eq 1 ] && say "no answer from the user manager about caelestia-kwin.service; asking again"
+            if [ "$missed" -ge 15 ]; then
+                say "no answer about caelestia-kwin.service for $((missed * 2)) s; ending the session"
+                break
+            fi ;;
+    esac
     sleep 2 &
     wait $!
 done

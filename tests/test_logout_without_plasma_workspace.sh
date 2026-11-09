@@ -83,7 +83,7 @@ test_stopping_the_graphical_session_stops_kwin_too() {
 }
 
 test_the_session_program_really_ends_when_kwin_stops() {
-    assert_file_contains "$REPO_ROOT/src/session/caelestia-wm-session" 'while systemctl --user is-active --quiet caelestia-kwin.service; do' \
+    assert_file_contains "$REPO_ROOT/src/session/caelestia-wm-session" 'state="$(systemctl --user is-active caelestia-kwin.service 2>/dev/null)"' \
         "the fallback relies on the program waiting for KWin"
 }
 

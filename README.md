@@ -135,7 +135,10 @@ terminal, the installer records Konsole as the shell's terminal.
 Bluetooth off. `plasma-workspace` and `plasma-desktop` are not installed on Fedora, and nothing in the list requires or
 recommends them; the shell has fallbacks for the two things only `plasma-workspace` provided (the KDE colour-scheme command and the logout service). The icons of old X11 apps (Java and Compose apps such as AB Download Manager) need KDE's `xembedsniproxy`, which ships only inside `plasma-workspace`; when `plasma-workspace` is not installed the step builds a copy of it (`src/xembed-sni-proxy`, taken from `plasma-workspace` v6.8.2) with CMake and installs it under `/usr/local`, and a failed build only costs those icons. Debian is still skipped. The Fedora installer does not
 guard a system upgrade the way the Arch one does (an upgrade of KWin or Qt inside a running session),
-so run `sudo dnf upgrade` from a text console, not from inside the session.
+so run `sudo dnf upgrade` from a text console, not from inside the session. Running it over SSH is not
+enough: on one machine an upgrade over SSH ended the login session (the login screen came back and the
+screen froze), because the package scriptlets reload the user manager and the session program took its
+moment of silence for KWin having exited (see the last row of the problem table).
 
 **Removing the Plasma desktop on Fedora.** The installer does not do it. If a Plasma desktop is already
 installed, remove it from the Caelestia session (not from a Plasma session), after
@@ -268,6 +271,7 @@ Settings are written to `~/.config/caelestia/shell.json`. The login splash setti
 | Colors not applying | Run `caelestia scheme set -n dynamic`, or `caelestia wallpaper -f <image>`. See [TROUBLESHOOTING.md](docs/TROUBLESHOOTING.md#34-colors-not-applying) |
 | The shell restarts by itself and `coredumpctl info` shows a crash in `libpipewire` | The PipeWire thread behind "do not disturb while streaming" now runs only while that setting is on. To keep it off whatever the setting says, put `[Service]` and `Environment=CAELESTIA_STREAM_WATCHER=0` in `~/.config/systemd/user/caelestia-shell.service.d/stream-watcher.conf`, then `systemctl --user daemon-reload` and log in again |
 | A black screen with only the cursor after logging out and straight back in | The session program now stops the graphical session at logout and clears a leftover one at login; install it with `bash ./scripts/setup.sh` (an update does not). Until then, wait 30 seconds at the login screen before logging in again. If the screen is already black, press Ctrl+Alt+F3, log in, and run `systemctl --user start caelestia-shell.service` |
+| The login screen came back, or the screen froze, while a system upgrade was running | A system upgrade reloads systemd, which makes the user manager stop answering for a moment, and the session program used to read that as KWin having exited: it ended, the login manager closed the session, and KWin and the shell kept running without a display. The program now asks again for up to 30 seconds before it gives up, and writes what it saw to the journal (`journalctl --user -t caelestia-wm-session`: "no answer from the user manager ..."). Install it with `bash ./scripts/setup.sh` (an update does not). If the screen is frozen, log in over SSH or press Ctrl+Alt+F3 and run `sudo reboot`; anything open is lost |
 | Install failed mid-way | Re-run `bash ./scripts/setup.sh` |
 | Full reset needed | See [TROUBLESHOOTING.md](docs/TROUBLESHOOTING.md) |
 

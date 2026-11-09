@@ -692,6 +692,25 @@ run_program() {
         mkdir -p "$PROG_DIR/home/.local/share/plasma/shells/caelestia.desktop"
         : > "$PROG_DIR/home/.local/share/plasma/shells/caelestia.desktop/metadata.json"
     fi
+    # What the user manager answers about KWin, one answer per poll (KWIN_STATES, space separated):
+    # a state word, or "none" for no answer at all (it prints nothing and fails, as systemctl does
+    # when it cannot reach the manager). Once they are used up the answer is "inactive".
+    printf '%s\n' ${KWIN_STATES:-} > "$PROG_DIR/kwin-states"
+    cat > "$PROG_DIR/kwin-answer" <<EOS
+#!/bin/bash
+f='$PROG_DIR/kwin-states'
+line="\$(head -n1 "\$f" 2>/dev/null)"
+tail -n +2 "\$f" > "\$f.next" 2>/dev/null; mv "\$f.next" "\$f"
+case "\$line" in
+    none) exit 1 ;;
+    active|activating|reloading) echo "\$line"; exit 0 ;;
+    "") echo inactive; exit 3 ;;
+    *) echo "\$line"; exit 3 ;;
+esac
+EOS
+    chmod +x "$PROG_DIR/kwin-answer"
+    # With scripted answers the 2 s pauses between polls would only slow the test down.
+    [[ -n "${KWIN_STATES:-}" ]] && stub_bin "$PROG_DIR/bin" sleep 'exit 0'
     stub_bin "$PROG_DIR/bin" systemctl "echo \"\$*\" >> '$PROG_DIR/calls'
 case \"\$*\" in
     '--user start caelestia-session.target')
@@ -700,6 +719,7 @@ case \"\$*\" in
     '--user stop caelestia-session.target')
         if [ -e '$PROG_RUN/caelestia-session-active' ]; then echo present >> '$PROG_DIR/marker-at-stop'; else echo absent >> '$PROG_DIR/marker-at-stop'; fi ;;
     '--user show-environment') echo WAYLAND_DISPLAY=wayland-0 ;;
+    '--user is-active caelestia-kwin.service') '$PROG_DIR/kwin-answer' ;;
     '--user is-active --quiet caelestia-kwin.service') exit 1 ;;
     '--user is-active --quiet graphical-session.target') [ '${STALE_TARGET:-no}' = yes ] ;;
     '--user stop graphical-session.target') [ '${STOP_FAILS:-no}' != yes ] ;;
@@ -846,6 +866,63 @@ test_a_stale_graphical_session_that_will_not_stop_gets_the_shell_started_by_hand
 
     assert_contains "$(cat "$PROG_DIR/calls")" '--user start --no-block caelestia-shell.service' "the screen must not stay black"
     assert_contains "$(cat "$PROG_DIR/out")" 'could not stop graphical-session.target' "and the journal says what happened"
+    rm -rf "$PROG_DIR"
+}
+
+# KWin's own state, asked every 2 s while the program waits.
+polls() { grep -cx -- '--user is-active caelestia-kwin.service' "$PROG_DIR/calls"; }
+
+test_the_program_ends_the_session_when_the_manager_says_kwin_is_inactive() {
+    KWIN_STATES="active inactive" run_program up
+
+    assert_eq "2" "$(polls)" "it asked until it was told"
+    assert_contains "$(cat "$PROG_DIR/out")" 'caelestia-kwin.service is inactive; ending the session' "and says why it left"
+    assert_contains "$(cat "$PROG_DIR/calls")" '--user stop caelestia-session.target' "the session is torn down"
+    rm -rf "$PROG_DIR"
+}
+
+test_a_failed_kwin_ends_the_session_too() {
+    KWIN_STATES="active failed" run_program up
+
+    assert_eq "2" "$(polls)" "a failed unit is not waited for"
+    assert_contains "$(cat "$PROG_DIR/out")" 'caelestia-kwin.service is failed; ending the session' "and the journal says so"
+    rm -rf "$PROG_DIR"
+}
+
+test_a_missing_answer_from_the_user_manager_does_not_end_the_session() {
+    KWIN_STATES="active none none active inactive" run_program up
+    local out
+    out="$(cat "$PROG_DIR/out")"
+
+    assert_eq "5" "$(polls)" "two missing answers were asked again, not taken for KWin being gone"
+    assert_contains "$out" 'no answer from the user manager about caelestia-kwin.service; asking again' "the first one is logged"
+    assert_contains "$out" 'answers again (active) after 2 missed polls' "and so is the recovery, with the count"
+    assert_contains "$out" 'caelestia-kwin.service is inactive; ending the session' "the session ends when KWin really exits"
+    rm -rf "$PROG_DIR"
+}
+
+test_a_stopping_kwin_is_waited_for() {
+    KWIN_STATES="active deactivating deactivating inactive" run_program up
+
+    assert_eq "4" "$(polls)" "a unit that is still stopping is not gone yet"
+    assert_not_contains "$(cat "$PROG_DIR/out")" 'no answer' "and that is not a missing answer"
+    rm -rf "$PROG_DIR"
+}
+
+test_missing_answers_are_counted_per_run_not_in_total() {
+    KWIN_STATES="active $(printf 'none %.0s' $(seq 1 10)) active $(printf 'none %.0s' $(seq 1 10)) active inactive" run_program up
+
+    assert_eq "24" "$(polls)" "two runs of 10 missing answers must not add up to the limit of 15"
+    assert_not_contains "$(cat "$PROG_DIR/out")" 'for 30 s' "so it never gave up"
+    rm -rf "$PROG_DIR"
+}
+
+test_a_manager_that_never_answers_ends_the_session_after_about_30_seconds() {
+    KWIN_STATES="active $(printf 'none %.0s' $(seq 1 20))" run_program up
+
+    assert_eq "16" "$(polls)" "one answer, then 15 missing ones"
+    assert_contains "$(cat "$PROG_DIR/out")" 'no answer about caelestia-kwin.service for 30 s; ending the session' "then it gives up and says so"
+    assert_contains "$(cat "$PROG_DIR/calls")" '--user stop caelestia-session.target' "and cleans up"
     rm -rf "$PROG_DIR"
 }
 
