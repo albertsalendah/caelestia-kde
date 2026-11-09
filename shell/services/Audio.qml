@@ -39,6 +39,7 @@ Singleton {
     readonly property alias beatTracker: beatTracker
 
     property var _sfxCache: ({})
+    readonly property int sfxIdleMs: 3000
 
     function setVolume(newVolume: real): void {
         if (sink?.ready && sink?.audio) {
@@ -169,10 +170,35 @@ Singleton {
         }
     }
 
+    // A SoundEffect keeps one PipeWire output stream open for as long as it exists, on the sink that
+    // was the default when it was made. Qt 6.11.2's PipeWire audio backend then destroys that stream
+    // on its own thread when the sink goes away (a Bluetooth headset switched off, a monitor that
+    // drops its audio), which deletes a QSocketNotifier from the wrong thread and crashes the shell
+    // or sends it into a busy loop. Effects that were cached for the whole session made that happen
+    // after any sound. So an effect lives only for a few seconds after its last play (quick bursts,
+    // like the volume tick, still share one), and the next sound makes a new one on the output that
+    // is the default by then.
     Component {
         id: sfxComponent
 
-        SoundEffect {}
+        SoundEffect {
+            id: effect
+
+            property string cacheKey
+
+            readonly property Timer idle: Timer {
+                interval: root.sfxIdleMs
+                onTriggered: {
+                    if (effect.playing) {
+                        restart();
+                        return;
+                    }
+                    if (root._sfxCache[effect.cacheKey] === effect)
+                        delete root._sfxCache[effect.cacheKey];
+                    effect.destroy();
+                }
+            }
+        }
     }
 
     function playSoundSource(sourcePath: string, enabled: bool, volume: real): void {
@@ -181,11 +207,12 @@ Singleton {
 
         let sfx = root._sfxCache[sourcePath];
         if (!sfx) {
-            sfx = sfxComponent.createObject(root, { source: sourcePath, volume: volume });
+            sfx = sfxComponent.createObject(root, { source: sourcePath, volume: volume, cacheKey: sourcePath });
             root._sfxCache[sourcePath] = sfx;
         } else {
             sfx.volume = volume;
         }
+        sfx.idle.restart();
         sfx.play();
     }
 
