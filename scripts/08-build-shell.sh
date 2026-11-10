@@ -81,12 +81,18 @@ else
     CMAKE_GENERATOR="Unix Makefiles"
 fi
 
+# What a kept build tree was made with. The tree holds Quick Share's protobuf sources, written by
+# the protoc of the day they were built. After a Fedora 44 to 45 upgrade, which moved protobuf and
+# left Qt at 6.11, the stamp still matched, the tree was kept, and the build stopped on sources
+# that include a header the new protobuf no longer has until the tree was deleted by hand.
 caelestia_toolchain_stamp() {
-    local cmake_ver qt_ver cava
+    local cmake_ver qt_ver proto_ver cava
     cmake_ver="$(cmake --version | head -n1 | grep -oE '[0-9]+\.[0-9]+' | head -n1)"
     qt_ver="$(pkg-config --modversion Qt6Core 2>/dev/null | grep -oE '^[0-9]+\.[0-9]+' || true)"
+    proto_ver="$(pkg-config --modversion protobuf 2>/dev/null | grep -oE '^[0-9]+\.[0-9]+' || true)"
     cava="$(cava_state)"
-    printf 'bundle:%s cmake:%s qt6core:%s gen:%s cava:%s\n' "$BUNDLE_DIR" "$cmake_ver" "$qt_ver" "$CMAKE_GENERATOR" "$cava"
+    printf 'bundle:%s cmake:%s qt6core:%s protobuf:%s gen:%s cava:%s\n' \
+        "$BUNDLE_DIR" "$cmake_ver" "$qt_ver" "$proto_ver" "$CMAKE_GENERATOR" "$cava"
 }
 
 caelestia_normalise_stamp() {

@@ -123,7 +123,15 @@ configure_quick_share() {
         return 0
     fi
 
-    status="$(bash "$setup" --status --port "$port" 2>/dev/null || true)"
+    # The report runs as root, like the setup after it. Run as the person, its firewalld question
+    # (`firewall-cmd --query-port`) goes to polkit, which does not count this installer as part of an
+    # active session when it was started from the shell, and a password window opened on every install
+    # and update right after the one the installer had already asked for.
+    status="$(caelestia_sudo bash "$setup" --status --port "$port" 2>/dev/null || true)"
+    if [[ -z "$status" ]]; then
+        warn "Could not check whether Quick Share has the access it needs; if it cannot receive, run its setup from Settings -> Services -> Quick Share."
+        return 0
+    fi
     if [[ "$status" != *"SETUP=needed"* ]]; then
         skip "Quick Share already has the access it needs."
         return 0
