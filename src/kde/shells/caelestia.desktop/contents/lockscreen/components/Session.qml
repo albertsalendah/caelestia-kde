@@ -133,7 +133,7 @@ Item {
 
     function logout(): void {
         root.actionTriggered("logout");
-        sessionActionSource.connectSource("qdbus6 org.kde.Shutdown /Shutdown org.kde.Shutdown.logout 2>/dev/null || systemctl --user stop graphical-session.target");
+        sessionActionSource.connectSource("[ -e $XDG_RUNTIME_DIR/caelestia-session-active ] && exec systemctl --user stop graphical-session.target; qdbus6 org.kde.Shutdown /Shutdown org.kde.Shutdown.logout 2>/dev/null || systemctl --user stop graphical-session.target");
     }
 
     function reboot(): void {

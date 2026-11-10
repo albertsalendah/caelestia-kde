@@ -115,7 +115,7 @@ Item {
                     type: TextButton.Tonal
                     icon: "logout"
                     text: qsTr("Log Out")
-                    onClicked: root.triggerSessionCommand(["sh", "-c", "qdbus6 org.kde.Shutdown /Shutdown org.kde.Shutdown.logout 2>/dev/null || systemctl --user stop graphical-session.target"])
+                    onClicked: root.triggerSessionCommand(["sh", "-c", "[ -e $XDG_RUNTIME_DIR/caelestia-session-active ] && exec systemctl --user stop graphical-session.target; qdbus6 org.kde.Shutdown /Shutdown org.kde.Shutdown.logout 2>/dev/null || systemctl --user stop graphical-session.target"])
                 }
 
                 IconTextButton {

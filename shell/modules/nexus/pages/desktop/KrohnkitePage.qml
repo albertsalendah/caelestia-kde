@@ -60,7 +60,7 @@ PageBase {
             Process {
                 id: restartProcess
 
-                command: ["bash", "-c", "nohup bash -c 'qdbus6 org.kde.Shutdown /Shutdown org.kde.Shutdown.logout 2>/dev/null || systemctl --user stop graphical-session.target' >/dev/null 2>&1"]
+                command: ["bash", "-c", "nohup bash -c '[ -e $XDG_RUNTIME_DIR/caelestia-session-active ] && exec systemctl --user stop graphical-session.target; qdbus6 org.kde.Shutdown /Shutdown org.kde.Shutdown.logout 2>/dev/null || systemctl --user stop graphical-session.target' >/dev/null 2>&1"]
             }
         }
     ]

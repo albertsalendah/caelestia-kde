@@ -24,7 +24,7 @@ Column {
         id: logout
 
         icon: Config.session.icons.logout
-        command: ["sh", "-c", "qdbus6 org.kde.Shutdown /Shutdown org.kde.Shutdown.logout 2>/dev/null || systemctl --user stop graphical-session.target"]
+        command: ["sh", "-c", "[ -e $XDG_RUNTIME_DIR/caelestia-session-active ] && exec systemctl --user stop graphical-session.target; qdbus6 org.kde.Shutdown /Shutdown org.kde.Shutdown.logout 2>/dev/null || systemctl --user stop graphical-session.target"]
 
         KeyNavigation.down: shutdown
 
