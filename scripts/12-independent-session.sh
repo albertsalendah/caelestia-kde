@@ -157,7 +157,8 @@ install_file "$SRC_DIR/xembedsniproxy-wait-for-tray.conf" "$PROXY_DROPIN"       
 install_file "$SRC_DIR/caelestia.desktop"         "$ENTRY"                             0644
 ok "Session files installed under /usr/local."
 
-# Old X11 tray icons: plasma-workspace ships the proxy; a machine without it builds the vendored copy.
+# Old X11 tray icons: plasma-workspace ships the proxy; a machine without it (Fedora, or Arch with the
+# stand-in package) builds the vendored copy.
 # (Not under the tests' scratch root: they would try to build.)
 if [[ -z "$ROOT" ]]; then
     install_xembed_proxy

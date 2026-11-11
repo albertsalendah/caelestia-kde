@@ -95,7 +95,7 @@ they were, and you choose one at the login screen.
 | KWin unit and session target | `/usr/local/lib/systemd/user/caelestia-kwin.service` and `caelestia-session.target` |
 | Starts the shell in this session only (a drop-in for `caelestia-shell.service`, so a Plasma session does not get the Caelestia shell on top of `plasmashell`) | `/usr/local/lib/systemd/user/caelestia-shell.service.d/10-caelestia-session-only.conf`, refers to `caelestia-shell-session-only.conf` in the repository |
 | Holds autostarted tray apps back until the shell provides the tray, and starts the proxy for old X11 tray icons (the apps would otherwise ask for a tray that is not there yet and give up; does nothing in a Plasma session) | `/usr/local/bin/caelestia-wait-for-tray`, with the drop-ins `app-.service.d/10-caelestia-wait-for-tray.conf` and `plasma-xembedsniproxy.service.d/10-caelestia-wait-for-tray.conf` under `/usr/local/lib/systemd/user/`, which refer to `app-wait-for-tray.conf` and `xembedsniproxy-wait-for-tray.conf` in the repository |
-| The proxy for old X11 tray icons, built from `src/xembed-sni-proxy` and installed only when `plasma-workspace` (which ships it) is not installed | `/usr/local/bin/caelestia-xembedsniproxy` and `/usr/local/lib/systemd/user/plasma-xembedsniproxy.service`, which refers to `plasma-xembedsniproxy-standalone.service` in the repository |
+| The proxy for old X11 tray icons, built from `src/xembed-sni-proxy` on Fedora and on Arch, and installed only when `plasma-workspace` (which ships it) is not installed (on Arch that means the stand-in package below) | `/usr/local/bin/caelestia-xembedsniproxy` and `/usr/local/lib/systemd/user/plasma-xembedsniproxy.service`, which refers to `plasma-xembedsniproxy-standalone.service` in the repository |
 | A stand-in for KDE's `org.kde.taskmanager` QML module, which the screen-sharing picker of `xdg-desktop-portal-kde` needs; installed only when that module is missing (no `plasma-workspace`) and removed again when it is back | `/usr/local/share/caelestia/qml/org/kde/taskmanager/` and the drop-in `/usr/local/lib/systemd/user/plasma-xdg-desktop-portal-kde.service.d/10-caelestia-taskmanager-stub.conf`, which refers to `src/session/taskmanager-stub` and `xdg-portal-taskmanager-stub.conf` in the repository |
 | Login-screen entry | `/usr/local/share/wayland-sessions/caelestia.desktop` |
 | Wayland greeter (SDDM only) | `/etc/sddm.conf.d/zz-wayland-greeter.conf` |
@@ -213,8 +213,10 @@ which downloads the matching `plasma-workspace` into pacman's cache (nothing of 
 library out of it and rebuilds the stand-in. If a refresh fails (the database stayed locked, no network),
 `caelestia-plasma-stub status` says so; run `sudo caelestia-plasma-stub refresh` before the next login,
 because a `powerdevil` newer than the library may not start. `sudo caelestia-plasma-stub remove` puts the
-real package back. The old-tray proxy is not built on Arch yet, so icons of old X11 programs have no tray
-entry. If a package ever asks for a version of `plasma-workspace` newer than the stand-in's, `pacman` stops
+real package back. Because the real package, which ships `xembedsniproxy`, is gone, `setup.sh` builds the
+old-tray proxy from `src/xembed-sni-proxy` (a failed build only costs the tray icons of old X11 programs); after
+`remove` the real package's own copy is back, and the one under `/usr/local` does the same work.
+If a package ever asks for a version of `plasma-workspace` newer than the stand-in's, `pacman` stops
 the update before it changes anything: run `remove`, update, then `install` again. A stand-in made by hand
 is adopted by `install` (it adds the script and the hook, then refreshes).
 
