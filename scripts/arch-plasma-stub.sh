@@ -7,12 +7,15 @@
 # starts `refresh` after every powerdevil or xdg-desktop-portal-kde upgrade, which downloads the matching
 # plasma-workspace (nothing of it is installed), takes the library out of it and rebuilds the stand-in.
 #
-#   sudo bash scripts/arch-plasma-stub.sh install    replace plasma-workspace (take a snapshot first)
+#   sudo bash scripts/arch-plasma-stub.sh install    replace plasma-workspace (take a snapshot first); on a
+#                                                    machine that has none, install the stand-in from the cache
 #   sudo caelestia-plasma-stub refresh               what the hook runs; safe to run by hand
 #   caelestia-plasma-stub status                     versions and the result of the last refresh
 #   sudo caelestia-plasma-stub remove                put the real plasma-workspace back
 #
-# The installer never runs this. Like the Fedora removal it is a step you take on purpose.
+# setup.sh runs `install` itself, once, on an Arch machine that has no plasma-workspace at all (a fresh
+# install, scripts/lib/plasma-stub.sh): there it only adds the stand-in and removes nothing. Replacing a real
+# plasma-workspace stays a step you take on purpose.
 
 set -uo pipefail
 
@@ -130,7 +133,13 @@ cmd_install() {
             cmd_refresh
             return
         fi
-        die "the real plasma-workspace is not installed, so there is nothing to replace."
+        # Neither package: a fresh machine. The stand-in is built from the package cache, so powerdevil and
+        # xdg-desktop-portal-kde find plasma-workspace provided and the real one is never installed.
+        log "plasma-workspace is not installed; installing $STUB_NAME from pacman's package cache. Nothing is removed."
+        refresh_stub
+        install_script_and_hook
+        log "done. powerdevil and xdg-desktop-portal-kde find plasma-workspace provided by the stand-in."
+        return
     fi
     local version tmp pkg
     version="$(pacman -Q plasma-workspace | awk '{print $2}')"
@@ -162,30 +171,37 @@ cmd_install() {
 cmd_refresh() {
     need_root
     stub_installed || exit 0
+    refresh_stub
+}
 
-    local waited=0 lock
+# Download the matching plasma-workspace into the cache (the one package: -dd keeps pacman from fetching its
+# whole dependency tree, which a machine without the real package does not have), take the library out and
+# install the stand-in built from it. With no stand-in installed yet this is the first install.
+refresh_stub() {
+    local waited=0 lock current again="run: sudo caelestia-plasma-stub refresh"
+    current="$(pacman -Q "$STUB_NAME" 2> /dev/null | awk '{print $2}')"
+    [[ -n "$current" ]] || again="run the installer again"
     lock="$(lock_file)"
     while [[ -e "$lock" ]]; do
         if ((waited >= LOCK_WAIT)); then
-            set_status failed "pacman's database stayed locked for ${LOCK_WAIT}s; run: sudo caelestia-plasma-stub refresh"
+            set_status failed "pacman's database stayed locked for ${LOCK_WAIT}s; $again"
             die "pacman's database stayed locked."
         fi
         sleep "$LOCK_POLL"
         waited=$((waited + LOCK_POLL))
     done
 
-    local url pkgfile new current tmp pkg
-    if ! pacman -Sw --noconfirm plasma-workspace; then
-        set_status failed "could not download plasma-workspace; run: sudo caelestia-plasma-stub refresh"
+    local url pkgfile new tmp pkg
+    if ! pacman -Sw --noconfirm -dd plasma-workspace; then
+        set_status failed "could not download plasma-workspace; $again"
         die "could not download plasma-workspace."
     fi
-    url="$(pacman -Sp --noconfirm plasma-workspace 2> /dev/null | tail -n1)"
+    url="$(pacman -Sp --noconfirm -dd plasma-workspace 2> /dev/null | tail -n1)"
     pkgfile="${url#file://}"
     [[ -f "$pkgfile" ]] || { set_status failed "the downloaded package was not found"; die "the downloaded package was not found."; }
     new="$(package_version "$pkgfile")"
     [[ -n "$new" ]] || { set_status failed "could not read the version of $pkgfile"; die "could not read the package version."; }
-    current="$(pacman -Q "$STUB_NAME" | awk '{print $2}')"
-    if [[ "$new" == "$current" ]]; then
+    if [[ -n "$current" && "$new" == "$current" ]]; then
         set_status ok "up to date ($current)"
         return 0
     fi
@@ -200,10 +216,15 @@ cmd_refresh() {
     pkg="$tmp/$STUB_NAME-$new-x86_64.pkg.tar.zst"
     if ! build_stub "$tmp/pkg" "$new" "$pkg" || ! pacman -U --noconfirm "$pkg"; then
         rm -rf "$tmp"
-        set_status failed "could not rebuild the stand-in for $new; run: sudo caelestia-plasma-stub refresh"
+        set_status failed "could not rebuild the stand-in for $new; $again"
         die "the stand-in was not refreshed."
     fi
     rm -rf "$tmp"
+    if [[ -z "$current" ]]; then
+        set_status ok "installed $new"
+        log "stand-in installed: $new"
+        return 0
+    fi
     set_status ok "refreshed $current -> $new"
     log "stand-in refreshed: $current -> $new"
 }

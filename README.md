@@ -192,22 +192,27 @@ env BUNDLE_DIR=$PWD BASE_DISTRO=arch bash scripts/12-independent-session.sh
 
 `pacman` shows the list and asks before it removes anything. Take a Snapper snapshot first.
 
-**Removing `plasma-workspace` itself on Arch (optional; tried on one machine).** `powerdevil` and
-`xdg-desktop-portal-kde` depend on `plasma-workspace`, and `powerdevil` loads `libkworkspace6.so.6` from it,
-so `pacman` will not remove it. `scripts/arch-plasma-stub.sh` replaces it with a small local package,
-`caelestia-plasma-workspace-stub`, that provides the name and carries only that library. Take a Snapper
-snapshot, run the first command from the Caelestia session, then `setup.sh` (it installs the screen-sharing
-stand-in described above, since the real module goes with the package) and log in again. The installer then
-treats the stand-in as `plasma-workspace` (`pacman -Qq` answers through `Provides`) and does not install the
-real one again:
+**`plasma-workspace` on Arch: a stand-in package instead of the Plasma desktop libraries.** `powerdevil` and
+`xdg-desktop-portal-kde` depend on `plasma-workspace`, and `powerdevil` loads `libkworkspace6.so.6` from it.
+On an Arch machine that has no `plasma-workspace` (a fresh install), `setup.sh` therefore installs a small
+local package first, `caelestia-plasma-workspace-stub` (`scripts/arch-plasma-stub.sh`). It provides the name
+and carries only that library, taken from the real package in pacman's cache, so the real package is never
+installed and nothing is removed. A machine that already has the real package or the stand-in is left alone.
+The installer then treats the stand-in as `plasma-workspace` (`pacman -Qq` answers through `Provides`). To get
+the real package instead, set `CAELESTIA_ARCH_PLASMA_STUB=false` before `setup.sh`; to install a Plasma
+desktop later, run `sudo caelestia-plasma-stub remove` first.
+
+To replace a real `plasma-workspace` that is already installed (the installer never does that on its own):
+take a Snapper snapshot, run the first command from the Caelestia session, then `setup.sh` (it installs the
+screen-sharing stand-in described above, since the real module goes with the package) and log in again:
 
 ```bash
 sudo bash scripts/arch-plasma-stub.sh install
 env SKIP_SYSTEM_UPDATE=true bash scripts/setup.sh
 ```
 
-`install` builds and checks the package before it removes anything, puts `plasma-workspace` back if the
-stand-in will not install, and adds a pacman hook (`/etc/pacman.d/hooks/90-caelestia-plasma-stub.hook`).
+Replacing the real package, `install` builds and checks the stand-in before it removes anything and puts
+`plasma-workspace` back if the stand-in will not install; either way it adds a pacman hook (`/etc/pacman.d/hooks/90-caelestia-plasma-stub.hook`).
 After every `powerdevil` or `xdg-desktop-portal-kde` upgrade the hook starts `caelestia-plasma-stub refresh`,
 which downloads the matching `plasma-workspace` into pacman's cache (nothing of it is installed), takes the
 library out of it and rebuilds the stand-in. If a refresh fails (the database stayed locked, no network),
@@ -227,6 +232,7 @@ is adopted by `install` (it adds the script and the hook, then refreshes).
 | `INSTALL_SYSTEMSETTINGS` | `true` | `false` skips System Settings, which hosts the display settings page |
 | `INSTALL_PIPEWIRE` | `true` | `false` skips `pipewire`, `pipewire-pulse` and `pipewire-alsa` (Arch) |
 | `INSTALL_BLUEDEVIL` | `true` | `false` skips `bluedevil` and `bluez`, and does not enable `bluetooth.service` (Arch) |
+| `CAELESTIA_ARCH_PLASMA_STUB` | `true` | `false` installs the real `plasma-workspace` on an Arch machine that has none, instead of the stand-in package |
 | `INSTALL_WALLPAPER_PACK` | `false` | `true` downloads the dharmx wallpaper pack (about 100 MB); otherwise the shell's bundled wallpaper is used |
 | `INSTALL_GWENVIEW`, `INSTALL_KATE`, `INSTALL_KDECONNECT`, `INSTALL_KWRITE`, `INSTALL_PARTITIONMANAGER`, `INSTALL_FILELIGHT` | `false` | `true` installs that KDE application (Gwenview, Kate, KDE Connect, KWrite, KDE Partition Manager, Filelight). The installer's Applications menu has a switch for each. KDE Connect also gets ports 1714-1764 (TCP and UDP) opened in ufw or a running firewalld |
 

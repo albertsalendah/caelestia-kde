@@ -12,6 +12,8 @@ source "${BUNDLE_DIR:-$(cd "$(dirname "${BASH_SOURCE[0]}")/../../.." && pwd)}/sc
 source "${BUNDLE_DIR:-$(cd "$(dirname "${BASH_SOURCE[0]}")/../../.." && pwd)}/scripts/lib/packages.sh"
 # shellcheck source=scripts/lib/darkly.sh
 source "${BUNDLE_DIR:-$(cd "$(dirname "${BASH_SOURCE[0]}")/../../.." && pwd)}/scripts/lib/darkly.sh"
+# shellcheck source=scripts/lib/plasma-stub.sh
+source "${BUNDLE_DIR:-$(cd "$(dirname "${BASH_SOURCE[0]}")/../../.." && pwd)}/scripts/lib/plasma-stub.sh"
 
 info "Installing Arch packages..."
 
@@ -93,6 +95,10 @@ case "$PACKAGE_GROUP" in
     session) PACKAGES=("${SESSION_PACKAGES[@]}") ;;
     all|*)  PACKAGES=("${CORE_PACKAGES[@]}" "${SHELL_PACKAGES[@]}" "${THEME_PACKAGES[@]}" "${UTILITY_PACKAGES[@]}" "${SESSION_PACKAGES[@]}") ;;
 esac
+
+# Before the first transaction that can pull plasma-workspace in (powerdevil and the portal depend on it):
+# a machine without it gets the stand-in, and then counts it as installed.
+ensure_plasma_workspace_stub "$PACKAGE_GROUP"
 
 if [[ "$PACKAGE_GROUP" == "all" || "$PACKAGE_GROUP" == "session" ]]; then
     if [[ "$INSTALL_SYSTEMSETTINGS" == "true" ]]; then

@@ -30,9 +30,9 @@ case "$*" in
         exit 1 ;;
     "-Qq caelestia-plasma-workspace-stub") [[ -f "$state/stub" ]] && { echo caelestia-plasma-workspace-stub; exit 0; }; exit 1 ;;
     "-Q plasma-workspace") [[ -f "$state/real" ]] && { echo "plasma-workspace $(cat "$state/real")"; exit 0; }; exit 1 ;;
-    "-Q caelestia-plasma-workspace-stub") echo "caelestia-plasma-workspace-stub $(cat "$state/stub")" ;;
-    "-Sw --noconfirm plasma-workspace") exit "${DOWNLOAD_STATUS:-0}" ;;
-    "-Sp --noconfirm plasma-workspace") echo "file://$PKGFILE" ;;
+    "-Q caelestia-plasma-workspace-stub") [[ -f "$state/stub" ]] || exit 1; echo "caelestia-plasma-workspace-stub $(cat "$state/stub")" ;;
+    "-Sw --noconfirm -dd plasma-workspace") exit "${DOWNLOAD_STATUS:-0}" ;;
+    "-Sp --noconfirm -dd plasma-workspace") echo "file://$PKGFILE" ;;
     "-Rdd --noconfirm plasma-workspace") rm -f "$state/real" ;;
     "-Rdd --noconfirm caelestia-plasma-workspace-stub") rm -f "$state/stub" ;;
     "-S --noconfirm plasma-workspace") echo "6.8.2-1.1" > "$state/real" ;;
@@ -212,15 +212,62 @@ test_install_puts_plasma_workspace_back_when_the_stand_in_will_not_install() {
     assert_file_exists "$root/state/real" "which is installed again"
 }
 
-test_install_refuses_when_there_is_neither_package() {
+test_install_on_a_machine_without_plasma_workspace_builds_the_stand_in_from_the_cache() {
+    local root listing info calls_text
+    root="$(new_tmpdir)"; make_machine "$root"
+    make_plasma_package "$root/new.pkg.tar.zst" 6.8.3-1
+
+    run_stub "$root" install PKGFILE="$root/new.pkg.tar.zst" > /dev/null
+    calls_text="$(calls "$root")"
+
+    listing="$(bsdtar -tf "$root/state/installed.pkg.tar.zst" 2> /dev/null)"
+    info="$(bsdtar -xOf "$root/state/installed.pkg.tar.zst" .PKGINFO 2> /dev/null)"
+    assert_contains "$listing" "usr/lib/libkworkspace6.so.6.8.3" "the library from the downloaded package is in the stand-in"
+    assert_not_contains "$listing" "plasmashell" "and nothing else of plasma-workspace"
+    assert_contains "$info" "provides = plasma-workspace=6.8.3" "which provides the name powerdevil depends on"
+    assert_contains "$calls_text" "-Sw --noconfirm -dd plasma-workspace" "only that one package is downloaded, not its dependency tree"
+    assert_contains "$calls_text" "-Sp --noconfirm -dd plasma-workspace" "and its file is found among that one"
+    assert_not_contains "$calls_text" "-Rdd" "nothing is removed"
+    assert_not_contains "$calls_text" "-S --noconfirm plasma-workspace" "and the real package is not installed"
+    assert_file_exists "$root/fake-root/etc/pacman.d/hooks/90-caelestia-plasma-stub.hook" "the hook is added"
+    assert_file_exists "$root/fake-root/usr/local/bin/caelestia-plasma-stub" "with the script it runs"
+    assert_contains "$(cat "$root/fake-root/var/lib/caelestia-plasma-stub/status")" "installed 6.8.3-1" "the status says what was installed"
+}
+
+test_a_fresh_install_that_cannot_download_installs_nothing_at_all() {
     local root status
     root="$(new_tmpdir)"; make_machine "$root"
 
-    run_stub "$root" install > /dev/null
+    run_stub "$root" install DOWNLOAD_STATUS=1 > /dev/null
     status=$?
 
-    assert_ne 0 "$status" "a machine with no plasma-workspace has nothing to replace"
-    assert_not_contains "$(calls "$root")" "-Rdd" "and nothing is removed"
+    assert_ne 0 "$status" "the failure is reported, so the installer can fall back to the real package"
+    assert_not_contains "$(calls "$root")" "-U" "no stand-in is installed"
+    assert_file_missing "$root/fake-root/etc/pacman.d/hooks/90-caelestia-plasma-stub.hook" "no hook is left for a stand-in that is not there"
+    assert_file_missing "$root/fake-root/usr/local/bin/caelestia-plasma-stub" "and no script"
+}
+
+test_a_fresh_install_whose_package_will_not_install_leaves_no_hook() {
+    local root status
+    root="$(new_tmpdir)"; make_machine "$root"
+    make_plasma_package "$root/new.pkg.tar.zst" 6.8.3-1
+
+    run_stub "$root" install PKGFILE="$root/new.pkg.tar.zst" U_FAILS=1 > /dev/null
+    status=$?
+
+    assert_ne 0 "$status" "a stand-in that pacman refuses is a failed install"
+    assert_file_missing "$root/fake-root/etc/pacman.d/hooks/90-caelestia-plasma-stub.hook" "and the hook is not added"
+}
+
+test_a_refresh_asks_pacman_for_the_one_package_only() {
+    local root
+    root="$(new_tmpdir)"; make_machine "$root"
+    echo "6.8.2-1.1" > "$root/state/stub"
+    make_plasma_package "$root/new.pkg.tar.zst" 6.8.3-1
+
+    run_stub "$root" refresh PKGFILE="$root/new.pkg.tar.zst" > /dev/null
+
+    assert_contains "$(calls "$root")" "-Sw --noconfirm -dd plasma-workspace" "a machine that never had the real package has no dependency tree to download"
 }
 
 test_install_adopts_a_stand_in_made_by_hand() {
@@ -233,7 +280,7 @@ test_install_adopts_a_stand_in_made_by_hand() {
 
     assert_file_exists "$root/fake-root/etc/pacman.d/hooks/90-caelestia-plasma-stub.hook" "the hook is added"
     assert_file_exists "$root/fake-root/usr/local/bin/caelestia-plasma-stub" "with the script it runs"
-    assert_contains "$(calls "$root")" "-Sw --noconfirm plasma-workspace" "and the stand-in is refreshed from the real package"
+    assert_contains "$(calls "$root")" "-Sw --noconfirm -dd plasma-workspace" "and the stand-in is refreshed from the real package"
     assert_not_contains "$(calls "$root")" "-Rdd" "nothing is removed"
 }
 
