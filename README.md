@@ -192,6 +192,32 @@ env BUNDLE_DIR=$PWD BASE_DISTRO=arch bash scripts/12-independent-session.sh
 
 `pacman` shows the list and asks before it removes anything. Take a Snapper snapshot first.
 
+**Removing `plasma-workspace` itself on Arch (optional; tried on one machine).** `powerdevil` and
+`xdg-desktop-portal-kde` depend on `plasma-workspace`, and `powerdevil` loads `libkworkspace6.so.6` from it,
+so `pacman` will not remove it. `scripts/arch-plasma-stub.sh` replaces it with a small local package,
+`caelestia-plasma-workspace-stub`, that provides the name and carries only that library. Take a Snapper
+snapshot, run the first command from the Caelestia session, then `setup.sh` (it installs the screen-sharing
+stand-in described above, since the real module goes with the package) and log in again. The installer then
+treats the stand-in as `plasma-workspace` (`pacman -Qq` answers through `Provides`) and does not install the
+real one again:
+
+```bash
+sudo bash scripts/arch-plasma-stub.sh install
+env SKIP_SYSTEM_UPDATE=true bash scripts/setup.sh
+```
+
+`install` builds and checks the package before it removes anything, puts `plasma-workspace` back if the
+stand-in will not install, and adds a pacman hook (`/etc/pacman.d/hooks/90-caelestia-plasma-stub.hook`).
+After every `powerdevil` or `xdg-desktop-portal-kde` upgrade the hook starts `caelestia-plasma-stub refresh`,
+which downloads the matching `plasma-workspace` into pacman's cache (nothing of it is installed), takes the
+library out of it and rebuilds the stand-in. If a refresh fails (the database stayed locked, no network),
+`caelestia-plasma-stub status` says so; run `sudo caelestia-plasma-stub refresh` before the next login,
+because a `powerdevil` newer than the library may not start. `sudo caelestia-plasma-stub remove` puts the
+real package back. The old-tray proxy is not built on Arch yet, so icons of old X11 programs have no tray
+entry. If a package ever asks for a version of `plasma-workspace` newer than the stand-in's, `pacman` stops
+the update before it changes anything: run `remove`, update, then `install` again. A stand-in made by hand
+is adopted by `install` (it adds the script and the hook, then refreshes).
+
 **Options.** Set these in the environment before you run `bash scripts/setup.sh`:
 
 | Variable | Default | Effect |
