@@ -26,6 +26,19 @@ test_the_session_set_names_what_the_shell_calls_directly() {
     done
 }
 
+# On a machine without the real plasma-workspace the stand-in package provides the name and nothing
+# else: what the real package's dependencies used to bring has to be requested here. A CachyOS install
+# without plasma-integration bounced every login (kwin_wayland crashed in Qt's built-in KDE theme).
+test_the_session_set_names_what_the_plasma_workspace_stand_in_does_not_bring() {
+    local pkgs needed
+    pkgs="$(session_packages)"
+
+    for needed in plasma-integration kde-cli-tools kwin; do
+        assert_contains "$pkgs" "$needed" "$needed should be requested by name"
+    done
+    assert_not_contains "$pkgs" "plasma-desktop" "the Plasma desktop itself stays out"
+}
+
 test_the_session_set_is_part_of_a_full_install_and_has_its_own_group() {
     local script
     script="$(cat "$ARCH_LIST")"

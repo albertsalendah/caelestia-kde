@@ -80,9 +80,16 @@ UTILITY_PACKAGES=(
 # layer-shell-qt (the SDDM Wayland greeter and the lockscreen), the portal and polkit agent,
 # powerdevil (brightness, idle, lid and Keep Awake), kscreen (monitor settings page) and the
 # default apps. systemsettings is optional and hosts the kscreen page.
+# plasma-integration (the Qt platform theme: on a machine without it kwin_wayland itself crashes
+# at start in Qt's built-in KDE theme and the session bounces back to the login screen),
+# kde-cli-tools (kioclient, which the desktop icons call) and kwin (kwin_wayland and
+# kwin_wayland_wrapper, which the session starts) are named because the stand-in for
+# plasma-workspace (scripts/arch-plasma-stub.sh, installed first on a machine that has none)
+# provides the name but brings none of the real package's dependencies.
 SESSION_PACKAGES=(
     plasma-workspace kscreenlocker plasma5support layer-shell-qt
     xdg-desktop-portal-kde xorg-xwayland polkit-kde-agent powerdevil kscreen
+    plasma-integration kde-cli-tools kwin
     konsole dolphin ark
 )
 

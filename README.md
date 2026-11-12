@@ -116,7 +116,10 @@ field (full variant), so you can pick Caelestia or Plasma.
 
 **Packages.** (Arch; Fedora's list is under "Fedora" below.) The session installs `plasma-workspace`, `kscreenlocker`, `plasma5support`,
 `layer-shell-qt`, `xdg-desktop-portal-kde`, `xorg-xwayland`, `polkit-kde-agent`, `powerdevil`,
-`kscreen`, `konsole`, `dolphin`, `ark` and `systemsettings`, because the shell calls their tools.
+`kscreen`, `plasma-integration`, `kde-cli-tools`, `kwin`, `konsole`, `dolphin`, `ark` and `systemsettings`,
+because the shell calls their tools. `plasma-integration`, `kde-cli-tools` and `kwin` are named because the
+`plasma-workspace` stand-in below brings none of the real package's dependencies; without
+`plasma-integration`, `kwin_wayland` crashes at start and every login bounces back to the login screen.
 `plasma-workspace` brings the `plasmashell` binary and a Plasma login entry with it, but nothing in
 the Caelestia session starts `plasmashell`. With SDDM and no Plasma desktop (`plasma-desktop` not
 installed) the installer hides that Plasma entry, so the login screen offers only Caelestia; it does
