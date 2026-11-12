@@ -23,6 +23,9 @@ StyledRect {
     }
     property real scaleOffset: 1.0
     property real fontScale: 1.0
+    // Without live previews a card would only be a big empty thumbnail with an icon: show a small
+    // row (icon and title) instead, like the pinned app with no window.
+    readonly property bool compact: !GlobalConfig.bar.livePreviews
     property bool _isSidebarOpen: false
     readonly property int previewWidth: Math.round(Tokens.sizes.bar.windowPreviewSize * scaleOffset)
     readonly property int cardWidth: (root.model && root.model.toplevels && root.model.toplevels.length > 1) ? Math.round(previewWidth * 0.55) : previewWidth
@@ -111,11 +114,13 @@ StyledRect {
                 }
             }
         }
-        RowLayout {
+        GridLayout {
             id: windowsRow
 
             visible: root.model && root.model.toplevels && root.model.toplevels.length > 0
-            spacing: Tokens.spacing.medium
+            columns: root.compact ? 1 : Math.max(1, root.model?.toplevels?.length ?? 1)
+            columnSpacing: Tokens.spacing.medium
+            rowSpacing: Tokens.spacing.small
 
             Repeater {
                 model: root.model && root.model.toplevels ? root.model.toplevels : []
@@ -136,8 +141,9 @@ StyledRect {
                         return Math.max(min, Math.min(max, raw));
                     }
 
-                    implicitWidth: root.cardWidth
-                    implicitHeight: cardLayout.implicitHeight
+                    Layout.fillWidth: root.compact
+                    implicitWidth: root.compact ? compactLayout.implicitWidth + Tokens.padding.small * root.scaleOffset * 2 : root.cardWidth
+                    implicitHeight: root.compact ? compactLayout.implicitHeight + Tokens.padding.small * root.scaleOffset * 2 : cardLayout.implicitHeight
                     radius: Tokens.rounding.small
                     color: "transparent"
 
@@ -181,9 +187,64 @@ StyledRect {
                             root.popouts.hasCurrent = false;
                         }
                     }
+                    RowLayout {
+                        id: compactLayout
+
+                        anchors.left: parent.left
+                        anchors.right: parent.right
+                        anchors.verticalCenter: parent.verticalCenter
+                        anchors.margins: Tokens.padding.small * root.scaleOffset
+                        visible: root.compact
+                        spacing: Tokens.spacing.medium
+
+                        IconImage {
+                            asynchronous: true
+                            implicitSize: compactTitle.implicitHeight
+                            source: root.iconSource
+                            Layout.alignment: Qt.AlignVCenter
+                        }
+                        StyledText {
+                            id: compactTitle
+
+                            Layout.alignment: Qt.AlignVCenter
+                            Layout.fillWidth: true
+                            Layout.maximumWidth: root.previewWidth
+                            text: card.modelData.title || (root.model?.entry ? root.model.entry.name : (root.model?.appClass ?? ""))
+                            font.pointSize: Tokens.font.body.medium.pointSize * root.fontScale
+                            elide: Text.ElideRight
+                        }
+                        StyledRect {
+                            Layout.alignment: Qt.AlignVCenter
+                            implicitWidth: compactCloseIcon.implicitHeight + Tokens.padding.small * root.scaleOffset * 2
+                            implicitHeight: implicitWidth
+                            radius: Tokens.rounding.small
+                            color: Colours.tPalette.m3surfaceVariant
+                            opacity: cardHover.hovered ? 1 : 0
+
+                            Behavior on opacity {
+                                Anim {}
+                            }
+                            StateLayer {
+                                anchors.fill: parent
+                                radius: Tokens.rounding.small
+                                onClicked: {
+                                    if (card.modelData.address)
+                                        root.closeToplevel(card.modelData.address);
+                                }
+                            }
+                            MaterialIcon {
+                                id: compactCloseIcon
+
+                                anchors.centerIn: parent
+                                text: "close"
+                                fontStyle.pointSize: Tokens.font.body.medium.pointSize * root.fontScale
+                            }
+                        }
+                    }
                     ColumnLayout {
                         id: cardLayout
 
+                        visible: !root.compact
                         anchors.left: parent.left
                         anchors.right: parent.right
                         anchors.top: parent.top

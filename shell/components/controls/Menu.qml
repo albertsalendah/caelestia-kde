@@ -59,6 +59,12 @@ MouseArea {
     signal itemSelected(item: MenuItem)
     signal rightClickedAt(real x, real y)
 
+    // Keeps a span of `size` that starts at `pos` inside 0..limit, `edge` away from both ends. A span
+    // wider than the room starts at `edge`.
+    function clampSpan(pos: real, size: real, limit: real, edge: real): real {
+        return Math.max(edge, Math.min(pos, limit - size - edge));
+    }
+
     // Plays the opening animation again, e.g. after the menu moved while open.
     function replayReveal(): void {
         if (!revealHorizontal || !expanded)
@@ -164,7 +170,8 @@ MouseArea {
             if (root.thisSideX === Menu.Right)
                 off -= width;
             const pt = item.mapToItem(root.parent, off, 0);
-            return (pt ? pt.x : 0) + root.marginX;
+            // A menu inside a window (Nexus) is cut off at the window's edge: keep it inside.
+            return root.clampSpan((pt ? pt.x : 0) + root.marginX, menu.implicitWidth, root.parent.width, Tokens.padding.extraSmall);
         }
         y: {
             watcher.transform;
@@ -175,7 +182,7 @@ MouseArea {
             if (root.thisSideY === Menu.Bottom)
                 off -= height;
             const pt = item.mapToItem(root.parent, 0, off);
-            return (pt ? pt.y : 0) + root.marginY;
+            return root.clampSpan((pt ? pt.y : 0) + root.marginY, menu.implicitHeight, root.parent.height, Tokens.padding.extraSmall);
         }
 
         radius: Tokens.rounding.large
