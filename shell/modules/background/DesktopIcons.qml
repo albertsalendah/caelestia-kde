@@ -100,6 +100,8 @@ Item {
     property var pendingRenames: ({})
     // New file name -> cell, for files dropped or pasted at a spot.
     property var pendingPlacements: ({})
+    // A file made by "Create New": its name editor opens as soon as its icon exists.
+    property string renameOnArrival: ""
     property point lastPointer: Qt.point(0, 0)
 
     // Set while an inline rename editor is open; the background window raises
@@ -991,6 +993,46 @@ Item {
         runFileOp(["kioclient", "move", e.url, "file://" + desktopDir + "/" + encodeURIComponent(trimmed)], qsTr("Rename failed"), null);
     }
 
+    // ---- Create New -------------------------------------------------------
+
+    // A name that is free in `taken` (an object keyed by name): "New Folder", then "New Folder (2)",
+    // "New Folder (3)" and so on, with the extension last.
+    function freeName(base: string, ext: string, taken: var): string {
+        let name = base + ext;
+        for (let i = 2; name in taken; i++)
+            name = base + " (" + i + ")" + ext;
+        return name;
+    }
+
+    // kind is "folder" or "text". The item is made in the desktop folder at the cell, and its name
+    // can be typed at once.
+    function createNew(kind: string, cell: var): void {
+        const folder = kind === "folder";
+        // Names still waiting for their icon count as taken, so two quick requests do not clash.
+        const name = freeName(folder ? qsTr("New Folder") : qsTr("New Text File"), folder ? "" : ".txt", Object.assign({}, files, pendingPlacements));
+        if (cell) {
+            const placements = Object.assign({}, pendingPlacements);
+            placements[name] = cell;
+            pendingPlacements = placements;
+        }
+        renameOnArrival = name;
+        // Neither command replaces anything: mkdir fails on an existing name, and noclobber does the same for the file.
+        runFileOp(folder ? ["mkdir", "--", desktopDir + "/" + name] : ["sh", "-c", "set -C; : > \"$1\"", "sh", desktopDir + "/" + name], qsTr("Could not create the item"), null);
+    }
+
+    onTilesChanged: {
+        if (renameOnArrival === "")
+            return;
+        const key = DesktopLayout.fileKey(renameOnArrival);
+        if (!tiles[key])
+            return;
+        renameOnArrival = "";
+        Qt.callLater(() => {
+            setSelection([key]);
+            startRename(key);
+        });
+    }
+
     // ---- File operations --------------------------------------------------
 
     function runFileOp(command: var, failTitle: string, done: var): void {
@@ -1490,6 +1532,12 @@ Item {
             if (screenName !== root.screenData.name)
                 return;
             root.paste(root.cellAt(x, y));
+        }
+
+        function onCreateNewRequested(screenName: string, kind: string, x: real, y: real): void {
+            if (screenName !== root.screenData.name)
+                return;
+            root.createNew(kind, root.cellAt(x, y));
         }
 
         function onArrangeRequested(screenName: string, sortKey: string): void {

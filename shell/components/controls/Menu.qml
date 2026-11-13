@@ -65,6 +65,15 @@ MouseArea {
         return Math.max(edge, Math.min(pos, limit - size - edge));
     }
 
+    // Top edge of an item's row in the menu's own coordinates (where a flyout beside the row starts),
+    // or -1 when the item has no row.
+    function rowTop(menuItem: var): real {
+        const model = dynamicModel ?? [];
+        const i = model.indexOf(menuItem);
+        const row = i >= 0 ? repeater.itemAt(i) : null;
+        return row ? row.mapToItem(menu, 0, 0).y : -1;
+    }
+
     // Plays the opening animation again, e.g. after the menu moved while open.
     function replayReveal(): void {
         if (!revealHorizontal || !expanded)
@@ -297,7 +306,8 @@ MouseArea {
                                 root.itemSelected(item.modelData);
                                 root.active = item.modelData;
                                 item.modelData.clicked();
-                                root.expanded = false;
+                                if (!item.modelData.keepOpen)
+                                    root.expanded = false;
                             }
                         }
 

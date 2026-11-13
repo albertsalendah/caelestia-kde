@@ -45,23 +45,6 @@ PageBase {
         ToggleRow {
             Layout.fillWidth: true
             first: true
-            text: qsTr("Show KDE Desktop")
-            subtext: qsTr("Disable Caelestia desktop and use native Plasma 6 desktop instead")
-            reset: ({ node: GlobalConfig.background, setting: "wallpaperEnabled" })
-            checked: !Config.background.wallpaperEnabled
-            onToggled: {
-                GlobalConfig.background.wallpaperEnabled = !checked;
-                for (let i = 0; i < Quickshell.screens.length; i++) {
-                    let sConf = GlobalConfig.forScreen(Quickshell.screens[i].name);
-                    if (sConf) sConf.background.resetOption("wallpaperEnabled");
-                }
-                GlobalConfig.save();
-            }
-        }
-
-        ToggleRow {
-            Layout.topMargin: Tokens.spacing.extraSmall / 2 - parent.spacing
-            Layout.fillWidth: true
             text: qsTr("Show Desktop Icons")
             subtext: qsTr("Enable icons for Caelestia desktop")
             reset: ({ node: GlobalConfig.background, setting: "desktopIconsEnabled" })

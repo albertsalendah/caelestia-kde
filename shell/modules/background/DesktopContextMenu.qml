@@ -21,9 +21,31 @@ Controls.Menu {
     readonly property bool iconsEnabled: screenName ? ContextMenuStore.iconsShownOn(screenName) : GlobalConfig.background.desktopIconsEnabled
     readonly property bool iconsShown: (screenName ? GlobalConfig.forScreen(screenName) : GlobalConfig).background.wallpaperEnabled && (screenName ? GlobalConfig.forScreen(screenName) : GlobalConfig).background.desktopIconsEnabled
 
+    // Beside the "Create New" row, on the side of the menu that has room.
+    readonly property bool _subFlip: !!root.parent && root.backgroundItem.x + root.backgroundItem.implicitWidth + createFlyout.backgroundItem.implicitWidth > root.parent.width
+    readonly property alias createMenu: createFlyout
+    // Set while the menu moves to a new spot, so closing the flyout does not close the menu.
+    property bool _movingMenu: false
+
+    function openCreateMenu(key) {
+        const top = root.rowTop(root.itemPool[key]);
+        createFlyout.marginY = top >= 0 ? top - Tokens.padding.extraSmall : 0;
+        createFlyout.expanded = true;
+    }
+
+    function createNew(kind) {
+        DesktopLayout.createNewRequested(root.screenName, kind, root.attachTo.x, root.attachTo.y);
+    }
+
     function executeEntryByKey(key) {
         let entry = root.entryByKey[key];
         if (!entry) return;
+
+        // The menu stays open under its flyout.
+        if (entry.action === "CreateNew") {
+            root.openCreateMenu(key);
+            return;
+        }
 
         root.expanded = false;
 
@@ -121,6 +143,12 @@ Controls.Menu {
                 item.text = entry.label;
                 item.icon = Qt.binding(() => DesktopLayout.widgetOutlines ? "check_box" : "check_box_outline_blank");
                 item.visible = true;
+            } else if (entry.action === "CreateNew") {
+                item.text = entry.label;
+                item.icon = entry.icon || "add_circle";
+                item.trailingIcon = "chevron_right";
+                item.keepOpen = true;
+                item.visible = Qt.binding(() => root.iconsShown);
             } else if (entry.action === "AddWidget") {
                 item.text = entry.label;
                 item.icon = entry.icon || "widgets";
@@ -164,6 +192,9 @@ Controls.Menu {
 
     // Called when the menu is requested again while already open.
     function reopen() {
+        _movingMenu = true;
+        createFlyout.expanded = false;
+        _movingMenu = false;
         refresh();
         replayReveal();
     }
@@ -188,6 +219,8 @@ Controls.Menu {
         if (expanded) {
             DesktopLayout.refreshClipboard();
             refresh();
+        } else if (createFlyout.expanded) {
+            createFlyout.expanded = false;
         }
     }
 
@@ -219,5 +252,37 @@ Controls.Menu {
         id: menuItemComp
 
         Controls.MenuItem {}
+    }
+
+    // What "Create New" offers. Closing it, by a pick or a click outside, closes the menu too.
+    Controls.Menu {
+        id: createFlyout
+
+        attachTo: root.backgroundItem
+        attachSideX: root._subFlip ? Controls.Menu.Left : Controls.Menu.Right
+        attachSideY: Controls.Menu.Top
+        thisSideX: root._subFlip ? Controls.Menu.Right : Controls.Menu.Left
+        thisSideY: Controls.Menu.Top
+        transparentBackground: true
+        revealHorizontal: true
+        z: 10000
+
+        onExpandedChanged: {
+            if (!expanded && root.expanded && !root._movingMenu)
+                root.expanded = false;
+        }
+
+        items: [
+            Controls.MenuItem {
+                text: qsTr("Folder")
+                icon: "create_new_folder"
+                onClicked: root.createNew("folder")
+            },
+            Controls.MenuItem {
+                text: qsTr("Text File")
+                icon: "note_add"
+                onClicked: root.createNew("text")
+            }
+        ]
     }
 }

@@ -461,6 +461,14 @@ StyledWindow {
             y: panel.y
         }
         PanelBg {
+            id: createMenuBg
+
+            panel: desktopContextMenu.createMenu.backgroundItem
+            visible: desktopContextMenu.createMenu.visible && panel.width > 0
+            x: panel.x
+            y: panel.y
+        }
+        PanelBg {
             id: popoutBg
 
             property real extraShift: panels.popouts.isDetached ? 0 : 0.2
@@ -936,6 +944,18 @@ StyledWindow {
             hAnchor: desktopContextMenu.backgroundItem.hAnchor
             offsetScale: desktopContextMenu.backgroundItem.offsetScale
             deformMatrix: contextMenuBg.deformMatrix
+        }
+        BlurMask {
+            target: desktopContextMenu.createMenu.visible ? desktopContextMenu.createMenu.backgroundItem : null
+            contentItem: root.contentItem
+            blurOffsetTop: root.blurOffsetTop
+            blurOffsetBottom: root.blurOffsetBottom
+            blurOffsetLeft: root.blurOffsetLeft + 1
+            blurOffsetRight: root.blurOffsetRight
+            vAnchor: desktopContextMenu.createMenu.backgroundItem.vAnchor
+            hAnchor: desktopContextMenu.createMenu.backgroundItem.hAnchor
+            offsetScale: desktopContextMenu.createMenu.backgroundItem.offsetScale
+            deformMatrix: createMenuBg.deformMatrix
         }
         BlurMask {
             target: (visibilities.overview && !GlobalConfig.overview.disableWallpaperBlur) ? panels.overview : null
