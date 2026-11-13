@@ -280,7 +280,8 @@ Rectangle {
                         preferredRendererType: Shape.CurveRenderer
 
                         ShapePath {
-                            fillColor: "white"
+                            // The field's own text colour: white was invisible on a light scheme.
+                            fillColor: config.text
                             strokeColor: "transparent"
                             strokeWidth: 0
 

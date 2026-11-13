@@ -30,12 +30,25 @@ Rectangle {
 
         return value;
     }
-    property bool capsLockOn: false
+    // SDDM's keyboard object gives the state at the start where its backend knows it; after that the
+    // key presses keep it (see capsLockFromKey).
+    property bool capsLockOn: (typeof keyboard !== 'undefined') ? keyboard.capsLock : false
     property bool mainCardBgBlur: config.mainCardBgBlur === "true"
     property int sessionIndex
     property real largeRadius: mainCard.radius
     property real midRadius: mainCard.radius / 1.4
     property real smallRadius: mainCard.radius / 2
+
+    // Caps Lock is not among a key event's modifiers. A letter that comes out in the opposite case to
+    // the Shift key's state shows it: "A" without Shift, or "a" with Shift, means Caps Lock is on.
+    // Keys without a case (digits, symbols, Ctrl combinations) say nothing: null.
+    function capsLockFromKey(text, shiftHeld) {
+        const upper = text.toUpperCase();
+        const lower = text.toLowerCase();
+        if (upper === lower || upper.length !== 1)
+            return null;
+        return (text === upper) !== shiftHeld;
+    }
 
     width: 1920
     height: 1080
@@ -102,9 +115,15 @@ Rectangle {
                 return;
             }
             if (event.key === Qt.Key_CapsLock) {
-                root.capsLockOn = !root.capsLockOn;
+                if (!event.isAutoRepeat)
+                    root.capsLockOn = !root.capsLockOn;
+
                 return;
             }
+            const capsFromKey = root.capsLockFromKey(event.text, (event.modifiers & Qt.ShiftModifier) !== 0);
+            if (capsFromKey !== null)
+                root.capsLockOn = capsFromKey;
+
             if (event.key === Qt.Key_Tab)
                 return;
 
@@ -383,13 +402,16 @@ Rectangle {
                 }
 
                 Text {
+                    id: capsLockText
+
                     Layout.margins: 10
                     Layout.alignment: Qt.AlignHCenter
-                    text: "Caps Lock is activated!"
-                    font.pointSize: 8
-                    font.family: "Roboto"
+                    renderType: Text.NativeRendering
+                    text: "Caps Lock On"
+                    font.pointSize: 11
+                    font.family: "Rubik"
                     color: config.text
-                    opacity: 0 // Its buggy rnm fix later
+                    opacity: root.capsLockOn ? 1 : 0
 
                     Behavior on opacity {
                         NumberAnimation {
