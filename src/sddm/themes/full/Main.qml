@@ -516,8 +516,8 @@ Rectangle {
             text: "Caps Lock On"
             font.pointSize: 11
             font.family: "Rubik"
-            // The card is filled with the primary colour.
-            color: config.onPrimary
+            // The card is filled with the secondary colour.
+            color: config.onSecondary
             opacity: root.capsLockOn && !root.firstInput ? 1 : 0
 
             Behavior on opacity {

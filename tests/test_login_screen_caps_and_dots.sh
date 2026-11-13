@@ -64,7 +64,7 @@ test_the_message_sits_under_the_session_picker_and_is_readable_on_the_card() {
 
     assert_contains "$text" 'anchors.top: sessionPickerBtn.bottom' "directly below the session entry"
     assert_contains "$text" 'anchors.horizontalCenter: parent.horizontalCenter' "centred like the picker"
-    assert_contains "$text" 'color: config.onPrimary' "the card is primary, so the text is the colour made for it"
+    assert_contains "$text" 'color: config.onSecondary' "the card is secondary, so the text is the colour made for it"
     assert_contains "$(cat "$THEME/Main.qml")" 'Layout.preferredHeight: 38' "the column keeps the room the text used to take, so nothing else moves"
 }
 
@@ -87,12 +87,12 @@ test_the_dots_use_the_schemes_text_colour_and_not_white() {
     assert_eq "0" "$(grep -c 'fillColor: "white"' "$THEME/components/PasswordInput.qml")" "no fixed white is left"
 }
 
-# The big card is filled with the scheme's primary colour instead of its background.
-test_the_big_card_is_filled_with_the_primary_colour() {
+# The big card is filled with the scheme's secondary colour instead of its background.
+test_the_big_card_is_filled_with_the_secondary_colour() {
     local text
     text="$(cat "$THEME/components/BlurWrapper.qml")"
 
-    assert_contains "$text" 'color: config.primary' "the fill"
+    assert_contains "$text" 'color: config.secondary' "the fill"
     assert_eq "0" "$(grep -c 'config.background.substring' "$THEME/components/BlurWrapper.qml")" "the background colour no longer fills it"
 }
 

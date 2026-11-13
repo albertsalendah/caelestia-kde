@@ -86,8 +86,9 @@ Item {
 
         Rectangle {
             anchors.fill: backgroundBlur
-            // The big card follows the scheme's primary colour.
-            color: config.primary
+            // The big card follows the scheme's secondary colour (the primary is the palette's key
+            // colour and too loud for a card this size).
+            color: config.secondary
             opacity: blurCard.visibleState ? parseFloat(config.mainCardColorOpacity) : 0
         }
 
