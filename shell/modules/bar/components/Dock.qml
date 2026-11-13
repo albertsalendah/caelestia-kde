@@ -158,6 +158,39 @@ Item {
         }
     }
 
+    // The window a hovered drag should bring forward: none when the app has no window or one of them
+    // is in front already, otherwise the first one.
+    function dragTargetAddress(entry: var, activeAddr: string): string {
+        if (!entry || !entry.toplevels || entry.toplevels.length === 0)
+            return "";
+
+        for (let i = 0; i < entry.toplevels.length; i++) {
+            const top = entry.toplevels[i];
+            if (!(top.minimized || false) && (top.focused || (activeAddr !== "" && activeAddr === String(top.address))))
+                return "";
+        }
+        return String(entry.toplevels[0].address);
+    }
+
+    // A file dragged in from another app rests on an icon: show that app's window so the file can be
+    // dropped into it (as the task manager of Plasma does).
+    function raiseForDrag(entry: var): void {
+        let activeAddr = "";
+        if (Kwin.activeWindow && Kwin.activeWindow.address)
+            activeAddr = String(Kwin.activeWindow.address);
+        else if (root.activeTop && root.activeTop.address)
+            activeAddr = String(root.activeTop.address);
+
+        const addr = root.dragTargetAddress(entry, activeAddr);
+        if (addr === "")
+            return;
+
+        if (Kwin.windowList.length > 0)
+            Kwin.focusWindow(addr);
+        else
+            Kwin.dispatch(Kwin.usingLua ? `hl.dsp.focus({ window = "address:0x${addr}" })` : `focuswindow address:0x${addr}`);
+    }
+
     function activateIndex(idx: int): void {
         if (idx < 0 || idx >= root.modelDataArray.length)
             return;
@@ -490,19 +523,43 @@ Item {
                 property var modelData: root.modelDataMap[appId] || root.modelDataArray[index]
 
                 DropArea {
+                    id: dropArea
+
+                    // True while the drag came from another app (a file), not from a dock icon.
+                    property bool fromOutside: false
+
                     anchors.fill: parent
                     anchors.margins: Tokens.padding.small
                     onEntered: drag => {
-                        const from = drag.source.delegateIndex;
+                        // A drag from another app has no source here.
+                        const from = drag.source ? drag.source.delegateIndex : undefined;
+                        dropArea.fromOutside = from === undefined;
+                        if (dropArea.fromOutside) {
+                            dragRaiseTimer.restart();
+                            return;
+                        }
                         const to = delegateContainer.index;
-                        if (from !== undefined && to !== undefined && from !== to) {
+                        if (to !== undefined && from !== to) {
                             dockModel.move(from, to, 1);
                             const movedItem = root.currentOrder.splice(from, 1)[0];
                             root.currentOrder.splice(to, 0, movedItem);
                         }
                     }
+                    onExited: dragRaiseTimer.stop()
                     onDropped: drag => {
-                        root.saveNewOrder();
+                        dragRaiseTimer.stop();
+                        if (!dropArea.fromOutside)
+                            root.saveNewOrder();
+                    }
+
+                    Timer {
+                        id: dragRaiseTimer
+
+                        interval: 500
+                        onTriggered: {
+                            if (dropArea.containsDrag)
+                                root.raiseForDrag(delegateContainer.modelData);
+                        }
                     }
                 }
 
