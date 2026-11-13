@@ -439,9 +439,10 @@ Rectangle {
                     radius: root.smallRadius
                     opacity: root.firstInput ? 0 : root.mainCardComponentsOpacity
 
-                    RandomQuote {
-                        maxWidth: topRightRect.width - 40
+                    NetworkStatus {
+                        active: !root.firstInput
                         color: config.text
+                        accent: config.primary
                     }
 
                     Behavior on opacity {

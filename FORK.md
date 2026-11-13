@@ -42,6 +42,7 @@ re-attach the fork's part.
 | `src/sddm/themes/full/components/SessionPicker.qml` | the list and the label are built each time a session appears (`refresh()`), not once at completion; the label is anchored and drawn natively so it shows on Qt 6.11 |
 | `src/sddm/themes/full/components/Avatar.qml` | the Image gets its `source` from the candidate list (upstream never set it) |
 | `src/sddm/themes/full/components/RandomQuote.qml` | the quote uses `config.text`, not white |
+| `src/sddm/themes/full/Main.qml`, `components/PasswordInput.qml`, `components/NetworkStatus.qml` | the login screen's Caps Lock message (state from SDDM's `keyboard` and from the typed letters), password dots in the scheme's text colour, and the quote tile replaced by `NetworkStatus` (default route, Wi-Fi quality, speed, read from `/proc/net`); `RandomQuote.qml` stays in the tree, unused |
 | `scripts/05-sddm-theme.sh` | `install_greeter_icon_font` copies the Material Symbols font to `/usr/local/share/fonts/caelestia` when only the user's home has it (Fedora, Debian), so the greeter's icons are not boxes |
 | `scripts/setup.sh` | the compiled installer is reused only when its stamp (`tui.version` plus a hash of `installer/tui` and `installer/data`) matches the sources: `installer_stamp`, `compiled_installer_is_current` |
 | `scripts/06-services.sh`, `07-kde-apps.sh`, `08-build-shell.sh` | Bluetooth, ydotoold clean-up, KDE apps and the KDE Connect firewall rules, stale `m3shapes` record |
