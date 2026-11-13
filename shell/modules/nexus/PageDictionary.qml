@@ -35,10 +35,10 @@ QtObject {
             label: qsTr("Desktop & Tiling"),
             key: "desktop",
             icon: "desktop_windows",
-            description: qsTr("KDE Desktop, addons, right click menu"),
+            description: qsTr("Desktop icons, addons, right click menu"),
             category: "personalization",
             settings: [
-                { label: qsTr("KDE Desktop Integration"), keywords: ["plasma", "icons", "desktop"] },
+                { label: qsTr("Desktop Icons"), keywords: ["icons", "desktop", "folders", "grid"] },
                 { label: qsTr("Right Click Menu"), pagePath: "wallandstyle/ContextMenuPage.qml", subPageIdx: 2 },
                 { label: qsTr("Desktop Addons"), pagePath: "wallandstyle/DesktopAddonsPage.qml", subPageIdx: 1 },
                 { label: qsTr("Window Tiling"), pagePath: "desktop/KrohnkitePage.qml", keywords: ["krohnkite", "tiling", "layouts"], subPageIdx: 3 },

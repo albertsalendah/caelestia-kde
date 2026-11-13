@@ -39,6 +39,29 @@ Singleton {
         ];
     }
 
+    // The saved list with every default entry it lacks added. A new default goes right after the
+    // default entry that comes before it in `defaults`, so it shows up near its own kind and not at
+    // the far end of the list (the first one goes to the top). Entries the list already has keep
+    // their place, and so do custom ones.
+    function mergeDefaults(entries: var, defaults: var): var {
+        const merged = entries.slice();
+        for (let d = 0; d < defaults.length; d++) {
+            if (merged.some(e => e.id === defaults[d].id))
+                continue;
+
+            let at = 0;
+            for (let p = d - 1; p >= 0; p--) {
+                const found = merged.findIndex(e => e.id === defaults[p].id);
+                if (found >= 0) {
+                    at = found + 1;
+                    break;
+                }
+            }
+            merged.splice(at, 0, defaults[d]);
+        }
+        return merged;
+    }
+
     function iconsShownOn(screenName: string): bool {
         return GlobalConfig.forScreen(screenName).background.desktopIconsEnabled;
     }
@@ -126,11 +149,7 @@ Singleton {
                         }
                     }
 
-                    const existingIds = parsed.map(e => e.id);
-                    for (let i = 0; i < defaults.length; i++) {
-                        if (!existingIds.includes(defaults[i].id))
-                            parsed.push(defaults[i]);
-                    }
+                    parsed = root.mergeDefaults(parsed, defaults);
                 }
 
                 root.entries = root.cloneEntries(parsed);

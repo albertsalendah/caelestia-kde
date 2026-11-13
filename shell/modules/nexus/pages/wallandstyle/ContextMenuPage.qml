@@ -250,12 +250,7 @@ PageBase {
 
     function applyEntries(entries) {
         let json = (!entries || entries.length === 0) ? ContextMenuStore.cloneEntries(ContextMenuStore.defaultEntries()) : ContextMenuStore.cloneEntries(entries);
-        const defaults = ContextMenuStore.defaultEntries();
-        const existingIds = json.map(e => e.id);
-        for (let d = 0; d < defaults.length; d++) {
-            if (!existingIds.includes(defaults[d].id))
-                json.push(defaults[d]);
-        }
+        json = ContextMenuStore.mergeDefaults(json, ContextMenuStore.defaultEntries());
 
         activeModel.clear();
         libraryModel.clear();
