@@ -401,24 +401,9 @@ Rectangle {
                     currentSession: root.sessionIndex
                 }
 
-                Text {
-                    id: capsLockText
-
-                    Layout.margins: 10
-                    Layout.alignment: Qt.AlignHCenter
-                    renderType: Text.NativeRendering
-                    text: "Caps Lock On"
-                    font.pointSize: 11
-                    font.family: "Rubik"
-                    color: config.text
-                    opacity: root.capsLockOn ? 1 : 0
-
-                    Behavior on opacity {
-                        NumberAnimation {
-                            duration: 300
-                            easing: Easing.InOutCubic
-                        }
-                    }
+                // The room the Caps Lock text used to take here, so the column keeps its place.
+                Item {
+                    Layout.preferredHeight: 38
                 }
 
                 Item {
@@ -517,6 +502,28 @@ Rectangle {
                 NumberAnimation {
                     duration: 300
                     easing.type: Easing.OutBack
+                }
+            }
+        }
+
+        Text {
+            id: capsLockText
+
+            anchors.top: sessionPickerBtn.bottom
+            anchors.topMargin: 10
+            anchors.horizontalCenter: parent.horizontalCenter
+            renderType: Text.NativeRendering
+            text: "Caps Lock On"
+            font.pointSize: 11
+            font.family: "Rubik"
+            // The card is filled with the primary colour.
+            color: config.onPrimary
+            opacity: root.capsLockOn && !root.firstInput ? 1 : 0
+
+            Behavior on opacity {
+                NumberAnimation {
+                    duration: 300
+                    easing.type: Easing.InOutCubic
                 }
             }
         }

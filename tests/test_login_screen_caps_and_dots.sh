@@ -50,11 +50,22 @@ test_letters_of_other_alphabets_count() {
 
 test_the_message_is_shown_when_caps_lock_is_on() {
     local text
-    text="$(awk '/id: capsLockText/ { on = 1 } on { print } on && /^                }$/ { exit }' "$THEME/Main.qml")"
+    text="$(awk '/id: capsLockText/ { on = 1 } on { print } on && /^        }$/ { exit }' "$THEME/Main.qml")"
 
     assert_contains "$text" 'text: "Caps Lock On"' "the words"
-    assert_contains "$text" 'opacity: root.capsLockOn ? 1 : 0' "shown by the state, not hidden for good"
+    assert_contains "$text" 'opacity: root.capsLockOn && !root.firstInput ? 1 : 0' "shown by the state, not hidden for good, and not on the welcome screen"
     assert_contains "$text" 'renderType: Text.NativeRendering' "Rubik text needs native rendering on Qt 6.11"
+}
+
+# The message overlapped the password field. It sits under the session picker, on the card.
+test_the_message_sits_under_the_session_picker_and_is_readable_on_the_card() {
+    local text
+    text="$(awk '/id: capsLockText/ { on = 1 } on { print } on && /^        }$/ { exit }' "$THEME/Main.qml")"
+
+    assert_contains "$text" 'anchors.top: sessionPickerBtn.bottom' "directly below the session entry"
+    assert_contains "$text" 'anchors.horizontalCenter: parent.horizontalCenter' "centred like the picker"
+    assert_contains "$text" 'color: config.onPrimary' "the card is primary, so the text is the colour made for it"
+    assert_contains "$(cat "$THEME/Main.qml")" 'Layout.preferredHeight: 38' "the column keeps the room the text used to take, so nothing else moves"
 }
 
 test_every_key_press_updates_the_state_before_the_welcome_screen_returns() {
@@ -74,6 +85,15 @@ test_the_dots_use_the_schemes_text_colour_and_not_white() {
 
     assert_contains "$text" 'fillColor: config.text' "the dots follow the scheme"
     assert_eq "0" "$(grep -c 'fillColor: "white"' "$THEME/components/PasswordInput.qml")" "no fixed white is left"
+}
+
+# The big card is filled with the scheme's primary colour instead of its background.
+test_the_big_card_is_filled_with_the_primary_colour() {
+    local text
+    text="$(cat "$THEME/components/BlurWrapper.qml")"
+
+    assert_contains "$text" 'color: config.primary' "the fill"
+    assert_eq "0" "$(grep -c 'config.background.substring' "$THEME/components/BlurWrapper.qml")" "the background colour no longer fills it"
 }
 
 run_tests

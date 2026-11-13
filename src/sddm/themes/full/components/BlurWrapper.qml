@@ -86,7 +86,8 @@ Item {
 
         Rectangle {
             anchors.fill: backgroundBlur
-            color: Qt.rgba(parseInt(config.background.substring(1, 3), 16) / 255, parseInt(config.background.substring(3, 5), 16) / 255, parseInt(config.background.substring(5, 7), 16) / 255, 1)
+            // The big card follows the scheme's primary colour.
+            color: config.primary
             opacity: blurCard.visibleState ? parseFloat(config.mainCardColorOpacity) : 0
         }
 
