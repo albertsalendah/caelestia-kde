@@ -86,9 +86,8 @@ Item {
 
         Rectangle {
             anchors.fill: backgroundBlur
-            // The big card follows the scheme's secondary colour (the primary is the palette's key
-            // colour and too loud for a card this size).
-            color: config.secondary
+            // The colour of the taskbar's panels; the boxes on the card are a frosted tint of the text colour.
+            color: config.surfaceContainer
             opacity: blurCard.visibleState ? parseFloat(config.mainCardColorOpacity) : 0
         }
 

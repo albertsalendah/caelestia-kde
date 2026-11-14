@@ -19,7 +19,9 @@ Item {
         height: parent.rectHeight
         width: parent.rectWidth
         radius: parent.rectRadius
-        color: config.subComponents
+        color: Qt.alpha(config.text, 0.1)
+        border.color: Qt.alpha(config.text, 0.14)
+        border.width: 1
         clip: true
 
         MaterialIcon {
@@ -61,7 +63,9 @@ Item {
         height: root.rectHeight
         width: root.rectWidth
         radius: root.rectRadius
-        color: config.subComponents
+        color: Qt.alpha(config.text, 0.1)
+        border.color: Qt.alpha(config.text, 0.14)
+        border.width: 1
         clip: true
 
         MaterialIcon {

@@ -61,7 +61,7 @@ Rectangle {
             }
         }
 
-        color: config.subComponents
+        color: Qt.alpha(config.text, 0.1)
         radius: 30
         width: inputRect.buffer === "" ? 300 : 365
         height: 45

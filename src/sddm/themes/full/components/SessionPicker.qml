@@ -63,7 +63,7 @@ Item {
         bottomLeftRadius: height / 2
         topRightRadius: 5
         bottomRightRadius: 5
-        color: config.subComponents
+        color: Qt.alpha(config.text, 0.1)
 
         width: 210
 
@@ -174,7 +174,8 @@ Item {
         id: menuRect
 
         visible: root.expanded
-        color: config.subComponents
+        // The list opens over other boxes, so it stays solid.
+        color: config.surfaceContainerHigh
         radius: 8
         border.color: config.outline
         border.width: 1

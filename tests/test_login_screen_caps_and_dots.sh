@@ -58,13 +58,13 @@ test_the_message_is_shown_when_caps_lock_is_on() {
 }
 
 # The message overlapped the password field. It sits under the session picker, on the card.
-test_the_message_sits_under_the_session_picker_and_is_readable_on_the_card() {
+test_the_message_sits_under_the_session_picker() {
     local text
     text="$(awk '/id: capsLockText/ { on = 1 } on { print } on && /^        }$/ { exit }' "$THEME/Main.qml")"
 
     assert_contains "$text" 'anchors.top: sessionPickerBtn.bottom' "directly below the session entry"
     assert_contains "$text" 'anchors.horizontalCenter: parent.horizontalCenter' "centred like the picker"
-    assert_contains "$text" 'color: config.onSecondary' "the card is secondary, so the text is the colour made for it"
+    assert_contains "$text" 'color: config.text' "the text on the card is the scheme's text colour"
     assert_contains "$(cat "$THEME/Main.qml")" 'Layout.preferredHeight: 38' "the column keeps the room the text used to take, so nothing else moves"
 }
 
@@ -87,12 +87,12 @@ test_the_dots_use_the_schemes_text_colour_and_not_white() {
     assert_eq "0" "$(grep -c 'fillColor: "white"' "$THEME/components/PasswordInput.qml")" "no fixed white is left"
 }
 
-# The big card is filled with the scheme's secondary colour instead of its background.
-test_the_big_card_is_filled_with_the_secondary_colour() {
+# The big card is filled with the colour of the taskbar's panels (see test_login_screen_frosted_tiles.sh).
+test_the_big_card_is_not_filled_with_the_background_colour_any_more() {
     local text
     text="$(cat "$THEME/components/BlurWrapper.qml")"
 
-    assert_contains "$text" 'color: config.secondary' "the fill"
+    assert_contains "$text" 'color: config.surfaceContainer' "the fill"
     assert_eq "0" "$(grep -c 'config.background.substring' "$THEME/components/BlurWrapper.qml")" "the background colour no longer fills it"
 }
 

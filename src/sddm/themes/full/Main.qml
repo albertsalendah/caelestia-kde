@@ -58,13 +58,13 @@ Rectangle {
         function onLoginFailed() {
             root.buffer = "";
             root.loading = false;
-            inputRect.color = config.subComponents;
+            inputRect.color = Qt.alpha(config.text, 0.1);
             inputRect.shake();
         }
 
         function onLoginSucceeded() {
             root.loading = false;
-            inputRect.color = config.subComponents;
+            inputRect.color = Qt.alpha(config.text, 0.1);
         }
 
         target: sddm
@@ -281,7 +281,9 @@ Rectangle {
 
                     width: 390
                     height: 220
-                    color: config.subComponents
+                    color: Qt.alpha(config.text, 0.1)
+                    border.color: Qt.alpha(config.text, 0.14)
+                    border.width: 1
                     radius: root.midRadius
                     opacity: root.firstInput ? 0 : root.mainCardComponentsOpacity
                     clip: true
@@ -306,7 +308,9 @@ Rectangle {
 
                     width: 390
                     Layout.fillHeight: true
-                    color: config.subComponents
+                    color: Qt.alpha(config.text, 0.1)
+                    border.color: Qt.alpha(config.text, 0.14)
+                    border.width: 1
                     radius: mainCard.radius / 4
                     opacity: root.firstInput ? 0 : root.mainCardComponentsOpacity
                     clip: true
@@ -420,7 +424,9 @@ Rectangle {
 
                     width: 390
                     height: 355
-                    color: config.subComponents
+                    color: Qt.alpha(config.text, 0.1)
+                    border.color: Qt.alpha(config.text, 0.14)
+                    border.width: 1
                     radius: root.smallRadius
                     opacity: root.firstInput ? 0 : root.mainCardComponentsOpacity
 
@@ -443,7 +449,9 @@ Rectangle {
 
                     width: 390
                     height: 355
-                    color: config.subComponents
+                    color: Qt.alpha(config.text, 0.1)
+                    border.color: Qt.alpha(config.text, 0.14)
+                    border.width: 1
                     bottomRightRadius: mainCard.radius / 1.9
                     radius: mainCard.radius / 4
                     opacity: root.firstInput ? 0 : root.mainCardComponentsOpacity
@@ -516,8 +524,7 @@ Rectangle {
             text: "Caps Lock On"
             font.pointSize: 11
             font.family: "Rubik"
-            // The card is filled with the secondary colour.
-            color: config.onSecondary
+            color: config.text
             opacity: root.capsLockOn && !root.firstInput ? 1 : 0
 
             Behavior on opacity {
