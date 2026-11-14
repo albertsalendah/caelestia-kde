@@ -83,7 +83,8 @@ Rectangle {
             renderType: Text.NativeRendering
             anchors.left: parent.left
             anchors.verticalCenter: parent.verticalCenter
-            anchors.leftMargin: 17
+            // Centred in a square like the arrow's, on the other side.
+            anchors.leftMargin: inputButtonShape.anchors.rightMargin + (inputButtonShape.width - lockIcon.width) / 2
             font.family: "Material Symbols Rounded"
             font.pointSize: 15
             text: "\ue897"
@@ -100,7 +101,7 @@ Rectangle {
 
             anchors.left: parent.left
             anchors.verticalCenter: parent.verticalCenter
-            anchors.leftMargin: 17
+            anchors.leftMargin: inputButtonShape.anchors.rightMargin + (inputButtonShape.width - loadingShape.width) / 2
 
             implicitWidth: lockIcon.height / 2 * 2.1
             implicitHeight: lockIcon.height / 2 * 2.1
@@ -248,7 +249,9 @@ Rectangle {
                 spacing: 3
                 interactive: false
 
-                width: inputRect.buffer.length * 15 + (inputRect.buffer.length - 1) * 3 + parent.height
+                // Exactly as wide as its dots: any extra width sat on the right of them and the
+                // row, centred as a whole, looked pushed to the left.
+                width: inputRect.buffer.length > 0 ? inputRect.buffer.length * 15 + (inputRect.buffer.length - 1) * 3 : 0
                 height: 15
                 anchors.centerIn: parent
 
