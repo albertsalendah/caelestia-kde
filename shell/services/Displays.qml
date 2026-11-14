@@ -173,6 +173,7 @@ Singleton {
     function keep(): void {
         root.confirming = false;
         root.previous = [];
+        greeterSyncTimer.restart();
     }
 
     function revert(): void {
@@ -279,6 +280,7 @@ Singleton {
                     root.confirming = true;
                     root.secondsLeft = root.confirmSeconds;
                 }
+                greeterSyncTimer.restart();
             } else {
                 root.error = "apply-failed";
                 if (!root.confirming)
@@ -294,6 +296,21 @@ Singleton {
         onExited: {
             root.previous = [];
             root.refresh();
+            greeterSyncTimer.restart();
+        }
+    }
+
+    // The login screen follows the monitors that are on. KWin writes its layout file a moment after
+    // a change, and a change still waiting to be kept is not final: the copy is made once things
+    // have settled (keep(), a revert and a quiet change each start the wait again).
+    Timer {
+        id: greeterSyncTimer
+
+        interval: 2000
+        onTriggered: {
+            if (root.confirming)
+                return;
+            Quickshell.execDetached(["bash", Quickshell.shellPath("scripts/sync_greeter.sh"), "--display"]);
         }
     }
 

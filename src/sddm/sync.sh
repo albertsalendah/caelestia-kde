@@ -107,6 +107,90 @@ wallpaper_on_screen() {
     [[ -n "$target" ]] && sudo -H -u "$REAL_USER" test -f "$target"
 }
 
+is_plasmalogin_active() {
+    local target
+    target="$(readlink -f /etc/systemd/system/display-manager.service 2>/dev/null || true)"
+
+    case "$target" in
+        *plasmalogin*) return 0 ;;
+        *sddm*) return 1 ;;
+    esac
+
+    if systemctl is-active plasmalogin.service &>/dev/null || \
+       systemctl is-enabled plasmalogin.service &>/dev/null; then
+        return 0
+    fi
+    if systemctl is-active sddm.service &>/dev/null || \
+       systemctl is-enabled sddm.service &>/dev/null; then
+        return 1
+    fi
+    if [[ -e /etc/plasmalogin.conf ]] && ! command -v sddm >/dev/null 2>&1; then
+        return 0
+    fi
+    return 1
+}
+
+# The monitors' layout (which ones are on, their modes, scale and position) from the user's KWin
+# output config, copied into the config folder of the login screen's own user. The greeter's
+# compositor reads its config from there, so without this it lights every monitor it finds, also the
+# ones switched off in Display settings. KDE's own "apply to the login screen" copies the same file.
+sync_display_layout() {
+    local src="$REAL_HOME/.config/kwinoutputconfig.json"
+    local greeter_user="sddm" greeter_home greeter_group dest_dir dest read_tmp dest_tmp
+    local max_bytes=$((1024 * 1024))
+
+    if is_plasmalogin_active; then
+        greeter_user="plasmalogin"
+    fi
+    getent passwd "$greeter_user" > /dev/null 2>&1 || return 0
+
+    greeter_home="$(getent passwd "$greeter_user" | cut -d: -f6)"
+    if [[ -z "$greeter_home" || "$greeter_home" = "/" ]]; then
+        greeter_home="/var/lib/$greeter_user"
+    fi
+    greeter_group="$(id -gn "$greeter_user" 2> /dev/null || echo "$greeter_user")"
+    dest_dir="$greeter_home/.config"
+    dest="$dest_dir/kwinoutputconfig.json"
+
+    # No file of the user's: the layout the greeter has stays.
+    if ! sudo -H -u "$REAL_USER" test -f "$src" || ! sudo -H -u "$REAL_USER" test -r "$src"; then
+        return 0
+    fi
+
+    read_tmp="$(mktemp)"
+    if ! sudo -H -u "$REAL_USER" head -c "$((max_bytes + 1))" -- "$src" | cat > "$read_tmp"; then
+        rm -f -- "$read_tmp"
+        return 1
+    fi
+    if [[ "$(stat -c '%s' "$read_tmp")" -gt "$max_bytes" ]]; then
+        echo "WARNING: Skipping oversized monitor layout: $src" >&2
+        rm -f -- "$read_tmp"
+        return 1
+    fi
+    # A file that is not JSON would only leave the greeter without a layout.
+    if ! python3 -c 'import json, sys; json.load(open(sys.argv[1]))' "$read_tmp" > /dev/null 2>&1; then
+        echo "WARNING: Skipping an unreadable monitor layout: $src" >&2
+        rm -f -- "$read_tmp"
+        return 1
+    fi
+
+    [[ -d "$dest_dir" ]] || install -d -o "$greeter_user" -g "$greeter_group" -m 0755 "$dest_dir"
+    dest_tmp="$(mktemp "$dest_dir/.kwinoutputconfig.json.tmp.XXXXXX")"
+    if install -o "$greeter_user" -g "$greeter_group" -m 0644 "$read_tmp" "$dest_tmp" && mv -f -- "$dest_tmp" "$dest"; then
+        rm -f -- "$read_tmp"
+        echo "✓ Synced the monitor layout"
+        return 0
+    fi
+    rm -f -- "$read_tmp" "$dest_tmp"
+    return 1
+}
+
+# Only the monitor layout, asked for when the Display settings change: no colours, no wallpaper.
+if [[ "${1:-}" = "--display" ]]; then
+    sync_display_layout
+    exit $?
+fi
+
 FAILED=0
 if [[ "${1:-}" = "--posthook" ]]; then
     : # Skip color generation when run as posthook (--posthook)
@@ -131,28 +215,7 @@ else
     fi
 fi
 
-is_plasmalogin_active() {
-    local target
-    target="$(readlink -f /etc/systemd/system/display-manager.service 2>/dev/null || true)"
-
-    case "$target" in
-        *plasmalogin*) return 0 ;;
-        *sddm*) return 1 ;;
-    esac
-
-    if systemctl is-active plasmalogin.service &>/dev/null || \
-       systemctl is-enabled plasmalogin.service &>/dev/null; then
-        return 0
-    fi
-    if systemctl is-active sddm.service &>/dev/null || \
-       systemctl is-enabled sddm.service &>/dev/null; then
-        return 1
-    fi
-    if [[ -e /etc/plasmalogin.conf ]] && ! command -v sddm >/dev/null 2>&1; then
-        return 0
-    fi
-    return 1
-}
+sync_display_layout || true
 
 if is_plasmalogin_active; then
     PLASMALOGIN_HOME="$(getent passwd plasmalogin | cut -d: -f6)"

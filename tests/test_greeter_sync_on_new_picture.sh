@@ -35,6 +35,26 @@ test_it_runs_the_sync_script_without_asking_for_a_password() {
     rm -rf "$MACHINE"
 }
 
+test_display_asks_the_sync_script_for_the_monitor_layout_only() {
+    setup_machine
+    printf '#!/bin/sh\n' > "$MACHINE/b/sync"; chmod +x "$MACHINE/b/sync"
+
+    PATH="$MACHINE/bin:$PATH" GREETER_SYNC_CANDIDATES="$MACHINE/b/sync" bash "$SCRIPT" --display < /dev/null
+
+    assert_eq "sudo -n $MACHINE/b/sync --display" "$(cat "$LOG")" "the Display settings pass --display on"
+    rm -rf "$MACHINE"
+}
+
+test_any_other_argument_is_the_full_sync() {
+    setup_machine
+    printf '#!/bin/sh\n' > "$MACHINE/b/sync"; chmod +x "$MACHINE/b/sync"
+
+    PATH="$MACHINE/bin:$PATH" GREETER_SYNC_CANDIDATES="$MACHINE/b/sync" bash "$SCRIPT" --anything < /dev/null
+
+    assert_eq "sudo -n $MACHINE/b/sync --posthook" "$(cat "$LOG")" "only --display narrows the sync; nothing else can reach the root script"
+    rm -rf "$MACHINE"
+}
+
 test_the_first_script_that_exists_wins() {
     setup_machine
     printf '#!/bin/sh\n' > "$MACHINE/a/sync"; chmod +x "$MACHINE/a/sync"
