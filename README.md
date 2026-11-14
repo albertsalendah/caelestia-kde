@@ -128,7 +128,10 @@ this with a file in `/usr/local/share/wayland-sessions`, and touches nothing the
 draw their own title bar take the button layout from the GNOME setting `button-layout`, whose default is
 a close button only; a Plasma session fills it from KWin's settings, so the Caelestia session does the same at
 login (KWin's order, minimize, maximize and close). When foot is not installed and you have not chosen a
-terminal, the installer records Konsole as the shell's terminal.
+terminal, the installer records Konsole as the shell's terminal. Without a Plasma desktop nothing sets
+the default program for folders, and a double click on a desktop folder could open an image viewer; the
+installer saves a default for folders (Dolphin, or another file manager that is installed) with `xdg-mime`,
+and only when your own `~/.config/mimeapps.list` does not name one already.
 
 **Fedora.** The same step runs on Fedora, with the same files. A minimal install (Fedora Everything) boots to a text console, so with any of the three login managers above the step also sets the boot target to `graphical.target`; `uninstall.sh` sets it back. The packages are `plasma-integration` (the Qt platform theme that gives Qt apps the KDE colours and file dialogs),
 `kwin` (it ships the `kwin_wayland_wrapper` the session starts), `kscreenlocker`, `plasma5support`,

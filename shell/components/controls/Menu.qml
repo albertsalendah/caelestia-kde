@@ -35,6 +35,9 @@ MouseArea {
     property MenuItem active: dynamicModel[0] ?? null
     property bool expanded
     property bool rightClickReposition: false
+    // A menu that is not modal does not take the clicks outside itself: they reach what is below it,
+    // the menu it opens from (a flyout beside a row).
+    property bool modal: true
     property real maxHeight: 320
     readonly property alias backgroundItem: menu
     property bool transparentBackground: false
@@ -115,7 +118,7 @@ MouseArea {
     anchors.fill: parent
 
     enabled: expanded
-    acceptedButtons: rightClickReposition ? Qt.LeftButton | Qt.RightButton : Qt.LeftButton
+    acceptedButtons: !modal ? Qt.NoButton : rightClickReposition ? Qt.LeftButton | Qt.RightButton : Qt.LeftButton
     onClicked: mouse => {
         if (rightClickReposition && mouse.button === Qt.RightButton) {
             rightClickedAt(mouse.x, mouse.y);

@@ -54,6 +54,8 @@ source "$(dirname "${BASH_SOURCE[0]}")/lib/privileges.sh"
 source "$(dirname "${BASH_SOURCE[0]}")/lib/packages.sh"
 # shellcheck source=scripts/lib/xembed-proxy.sh
 source "$(dirname "${BASH_SOURCE[0]}")/lib/xembed-proxy.sh"
+# shellcheck source=scripts/lib/file-manager.sh
+source "$(dirname "${BASH_SOURCE[0]}")/lib/file-manager.sh"
 
 BUNDLE_DIR="${BUNDLE_DIR:?BUNDLE_DIR not set}"
 SRC_DIR="$BUNDLE_DIR/src/session"
@@ -162,6 +164,13 @@ ok "Session files installed under /usr/local."
 # (Not under the tests' scratch root: they would try to build.)
 if [[ -z "$ROOT" ]]; then
     install_xembed_proxy
+fi
+
+# Folders: without a Plasma desktop no default is set, and a double click on a folder can open an image
+# viewer. A default is saved only when the user has none of their own.
+# (Not under the tests' scratch root: it would write the real user's mimeapps.list.)
+if [[ -z "$ROOT" ]]; then
+    set_default_file_manager
 fi
 
 # A copy of either unit in the user's own config wins over the system-wide one. An old

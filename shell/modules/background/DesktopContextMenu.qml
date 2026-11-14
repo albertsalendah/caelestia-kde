@@ -265,6 +265,8 @@ Controls.Menu {
         thisSideY: Controls.Menu.Top
         transparentBackground: true
         revealHorizontal: true
+        // The rows of the menu beside it still work while it is open: a click on one runs it and closes both.
+        modal: false
         z: 10000
 
         onExpandedChanged: {

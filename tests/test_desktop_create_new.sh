@@ -95,6 +95,15 @@ test_the_flyout_holds_folder_and_text_file_and_closes_with_the_menu() {
     assert_contains "$(cat "$MENU")" 'createFlyout.marginY = top >= 0 ? top - Tokens.padding.extraSmall : 0;' "the flyout starts at the row"
 }
 
+test_the_menu_beside_the_flyout_still_takes_clicks() {
+    local flyout
+    flyout="$(awk '/id: createFlyout/ { on = 1 } on { print } on && /^    }$/ { exit }' "$MENU")"
+
+    assert_contains "$(cat "$COMMENU")" 'property bool modal: true' "menus are modal as before"
+    assert_contains "$(cat "$COMMENU")" 'acceptedButtons: !modal ? Qt.NoButton :' "a menu that is not modal takes no clicks outside itself"
+    assert_contains "$flyout" 'modal: false' "the flyout lets the clicks through to the menu it opens from"
+}
+
 test_the_flyout_has_the_same_background_and_blur_as_the_menu() {
     local text
     text="$(cat "$CONTENT")"
