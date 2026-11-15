@@ -53,9 +53,11 @@ session_package_versions() {
     fi
 }
 
-# After a pacman or dnf upgrade: stop when it replaced a package the running session has loaded.
+# After a pacman or dnf upgrade: stop when it replaced a package the running session has loaded. The
+# second argument is the KWin identity read BEFORE the upgrade (the lookup after it is only a
+# fallback), the same as in src/bin/caelestia-update.
 stop_if_session_packages_changed() {
-    local versions_before="$1" identity
+    local versions_before="$1" identity="${2:-}"
     [[ "$(session_package_versions)" != "$versions_before" ]] || return 0
 
     err "The upgrade replaced packages the running session still has loaded in memory:"
@@ -66,13 +68,18 @@ stop_if_session_packages_changed() {
     err "errors that look unrelated to this upgrade."
     err "Exit the installer, log out and back in (or reboot), then run it again - the"
     err "upgrade is already applied, so the re-run goes straight to the rest."
-    if identity="$(kwin_session_identity 2>/dev/null)" && [[ -n "$identity" ]]; then
-        mkdir -p "$(dirname "$STALE_SESSION_STAMP")"
-        printf '%s\n' "$identity" > "$STALE_SESSION_STAMP"
+    [[ -n "$identity" ]] || identity="$(kwin_session_identity 2>/dev/null || true)"
+    if [[ -n "$identity" ]] && mkdir -p "$(dirname "$STALE_SESSION_STAMP")" 2>/dev/null \
+        && printf '%s\n' "$identity" > "$STALE_SESSION_STAMP" 2>/dev/null; then
+        :
+    else
+        err "This session could not be marked as out of date (KWin was not found, or the mark"
+        err "could not be written), so a re-run will not be refused: log out and back in first."
     fi
     exit 1
 }
 
+session_before="$(kwin_session_identity 2>/dev/null || true)"
 if [[ "${BASE_DISTRO:-unknown}" == "arch" ]]; then
     versions_before="$(session_package_versions)"
     if [[ -n "${CONFIRM_ARG:-}" ]]; then
@@ -80,7 +87,7 @@ if [[ "${BASE_DISTRO:-unknown}" == "arch" ]]; then
     else
         caelestia_sudo pacman -Syu
     fi
-    stop_if_session_packages_changed "$versions_before"
+    stop_if_session_packages_changed "$versions_before" "$session_before"
 elif [[ "${BASE_DISTRO:-unknown}" == "fedora" ]]; then
     versions_before="$(session_package_versions)"
     if [[ -n "${CONFIRM_ARG:-}" ]]; then
@@ -88,7 +95,7 @@ elif [[ "${BASE_DISTRO:-unknown}" == "fedora" ]]; then
     else
         caelestia_sudo dnf upgrade --refresh
     fi
-    stop_if_session_packages_changed "$versions_before"
+    stop_if_session_packages_changed "$versions_before" "$session_before"
 elif [[ "${BASE_DISTRO:-unknown}" == "debian" ]]; then
     if [[ -n "${CONFIRM_ARG:-}" ]]; then
         caelestia_sudo apt-get update && caelestia_sudo apt-get upgrade -y

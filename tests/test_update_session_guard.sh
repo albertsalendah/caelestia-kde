@@ -20,7 +20,8 @@ qt6-declarative 6.11.2-1"
 # (system_update or refuse_stale_session). pacman is a stub that answers `pacman -Q` from
 # $TMP/versions; sudo is a stub that records its arguments and, for an upgrade, swaps in $TMP/after
 # (when AFTER is not empty), which is how an upgrade replacing a package is simulated. pgrep says
-# KWin runs as pid 4242 unless NO_KWIN=1. HOME and XDG_STATE_HOME live under $TMP.
+# KWin runs as pid 4242 unless NO_KWIN=1; with KWIN_GONE=1 it is there until sudo has run (the upgrade)
+# and missing afterwards; with KWIN_LATE=1 it is missing until sudo has run and there afterwards. HOME and XDG_STATE_HOME live under $TMP.
 run_guard() {
     local tmp="$1" after="$2" call="$3"
     shift 3
@@ -31,13 +32,18 @@ run_guard() {
 
     stub_bin "$tmp/stubs" pacman "[[ \"\$1\" == -Q ]] || exit 0
 grep \"^\$2 \" '$tmp/versions' || exit 1"
+    rm -f "$tmp/kwin-gone"
+    if [[ "${KWIN_LATE:-0}" == "1" ]]; then : > "$tmp/kwin-gone"; fi
     stub_bin "$tmp/stubs" sudo "printf 'sudo %s\n' \"\$*\" >> '$tmp/calls.log'
 [[ -f '$tmp/after' ]] && cp '$tmp/after' '$tmp/versions'
+[[ '${KWIN_GONE:-0}' == 1 ]] && : > '$tmp/kwin-gone'
+[[ '${KWIN_LATE:-0}' == 1 ]] && rm -f '$tmp/kwin-gone'
 exit 0"
     if [[ "${NO_KWIN:-0}" == "1" ]]; then
         stub_bin "$tmp/stubs" pgrep "exit 1"
     else
-        stub_bin "$tmp/stubs" pgrep "echo 4242"
+        stub_bin "$tmp/stubs" pgrep "[[ -f '$tmp/kwin-gone' ]] && exit 1
+echo 4242"
     fi
 
     OUTPUT="$(env HOME="$tmp/home" XDG_STATE_HOME="$tmp/state" CAELESTIA_UPDATE_SYSTEM=1 "$@" \
@@ -106,6 +112,60 @@ test_a_stop_without_a_running_kwin_still_stops_but_writes_no_stamp() {
 
     assert_status 1 "$STATUS" "the update stops anyway"
     assert_file_missing "$(stamp "$tmp")" "there is no session to stamp"
+    assert_contains "$OUTPUT" "could not be marked as out of date" "and the user is told the next run will not be refused"
+}
+
+test_a_kwin_that_cannot_be_found_after_the_upgrade_is_still_stamped() {
+    local tmp after
+    tmp="$(new_tmpdir)"
+    after="${BEFORE_VERSIONS/kwin 6.7.5-1/kwin 6.7.5-3}"
+
+    KWIN_GONE=1 run_guard "$tmp" "$after" system_update
+
+    assert_status 1 "$STATUS" "the update stops"
+    assert_file_exists "$(stamp "$tmp")" "the stamp is written from the identity read before the upgrade"
+    assert_eq "4242 ?" "$(cat "$(stamp "$tmp")")" "with the KWin that was running then"
+    assert_not_contains "$OUTPUT" "could not be marked" "and nothing says it failed"
+}
+
+test_a_stamp_that_cannot_be_written_is_reported() {
+    local tmp after
+    tmp="$(new_tmpdir)"
+    after="${BEFORE_VERSIONS/kwin 6.7.5-1/kwin 6.7.5-3}"
+    mkdir -p "$tmp/state"
+    : > "$tmp/state/caelestia"
+
+    run_guard "$tmp" "$after" system_update
+
+    assert_status 1 "$STATUS" "the update still stops"
+    assert_contains "$OUTPUT" "could not be marked as out of date" "and the failed stamp is not silent"
+}
+
+test_the_session_is_read_before_the_upgrade_in_the_updater() {
+    local body
+    body="$(extract_function "$UPDATE" system_update)"
+    [[ -n "$body" ]] || fail "system_update was not found"
+
+    assert_eq "2" "$(printf '%s\n' "$body" | grep -c 'session_before="$(kwin_session_identity')" "each branch reads the session"
+    assert_eq "2" "$(printf '%s\n' "$body" | grep -c 'stop_if_session_packages_changed "$versions_before" "$session_before"')" \
+        "both branches hand the early identity to the check"
+    [[ "$(printf '%s\n' "$body" | grep -n 'session_before="$(kwin' | head -n1 | cut -d: -f1)" -lt \
+       "$(printf '%s\n' "$body" | grep -n 'pacman -Syu' | head -n1 | cut -d: -f1)" ]] \
+        || fail "the pacman branch must read the session before it upgrades"
+    [[ "$(printf '%s\n' "$body" | grep -n 'session_before="$(kwin' | tail -n1 | cut -d: -f1)" -lt \
+       "$(printf '%s\n' "$body" | grep -n 'dnf upgrade' | head -n1 | cut -d: -f1)" ]] \
+        || fail "the dnf branch must read the session before it upgrades"
+}
+
+test_a_kwin_found_only_after_the_upgrade_is_stamped_too() {
+    local tmp after
+    tmp="$(new_tmpdir)"
+    after="${BEFORE_VERSIONS/kwin 6.7.5-1/kwin 6.7.5-3}"
+
+    KWIN_LATE=1 run_guard "$tmp" "$after" system_update
+
+    assert_status 1 "$STATUS" "the update stops"
+    assert_eq "4242 ?" "$(cat "$(stamp "$tmp")" 2>/dev/null)" "the lookup after the upgrade is the fallback"
 }
 
 test_the_guard_is_off_when_the_system_update_is_off() {
@@ -205,8 +265,12 @@ pkg=\"\${@: -1}\"
 grep \"^\$pkg \" '$tmp/rpmdb' || { echo \"package \$pkg is not installed\"; exit 1; }"
     stub_bin "$tmp/stubs" sudo "printf 'sudo %s\n' \"\$*\" >> '$tmp/calls.log'
 [[ \"\$1 \$2\" == 'dnf upgrade' && -f '$tmp/after' ]] && cp '$tmp/after' '$tmp/rpmdb'
+[[ '${KWIN_GONE:-0}' == 1 ]] && : > '$tmp/kwin-gone'
 exit 0"
-    stub_bin "$tmp/stubs" pgrep "echo 4242"
+    rm -f "$tmp/kwin-gone"
+    if [[ "${NO_KWIN:-0}" == "1" || "${KWIN_LATE:-0}" == "1" ]]; then : > "$tmp/kwin-gone"; fi
+    stub_bin "$tmp/stubs" pgrep "[[ -f '$tmp/kwin-gone' ]] && exit 1
+echo 4242"
 }
 
 run_guard_fedora() {
@@ -244,6 +308,17 @@ test_a_dnf_upgrade_that_replaces_kwin_stops_the_update() {
     assert_contains "$OUTPUT" "already applied" "and say the upgrade is not redone"
     assert_file_exists "$(stamp "$tmp")" "the running session is stamped"
     assert_eq "4242 ?" "$(cat "$(stamp "$tmp")")" "with the identity of the KWin that is running"
+}
+
+test_a_kwin_that_cannot_be_found_after_a_dnf_upgrade_is_still_stamped() {
+    local tmp after
+    tmp="$(new_tmpdir)"
+    after="${RPM_BEFORE/kwin 6.8.2-2.fc45/kwin 6.8.2-3.fc45}"
+
+    KWIN_GONE=1 run_guard_fedora "$tmp" "$after" system_update
+
+    assert_status 1 "$STATUS" "the update stops"
+    assert_eq "4242 ?" "$(cat "$(stamp "$tmp")" 2>/dev/null)" "the stamp comes from the identity read before dnf ran"
 }
 
 test_each_session_package_is_watched_on_fedora() {
@@ -296,8 +371,11 @@ run_installer_guard_fedora() {
         extract_function "$installer" stop_if_session_packages_changed; })"
     OUTPUT="$(env HOME="$tmp/home" XDG_STATE_HOME="$tmp/state" BASE_DISTRO=fedora BODY="$body" \
         bash -c 'PATH="$1"; err() { echo "[ERR] $*" >&2; }; eval "$BODY"
-            before="$(session_package_versions)"; [[ -f "$2/after" ]] && cp "$2/after" "$2/rpmdb"
-            stop_if_session_packages_changed "$before"; echo returned' _ "$tmp/stubs" "$tmp" 2>&1)"
+            before="$(session_package_versions)"; session_before="$(kwin_session_identity 2>/dev/null || true)"
+            [[ -f "$2/after" ]] && cp "$2/after" "$2/rpmdb"
+            [[ "${KWIN_GONE:-0}" == 1 ]] && : > "$2/kwin-gone"
+            [[ "${KWIN_LATE:-0}" == 1 ]] && rm -f "$2/kwin-gone"
+            stop_if_session_packages_changed "$before" "$session_before"; echo returned' _ "$tmp/stubs" "$tmp" 2>&1)"
     STATUS=$?
 }
 
@@ -312,6 +390,50 @@ test_the_installer_step_stops_after_a_dnf_upgrade_that_replaced_qt() {
     assert_contains "$OUTPUT" "had  qt6-qtbase 6.11.2-1.fc45" "it should show the old version"
     assert_contains "$OUTPUT" "now  qt6-qtbase 6.12.0-1.fc45" "and the new one"
     assert_eq "4242 ?" "$(cat "$(stamp "$tmp")")" "the same stamp file as the updater, with the running KWin"
+}
+
+test_the_installer_step_stamps_a_kwin_that_vanished_during_the_upgrade() {
+    local tmp after
+    tmp="$(new_tmpdir)"
+    after="${RPM_BEFORE/qt6-qtbase 6.11.2-1.fc45/qt6-qtbase 6.12.0-1.fc45}"
+
+    KWIN_GONE=1 run_installer_guard_fedora "$tmp" "$after"
+
+    assert_status 1 "$STATUS" "the installer stops"
+    assert_eq "4242 ?" "$(cat "$(stamp "$tmp")" 2>/dev/null)" "with the identity read before the upgrade"
+}
+
+test_the_installer_step_falls_back_to_a_kwin_found_after_the_upgrade() {
+    local tmp after
+    tmp="$(new_tmpdir)"
+    after="${RPM_BEFORE/qt6-qtbase 6.11.2-1.fc45/qt6-qtbase 6.12.0-1.fc45}"
+
+    KWIN_LATE=1 run_installer_guard_fedora "$tmp" "$after"
+
+    assert_status 1 "$STATUS" "the installer stops"
+    assert_eq "4242 ?" "$(cat "$(stamp "$tmp")" 2>/dev/null)" "the lookup after the upgrade is the fallback"
+}
+
+test_the_installer_step_says_so_when_it_cannot_mark_the_session() {
+    local tmp after
+    tmp="$(new_tmpdir)"
+    after="${RPM_BEFORE/qt6-qtbase 6.11.2-1.fc45/qt6-qtbase 6.12.0-1.fc45}"
+
+    NO_KWIN=1 run_installer_guard_fedora "$tmp" "$after"
+
+    assert_status 1 "$STATUS" "the installer stops"
+    assert_file_missing "$(stamp "$tmp")" "no KWin, no stamp"
+    assert_contains "$OUTPUT" "could not be marked as out of date" "and the user is told"
+}
+
+test_the_installer_reads_the_session_before_it_upgrades() {
+    local installer="$REPO_ROOT/scripts/00a-system-update.sh" read upgrade
+    read="$(grep -n '^session_before="$(kwin_session_identity' "$installer" | head -n1 | cut -d: -f1)"
+    upgrade="$(grep -n 'pacman -Syu' "$installer" | head -n1 | cut -d: -f1)"
+    [[ -n "$read" && -n "$upgrade" && "$read" -lt "$upgrade" ]] \
+        || fail "the session must be read before the first upgrade"
+    assert_eq "2" "$(grep -c 'stop_if_session_packages_changed "$versions_before" "$session_before"' "$installer")" \
+        "both branches hand the early identity to the check"
 }
 
 test_the_installer_step_goes_on_when_dnf_left_the_session_packages_alone() {

@@ -82,17 +82,24 @@ refuse_stale_session() {
 }
 
 # After a pacman or dnf upgrade: if it replaced a package the running session has loaded, stamp the
-# session and stop, so the next run (after a new login) goes straight to Caelestia.
+# session and stop, so the next run (after a new login) goes straight to Caelestia. The second
+# argument is the KWin identity read BEFORE the upgrade: the upgrade itself is the moment the
+# process list and the user manager are least trustworthy, so it is read when nothing has changed
+# yet and the lookup after the upgrade is only a fallback. When no stamp can be written the user is
+# told, because without one the next run is not refused.
 stop_if_session_packages_changed() {
-    local versions_before="$1" identity
+    local versions_before="$1" identity="${2:-}"
     [[ "$(session_package_versions)" != "$versions_before" ]] || return 0
 
     warn "The upgrade replaced packages the running session still has loaded:"
     diff <(printf '%s\n' "$versions_before") <(session_package_versions) \
         | grep -E '^[<>]' | sed 's/^< /  had /; s/^> /  now /' >&2 || true
-    if identity="$(kwin_session_identity 2>/dev/null)" && [[ -n "$identity" ]]; then
-        mkdir -p "$(dirname "$STALE_SESSION_STAMP")"
-        printf '%s\n' "$identity" > "$STALE_SESSION_STAMP"
+    [[ -n "$identity" ]] || identity="$(kwin_session_identity 2>/dev/null || true)"
+    if [[ -n "$identity" ]] && mkdir -p "$(dirname "$STALE_SESSION_STAMP")" 2>/dev/null \
+        && printf '%s\n' "$identity" > "$STALE_SESSION_STAMP" 2>/dev/null; then
+        :
+    else
+        warn "This session could not be marked as out of date (KWin was not found, or the mark could not be written), so the next run will not be refused. Log out and back in before it."
     fi
     die "Building now would link the Caelestia plugin against the new libraries while KWin still runs the old ones. Log out and back in (or reboot), then run the update again: the upgrade is already applied, so it goes straight to Caelestia."
 }
@@ -111,17 +118,19 @@ system_update() {
     fi
 
     if command -v pacman >/dev/null; then
-        local versions_before
+        local versions_before session_before
         versions_before="$(session_package_versions)"
+        session_before="$(kwin_session_identity 2>/dev/null || true)"
         info "Running system update via pacman..."
         sudo pacman -Syu --noconfirm || warn "System update was canceled or failed. Continuing with non-sudo parts..."
-        stop_if_session_packages_changed "$versions_before"
+        stop_if_session_packages_changed "$versions_before" "$session_before"
     elif command -v dnf >/dev/null; then
-        local versions_before
+        local versions_before session_before
         versions_before="$(session_package_versions)"
+        session_before="$(kwin_session_identity 2>/dev/null || true)"
         info "Running system update via dnf..."
         sudo dnf upgrade --refresh -y || warn "System update was canceled or failed. Continuing with non-sudo parts..."
-        stop_if_session_packages_changed "$versions_before"
+        stop_if_session_packages_changed "$versions_before" "$session_before"
     elif command -v apt-get >/dev/null; then
         info "Running system update via apt..."
         sudo apt-get update && sudo apt-get upgrade -y || warn "System update was canceled or failed. Continuing with non-sudo parts..."
