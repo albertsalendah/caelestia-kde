@@ -37,13 +37,27 @@ resolve_update_source() {
 # plugin built next would link against the new libraries while the live KWin still runs the old
 # ones. scripts/00a-system-update.sh keeps the same list and the same stamp file.
 SESSION_PACKAGES=(kwin plasma-workspace libplasma qt6-base qt6-declarative)
+# The same packages under Fedora's names.
+SESSION_PACKAGES_RPM=(kwin plasma-workspace libplasma qt6-qtbase qt6-qtdeclarative)
 STALE_SESSION_STAMP="${XDG_STATE_HOME:-$HOME/.local/state}/caelestia/stale-session"
 
+# One "name version" line per package, "name not-installed" for one that is not there. rpm -q
+# prints its own message for a missing package and exits 1, so the line is built here.
 session_package_versions() {
-    local pkg
-    for pkg in "${SESSION_PACKAGES[@]}"; do
-        pacman -Q "$pkg" 2>/dev/null || printf '%s not-installed\n' "$pkg"
-    done
+    local pkg out
+    if command -v pacman >/dev/null 2>&1; then
+        for pkg in "${SESSION_PACKAGES[@]}"; do
+            pacman -Q "$pkg" 2>/dev/null || printf '%s not-installed\n' "$pkg"
+        done
+    else
+        for pkg in "${SESSION_PACKAGES_RPM[@]}"; do
+            if out="$(rpm -q --qf '%{NAME} %{VERSION}-%{RELEASE}\n' "$pkg" 2>/dev/null)"; then
+                printf '%s\n' "$out"
+            else
+                printf '%s not-installed\n' "$pkg"
+            fi
+        done
+    fi
 }
 
 # Process id and start time of the running KWin: it names this login session, so the stamp stops
@@ -67,6 +81,22 @@ refuse_stale_session() {
     rm -f "$STALE_SESSION_STAMP"
 }
 
+# After a pacman or dnf upgrade: if it replaced a package the running session has loaded, stamp the
+# session and stop, so the next run (after a new login) goes straight to Caelestia.
+stop_if_session_packages_changed() {
+    local versions_before="$1" identity
+    [[ "$(session_package_versions)" != "$versions_before" ]] || return 0
+
+    warn "The upgrade replaced packages the running session still has loaded:"
+    diff <(printf '%s\n' "$versions_before") <(session_package_versions) \
+        | grep -E '^[<>]' | sed 's/^< /  had /; s/^> /  now /' >&2 || true
+    if identity="$(kwin_session_identity 2>/dev/null)" && [[ -n "$identity" ]]; then
+        mkdir -p "$(dirname "$STALE_SESSION_STAMP")"
+        printf '%s\n' "$identity" > "$STALE_SESSION_STAMP"
+    fi
+    die "Building now would link the Caelestia plugin against the new libraries while KWin still runs the old ones. Log out and back in (or reboot), then run the update again: the upgrade is already applied, so it goes straight to Caelestia."
+}
+
 # The system update is opt-in. An update of Caelestia must not replace the packages the running
 # session has loaded (KWin, Qt, plasma-workspace): that can end the session partway through, and
 # the steps after it never run. Nexus -> Updates sets CAELESTIA_UPDATE_SYSTEM=1 when its "Update
@@ -81,24 +111,17 @@ system_update() {
     fi
 
     if command -v pacman >/dev/null; then
-        local versions_before identity
+        local versions_before
         versions_before="$(session_package_versions)"
         info "Running system update via pacman..."
         sudo pacman -Syu --noconfirm || warn "System update was canceled or failed. Continuing with non-sudo parts..."
-
-        if [[ "$(session_package_versions)" != "$versions_before" ]]; then
-            warn "The upgrade replaced packages the running session still has loaded:"
-            diff <(printf '%s\n' "$versions_before") <(session_package_versions) \
-                | grep -E '^[<>]' | sed 's/^< /  had /; s/^> /  now /' >&2 || true
-            if identity="$(kwin_session_identity 2>/dev/null)" && [[ -n "$identity" ]]; then
-                mkdir -p "$(dirname "$STALE_SESSION_STAMP")"
-                printf '%s\n' "$identity" > "$STALE_SESSION_STAMP"
-            fi
-            die "Building now would link the Caelestia plugin against the new libraries while KWin still runs the old ones. Log out and back in (or reboot), then run the update again: the upgrade is already applied, so it goes straight to Caelestia."
-        fi
+        stop_if_session_packages_changed "$versions_before"
     elif command -v dnf >/dev/null; then
+        local versions_before
+        versions_before="$(session_package_versions)"
         info "Running system update via dnf..."
         sudo dnf upgrade --refresh -y || warn "System update was canceled or failed. Continuing with non-sudo parts..."
+        stop_if_session_packages_changed "$versions_before"
     elif command -v apt-get >/dev/null; then
         info "Running system update via apt..."
         sudo apt-get update && sudo apt-get upgrade -y || warn "System update was canceled or failed. Continuing with non-sudo parts..."

@@ -32,12 +32,45 @@ if [[ "${SKIP_SYSTEM_UPDATE:-false}" == "true" ]]; then
 fi
 
 SESSION_PACKAGES=(kwin plasma-workspace libplasma qt6-base qt6-declarative)
+# The same packages under Fedora's names.
+SESSION_PACKAGES_RPM=(kwin plasma-workspace libplasma qt6-qtbase qt6-qtdeclarative)
 
+# One "name version" line per package, "name not-installed" for one that is not there.
 session_package_versions() {
-    local pkg
-    for pkg in "${SESSION_PACKAGES[@]}"; do
-        pacman -Q "$pkg" 2>/dev/null || printf '%s not-installed\n' "$pkg"
-    done
+    local pkg out
+    if [[ "${BASE_DISTRO:-unknown}" == "fedora" ]]; then
+        for pkg in "${SESSION_PACKAGES_RPM[@]}"; do
+            if out="$(rpm -q --qf '%{NAME} %{VERSION}-%{RELEASE}\n' "$pkg" 2>/dev/null)"; then
+                printf '%s\n' "$out"
+            else
+                printf '%s not-installed\n' "$pkg"
+            fi
+        done
+    else
+        for pkg in "${SESSION_PACKAGES[@]}"; do
+            pacman -Q "$pkg" 2>/dev/null || printf '%s not-installed\n' "$pkg"
+        done
+    fi
+}
+
+# After a pacman or dnf upgrade: stop when it replaced a package the running session has loaded.
+stop_if_session_packages_changed() {
+    local versions_before="$1" identity
+    [[ "$(session_package_versions)" != "$versions_before" ]] || return 0
+
+    err "The upgrade replaced packages the running session still has loaded in memory:"
+    diff <(printf '%s\n' "$versions_before") <(session_package_versions) \
+        | grep -E '^[<>]' | sed 's/^</  [ERR]   had /; s/^>/  [ERR]   now /' >&2 || true
+    err "Building and loading the Caelestia KWin plugin now would link against the new"
+    err "libraries while the live KWin still runs the old ones, which fails later with"
+    err "errors that look unrelated to this upgrade."
+    err "Exit the installer, log out and back in (or reboot), then run it again - the"
+    err "upgrade is already applied, so the re-run goes straight to the rest."
+    if identity="$(kwin_session_identity 2>/dev/null)" && [[ -n "$identity" ]]; then
+        mkdir -p "$(dirname "$STALE_SESSION_STAMP")"
+        printf '%s\n' "$identity" > "$STALE_SESSION_STAMP"
+    fi
+    exit 1
 }
 
 if [[ "${BASE_DISTRO:-unknown}" == "arch" ]]; then
@@ -47,28 +80,15 @@ if [[ "${BASE_DISTRO:-unknown}" == "arch" ]]; then
     else
         caelestia_sudo pacman -Syu
     fi
-
-    if [[ "$(session_package_versions)" != "$versions_before" ]]; then
-        err "The upgrade replaced packages the running session still has loaded in memory:"
-        diff <(printf '%s\n' "$versions_before") <(session_package_versions) \
-            | grep -E '^[<>]' | sed 's/^</  [ERR]   had /; s/^>/  [ERR]   now /' >&2 || true
-        err "Building and loading the Caelestia KWin plugin now would link against the new"
-        err "libraries while the live KWin still runs the old ones, which fails later with"
-        err "errors that look unrelated to this upgrade."
-        err "Exit the installer, log out and back in (or reboot), then run it again - the"
-        err "upgrade is already applied, so the re-run goes straight to the rest."
-        if identity="$(kwin_session_identity 2>/dev/null)" && [[ -n "$identity" ]]; then
-            mkdir -p "$(dirname "$STALE_SESSION_STAMP")"
-            printf '%s\n' "$identity" > "$STALE_SESSION_STAMP"
-        fi
-        exit 1
-    fi
+    stop_if_session_packages_changed "$versions_before"
 elif [[ "${BASE_DISTRO:-unknown}" == "fedora" ]]; then
+    versions_before="$(session_package_versions)"
     if [[ -n "${CONFIRM_ARG:-}" ]]; then
         caelestia_sudo dnf upgrade --refresh -y
     else
         caelestia_sudo dnf upgrade --refresh
     fi
+    stop_if_session_packages_changed "$versions_before"
 elif [[ "${BASE_DISTRO:-unknown}" == "debian" ]]; then
     if [[ -n "${CONFIRM_ARG:-}" ]]; then
         caelestia_sudo apt-get update && caelestia_sudo apt-get upgrade -y
