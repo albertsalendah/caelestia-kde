@@ -131,15 +131,20 @@ install_matugen_cargo() {
 
 install_matugen_fedora() {
     info "Installing/updating matugen from COPR (avengemedia/danklinux)..."
-    if caelestia_sudo dnf copr enable -y avengemedia/danklinux && (caelestia_sudo dnf install -y matugen || caelestia_sudo dnf upgrade -y matugen); then
-        if package_present matugen; then
+    # Fedora's own repository carries matugen 3.x, which the palette code cannot use (it needs
+    # 4.2 or newer), so being installed is not enough: the version is what counts. A machine that
+    # has the old package gets the new one from the upgrade, and the result is checked by version.
+    if caelestia_sudo dnf copr enable -y avengemedia/danklinux; then
+        caelestia_sudo dnf install -y matugen || true
+        caelestia_sudo dnf upgrade -y matugen || true
+        if matugen_present; then
             cleanup_legacy_cargo_matugen
             ok "matugen is installed via dnf (avengemedia/danklinux)."
             return 0
         fi
     fi
 
-    warn "COPR installation failed; attempting GitHub release fallback for Fedora..."
+    warn "COPR installation failed or gave an old matugen; attempting GitHub release fallback for Fedora..."
     if install_matugen_github; then
         return 0
     fi

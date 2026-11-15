@@ -210,10 +210,15 @@ for pkg in "${COPR_PKGS[@]}"; do
     if [[ "$_needed" == "no" ]]; then continue; fi
 
     if [[ "$pkg" == "matugen" ]]; then
-        if package_present matugen; then
-            cleanup_legacy_cargo_matugen
+        # Fedora's own matugen is 3.x and the palette code needs 4.2 or newer: a plain
+        # dnf install would succeed with the old one, so the version decides (ensure_matugen
+        # goes to the COPR, then the GitHub release, then Cargo).
+        if ensure_matugen; then
             continue
         fi
+        err "matugen 4.2 or newer could not be installed; colours from the wallpaper will not work."
+        FAILED_PKGS+=("$pkg")
+        continue
     elif package_present "$pkg" || command -v "$pkg" >/dev/null 2>&1; then
         continue
     fi
@@ -225,9 +230,6 @@ for pkg in "${COPR_PKGS[@]}"; do
     fi
 
     if caelestia_sudo dnf install -y "$pkg" 2>/dev/null; then
-        if [[ "$pkg" == "matugen" ]] && package_present matugen; then
-            cleanup_legacy_cargo_matugen
-        fi
         continue
     fi
 
@@ -236,11 +238,6 @@ for pkg in "${COPR_PKGS[@]}"; do
     case "$pkg" in
         quickshell-git|quickshell)
             if caelestia_sudo dnf copr enable -y errornointernet/quickshell && caelestia_sudo dnf install -y quickshell-git; then
-                COPR_FAILED="no"
-            fi
-            ;;
-        matugen)
-            if install_matugen_fedora; then
                 COPR_FAILED="no"
             fi
             ;;
