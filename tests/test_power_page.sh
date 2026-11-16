@@ -267,11 +267,11 @@ test_the_page_is_registered_at_the_same_place_in_both_lists() {
     assert_eq "$dict_idx" "$comp_idx" "pages and components are matched by position, so both must have it at the same place"
 }
 
-test_the_page_sits_with_the_system_pages_before_updates() {
-    local power updates
+test_the_page_sits_with_the_system_pages_after_the_shell_pages() {
+    local power services
     power="$(grep -n '^ *key: "power",$' "$DICTIONARY_QML" | head -1 | cut -d: -f1)"
-    updates="$(grep -n '^ *key: "updates",$' "$DICTIONARY_QML" | head -1 | cut -d: -f1)"
-    [[ -n "$power" && -n "$updates" && "$power" -lt "$updates" ]] || fail "Power must come before Updates"
+    services="$(grep -n '^ *key: "services",$' "$DICTIONARY_QML" | head -1 | cut -d: -f1)"
+    [[ -n "$power" && -n "$services" && "$power" -gt "$services" ]] || fail "Power must come after the services page (the fork pages are appended)"
     assert_contains "$(sed -n "$power,$((power + 6))p" "$DICTIONARY_QML")" 'category: "system"' "it belongs to the system group"
 }
 

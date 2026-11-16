@@ -10,13 +10,9 @@ ICONS="$SHELL_DIR/modules/background/DesktopIcons.qml"
 MENU="$SHELL_DIR/modules/background/DesktopContextMenu.qml"
 STORE="$SHELL_DIR/services/ContextMenuStore.qml"
 LAYOUT="$SHELL_DIR/services/DesktopLayout.qml"
-COMMENU="$SHELL_DIR/components/controls/Menu.qml"
-MENUITEM="$SHELL_DIR/components/controls/MenuItem.qml"
-CONTENT="$SHELL_DIR/modules/drawers/ContentWindow.qml"
 PAGE="$SHELL_DIR/modules/nexus/pages/DesktopPage.qml"
 
-# "Create New" in the desktop's right-click menu opens a small menu beside its row (Folder, Text
-# File). The pick makes the item in the desktop folder at the click, and its name can be typed at
+# "Create New" in the desktop's right-click menu is a submenu (Folder, Text File) like Widgets. The pick makes the item in the desktop folder at the click, and its name can be typed at
 # once. The choice of a free name runs for real in node; the wiring is checked as text.
 
 free_name() {
@@ -66,60 +62,82 @@ test_the_rename_opens_when_the_icon_exists() {
     assert_contains "$(cat "$ICONS")" 'function onCreateNewRequested(screenName: string, kind: string, x: real, y: real): void {' "the controller of that screen hears the request"
 }
 
-test_create_new_is_a_default_entry_that_keeps_the_menu_open() {
-    assert_contains "$(cat "$STORE")" 'id: "create_new", label: qsTr("Create New"), icon: "add_circle", action: "CreateNew"' "a default entry"
+migrate() {
+    # migrate <saved entries as a JS array>: the store's real migrateEntries, run in node.
+    local body name
+    body=""
+    for name in defaultWidgetEntries widgetGroupEntry isWidgetAction defaultCreateNewEntries createNewGroupEntry migrateEntries; do
+        body="$body
+$(awk -v n="$name" '$0 ~ "^    function " n "\\(" { on = 1 } on { print } on && /^    }$/ { exit }' "$STORE")"
+    done
+    node -e "
+        const qsTr = s => s;
+        $body
+        console.log(JSON.stringify(migrateEntries($1)));
+    "
+}
+
+test_create_new_is_a_default_submenu_of_two_entries() {
+    local store
+    store="$(cat "$STORE")"
+
+    assert_contains "$store" 'createNewGroupEntry(defaultCreateNewEntries()),' "a default entry, right after Paste"
+    assert_contains "$store" 'return { id: "create_new", label: qsTr("Create New"), icon: "add_circle", type: "group", enabled: true, children: children };' "a group like Widgets"
+    assert_contains "$store" '{ id: "create_folder", label: qsTr("Folder"), icon: "create_new_folder", action: "CreateFolder", enabled: true, type: "default" }' "Folder"
+    assert_contains "$store" '{ id: "create_text_file", label: qsTr("Text File"), icon: "note_add", action: "CreateTextFile", enabled: true, type: "default" }' "Text File"
     assert_contains "$(cat "$LAYOUT")" 'signal createNewRequested(string screenName, string kind, real x, real y)' "the request signal"
-    assert_contains "$(cat "$MENUITEM")" 'property bool keepOpen: false' "a row can keep its menu open"
-    assert_contains "$(cat "$COMMENU")" 'if (!item.modelData.keepOpen)' "a click closes the menu unless the row says not to"
-    assert_contains "$(cat "$MENU")" 'item.keepOpen = true;' "Create New says so"
+    assert_eq "1" "$(grep -c 'createNewGroupEntry(defaultCreateNewEntries()),' "$STORE")" "and it is in the defaults once"
 }
 
-test_the_entry_opens_the_flyout_before_the_menu_closes() {
-    local fn pos_flyout pos_close
+test_a_menu_saved_with_the_old_row_gets_the_submenu_in_its_place() {
+    local out
+    out="$(migrate "[{id:'paste',type:'default',action:'Paste'},{id:'create_new',type:'default',action:'CreateNew',enabled:true},{id:'x',type:'default'}]")"
+
+    assert_contains "$out" '"id":"create_new","label":"Create New","icon":"add_circle","type":"group","enabled":true,"children":[{"id":"create_folder"' "the old row became the submenu"
+    assert_eq "paste create_new x" "$(node -e "console.log(JSON.parse(process.argv[1]).map(e => e.id).join(' '))" "$out")" "at the same place"
+}
+
+test_a_submenu_that_was_switched_off_or_has_a_child_off_stays_that_way() {
+    local out
+    out="$(migrate "[{id:'create_new',type:'group',enabled:false,children:[{id:'create_folder',enabled:false},{id:'create_text_file'}]}]")"
+
+    assert_contains "$out" '"enabled":false,"children":[{"id":"create_folder","label":"Folder","icon":"create_new_folder","action":"CreateFolder","enabled":false' "the group and its Folder child are still off"
+    assert_contains "$out" '"id":"create_text_file","label":"Text File","icon":"note_add","action":"CreateTextFile","enabled":true' "the other child is on"
+}
+
+test_the_widgets_group_is_not_touched_by_the_create_new_migration() {
+    local out
+    out="$(migrate "[{id:'create_new',type:'default',action:'CreateNew'},{id:'add_widget',type:'default',action:'AddWidget'}]")"
+
+    assert_eq "create_new widgets" "$(node -e "console.log(JSON.parse(process.argv[1]).map(e => e.id).join(' '))" "$out")" "widget rows still collect into their group"
+}
+
+test_the_two_actions_make_the_item_at_the_click_right_away() {
+    local fn pos_make pos_timer
     fn="$(awk '/function executeEntryByKey\(/ { on = 1 } on { print } on && /^    }$/ { exit }' "$MENU")"
-    pos_flyout="$(grep -n 'root.openCreateMenu(key);' "$MENU" | head -1 | cut -d: -f1)"
-    pos_close="$(grep -n '        root.expanded = false;' "$MENU" | head -1 | cut -d: -f1)"
+    pos_make="$(printf '%s\n' "$fn" | grep -n 'DesktopLayout.createNewRequested' | head -1 | cut -d: -f1)"
+    pos_timer="$(printf '%s\n' "$fn" | grep -n 'execTimer.pendingAction' | head -1 | cut -d: -f1)"
 
-    assert_contains "$fn" 'if (entry.action === "CreateNew") {' "its own branch"
-    assert_eq "yes" "$([[ $pos_flyout -lt $pos_close ]] && echo yes || echo no)" "the flyout opens before the menu's own close"
+    assert_contains "$fn" 'if (entry.action === "CreateFolder" || entry.action === "CreateTextFile") {' "its own branch"
+    assert_contains "$fn" 'DesktopLayout.createNewRequested(root.screenName, entry.action === "CreateFolder" ? "folder" : "text", root.attachTo.x, root.attachTo.y);' "the request carries the spot of the click"
+    assert_eq "yes" "$([[ -n "$pos_make" && -n "$pos_timer" && $pos_make -lt $pos_timer ]] && echo yes || echo no)" "an in-shell change, so before the deferred actions"
 }
 
-test_the_flyout_holds_folder_and_text_file_and_closes_with_the_menu() {
-    local flyout
-    flyout="$(awk '/id: createFlyout/ { on = 1 } on { print } on && /^    }$/ { exit }' "$MENU")"
+test_create_new_goes_with_the_desktop_icons() {
+    local menu
+    menu="$(cat "$MENU")"
 
-    assert_contains "$flyout" 'onClicked: root.createNew("folder")' "Folder"
-    assert_contains "$flyout" 'onClicked: root.createNew("text")' "Text File"
-    assert_contains "$flyout" 'if (!expanded && root.expanded && !root._movingMenu)' "closing the flyout closes the menu, except while the menu moves"
-    assert_contains "$(cat "$MENU")" 'DesktopLayout.createNewRequested(root.screenName, kind, root.attachTo.x, root.attachTo.y);' "the request carries the spot of the click"
-    assert_contains "$(cat "$MENU")" 'createFlyout.marginY = top >= 0 ? top - Tokens.padding.extraSmall : 0;' "the flyout starts at the row"
-}
-
-test_the_menu_beside_the_flyout_still_takes_clicks() {
-    local flyout
-    flyout="$(awk '/id: createFlyout/ { on = 1 } on { print } on && /^    }$/ { exit }' "$MENU")"
-
-    assert_contains "$(cat "$COMMENU")" 'property bool modal: true' "menus are modal as before"
-    assert_contains "$(cat "$COMMENU")" 'acceptedButtons: !modal ? Qt.NoButton :' "a menu that is not modal takes no clicks outside itself"
-    assert_contains "$flyout" 'modal: false' "the flyout lets the clicks through to the menu it opens from"
-}
-
-test_the_flyout_has_the_same_background_and_blur_as_the_menu() {
-    local text
-    text="$(cat "$CONTENT")"
-
-    assert_contains "$text" 'panel: desktopContextMenu.createMenu.backgroundItem' "a panel behind it"
-    assert_contains "$text" 'target: desktopContextMenu.createMenu.visible ? desktopContextMenu.createMenu.backgroundItem : null' "and its blur"
-    assert_contains "$text" 'deformMatrix: createMenuBg.deformMatrix' "shaped like the panel"
+    assert_contains "$menu" 'if (key === "create_new")
+                    item.visible = Qt.binding(() => root.iconsShown);' "the submenu is shown only while desktop icons are"
+    assert_contains "$menu" '} else if (entry.action === "CreateFolder" || entry.action === "CreateTextFile") {' "its rows have their own look"
 }
 
 test_nexus_no_longer_offers_to_hand_the_desktop_to_plasma() {
-    local text
-    text="$(cat "$PAGE")"
-
-    assert_eq "0" "$(grep -c 'Show KDE Desktop' "$PAGE")" "the switch is gone"
-    assert_eq "0" "$(grep -c 'setting: "wallpaperEnabled"' "$PAGE")" "nothing on the page writes it any more"
-    assert_contains "$(awk '/ToggleRow \{/ { n++ } n == 1 { print } n == 2 { exit }' "$PAGE")" 'first: true' "the next row is the first of the group"
+    local page
+    for page in "$PAGE" "$SHELL_DIR/modules/nexus/pages/desktop/DesktopSettingsPage.qml"; do
+        assert_eq "0" "$(grep -c 'Show KDE Desktop' "$page")" "the switch is gone from $(basename "$page")"
+        assert_eq "0" "$(grep -c 'setting: "wallpaperEnabled"' "$page")" "nothing on $(basename "$page") writes it any more"
+    done
 }
 
 run_tests

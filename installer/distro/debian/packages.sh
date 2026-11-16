@@ -14,6 +14,8 @@ source "${BUNDLE_DIR:-$(cd "$(dirname "${BASH_SOURCE[0]}")/../../.." && pwd)}/sc
 source "${BUNDLE_DIR:-$(cd "$(dirname "${BASH_SOURCE[0]}")/../../.." && pwd)}/scripts/lib/darkly.sh"
 # shellcheck source=scripts/lib/matugen.sh
 source "${BUNDLE_DIR:-$(cd "$(dirname "${BASH_SOURCE[0]}")/../../.." && pwd)}/scripts/lib/matugen.sh"
+# shellcheck source=scripts/lib/fonts.sh
+source "${BUNDLE_DIR:-$(cd "$(dirname "${BASH_SOURCE[0]}")/../../.." && pwd)}/scripts/lib/fonts.sh"
 
 darkly_deb_asset_url() {
     local release_json id ver needle url
@@ -75,6 +77,8 @@ CORE_PACKAGES=(
     libkf6config-dev libkf6networkmanagerqt-dev libkpipewire-dev
     libepoxy-dev libdrm-dev
 
+    libkf6runner-dev baloo6
+
     ffmpeg libavcodec-dev libavformat-dev libavutil-dev libswscale-dev
     libqalculate-dev qalc libvulkan-dev libsecret-1-dev ksshaskpass libx11-dev
     libsecret-tools
@@ -92,10 +96,11 @@ THEME_PACKAGES=(
 )
 
 UTILITY_PACKAGES=(
-    fuzzel swappy ddcutil network-manager imagemagick
+    fuzzel swappy ddcutil network-manager iw imagemagick
     tesseract-ocr tesseract-ocr-eng kde-spectacle slurp grim
     brightnessctl power-profiles-daemon
     xdg-utils sassc python3-venv uv konsave
+    print-manager plasma-keyboard
 )
 
 FALLBACK_PKGS=(
@@ -379,6 +384,10 @@ unzip -qo "/tmp/JetBrainsMono.zip" -d "${XDG_DATA_HOME:-$HOME/.local/share}/font
 [[ -f "${XDG_DATA_HOME:-$HOME/.local/share}/fonts/Rubik-VariableFont_wght.ttf" ]] || { err "Failed to download Rubik font."; FAILED_PKGS+=("Rubik font"); }
 
 fc-cache -f
+
+# SDDM runs as its own user and never reads the user's font directory, so the
+# fonts above are mirrored system-wide.
+mirror_login_fonts || FAILED_PKGS+=("Login screen fonts")
 
 info "Installing Darkly KDE Theme from prebuilt package..."
 if [[ "$INSTALL_DARKLY" == "true" ]]; then

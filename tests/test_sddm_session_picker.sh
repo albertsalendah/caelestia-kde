@@ -34,20 +34,18 @@ test_the_mini_theme_has_no_picker_switch() {
     assert_not_contains "$(cat "$MINI_THEME/theme.conf")" 'sessionPicker' "the mini theme has no such key, so it is not part of this setting"
 }
 
-test_the_picker_fills_its_list_when_the_sessions_appear_not_only_at_completion() {
+# Upstream (v2.7.0) reads the names straight from the session model in a binding, so the list
+# follows the model whenever it fills and nothing depends on when a delegate is made. That replaces
+# the fork's earlier instantiator, which had to be refreshed from each delegate (Fedora 44, Qt 6.11).
+test_the_picker_reads_its_list_from_the_model_so_it_follows_the_model() {
     local qml
     qml="$(cat "$FULL_THEME/components/SessionPicker.qml")"
 
-    # The instantiator can make its items after the picker has completed; reading them once
-    # at completion gave an empty label and an empty list.
-    assert_contains "$qml" 'function refresh(): void {' "one function builds the list and the label"
-    assert_contains "$qml" 'name: model.name
-                });
-                root.refresh();' "each session refreshes the picker when it appears"
-    assert_contains "$qml" 'Component.onCompleted: root.refresh()' "completion refreshes too, for sessions that are already there"
-    assert_contains "$qml" 'onSelectedIndexChanged: root.refresh()' "and so does a change of the selection"
-    assert_not_contains "$qml" 'sessionArray.sessions[root.selectedIndex].name' "nothing indexes a list that may still be empty"
-    assert_contains "$qml" 'sessions[i].name ?? ""' "a session with no name gives an empty label, not undefined"
+    assert_contains "$qml" 'names.push(sessionModel.data(sessionModel.index(i, 0), root.sessionNameRole));' "the names come from the model itself"
+    assert_contains "$qml" 'readonly property int sessionNameRole: Qt.UserRole + 4' "by SDDM's name role"
+    assert_contains "$qml" 'readonly property string currentText: root.items[root.selectedIndex] ?? ""' "a missing entry gives an empty label, not undefined"
+    assert_contains "$qml" 'property int selectedIndex: sessionModel ? sessionModel.lastIndex : 0' "it starts on the session used last"
+    assert_not_contains "$qml" 'Instantiator' "no delegate has to run before the list exists"
 }
 
 # On Fedora 44 (Qt 6.11) the label next to the session icon stayed blank while the dropdown,

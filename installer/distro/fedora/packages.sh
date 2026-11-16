@@ -14,6 +14,8 @@ source "${BUNDLE_DIR:-$(cd "$(dirname "${BASH_SOURCE[0]}")/../../.." && pwd)}/sc
 source "${BUNDLE_DIR:-$(cd "$(dirname "${BASH_SOURCE[0]}")/../../.." && pwd)}/scripts/lib/darkly.sh"
 # shellcheck source=scripts/lib/matugen.sh
 source "${BUNDLE_DIR:-$(cd "$(dirname "${BASH_SOURCE[0]}")/../../.." && pwd)}/scripts/lib/matugen.sh"
+# shellcheck source=scripts/lib/fonts.sh
+source "${BUNDLE_DIR:-$(cd "$(dirname "${BASH_SOURCE[0]}")/../../.." && pwd)}/scripts/lib/fonts.sh"
 
 darkly_rpm_asset_url() {
     local release_json ver url
@@ -57,6 +59,8 @@ CORE_PACKAGES=(
     kf6-networkmanager-qt-devel kpipewire kpipewire-devel
     libepoxy-devel libdrm-devel
 
+    kf6-krunner-devel kf6-baloo
+
     libqalculate libqalculate-devel libsecret vulkan-headers ksshaskpass libX11-devel
 
     protobuf-devel protobuf-compiler openssl-devel avahi
@@ -73,10 +77,11 @@ THEME_PACKAGES=(
 )
 
 UTILITY_PACKAGES=(
-    fuzzel swappy ddcutil NetworkManager ImageMagick
+    fuzzel swappy ddcutil NetworkManager iw ImageMagick
     tesseract tesseract-langpack-eng spectacle gpu-screen-recorder
     slurp grim brightnessctl power-profiles-daemon
     xdg-utils sassc bat ripgrep xdg-user-dirs
+    plasma-print-manager plasma-keyboard
 )
 
 # What the independent session (KWin + the Caelestia shell, no plasmashell) needs from KDE; the
@@ -378,6 +383,10 @@ install_custom_fonts() {
     fi
 }
 install_custom_fonts
+
+# SDDM runs as its own user and never reads the user's font directory, so the
+# fonts above are mirrored system-wide.
+mirror_login_fonts || FAILED_PKGS+=("Login screen fonts")
 
 info "Installing Darkly KDE Theme from COPR..."
 if [[ "$INSTALL_DARKLY" == "true" ]]; then

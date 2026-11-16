@@ -17,6 +17,7 @@ Singleton {
     property bool loading: false
     property bool cacheValid: false
     property bool writeQueued: false
+    property bool editMode: false
     property real loadStartedAt: 0
     property real saveStartedAt: 0
 
@@ -25,18 +26,43 @@ Singleton {
     function defaultEntries() {
         return [
             { id: "paste", label: qsTr("Paste"), icon: "content_paste", action: "Paste", enabled: true, type: "default" },
-            { id: "create_new", label: qsTr("Create New"), icon: "add_circle", action: "CreateNew", enabled: true, type: "default" },
-            { id: "add_widget", label: qsTr("Add Widget"), icon: "widgets", action: "AddWidget", enabled: true, type: "default" },
+            createNewGroupEntry(defaultCreateNewEntries()),
+            widgetGroupEntry(defaultWidgetEntries()),
             { id: "arrange_icons", label: qsTr("Arrange Icons"), icon: "sort", action: "ArrangeIcons", enabled: true, type: "default" },
-            { id: "toggle_widget_lock", label: qsTr("Lock Widgets"), icon: "lock", action: "ToggleWidgetLock", enabled: true, type: "default" },
-            { id: "toggle_widget_outlines", label: qsTr("Widget Outlines"), icon: "check_box_outline_blank", action: "ToggleWidgetOutlines", enabled: true, type: "default" },
             { id: "toggle_desktop_icons", label: qsTr("Desktop Icons"), icon: "desktop_windows", action: "ToggleDesktopIcons", enabled: true, type: "default" },
+            { id: "enter_edit_mode", label: qsTr("Edit Plasma Widgets"), icon: "dashboard", action: "EnterEditMode", enabled: true, type: "default" },
             { id: "next_wallpaper", label: qsTr("Next Wallpaper"), icon: "skip_next", action: "Wallpapers.next()", enabled: true, type: "default" },
             { id: "wallpaper_style", label: qsTr("Wallpaper & style"), icon: "wallpaper", action: "WindowFactory.create()", enabled: true, type: "default" },
             { id: "system_settings", label: qsTr("System Settings"), icon: "settings", command: "systemsettings", enabled: true, type: "default" },
             { id: "open_terminal", label: qsTr("Open Terminal"), icon: "terminal", command: "terminal", enabled: true, type: "default" },
             { id: "add_shortcut", label: qsTr("Add Shortcut..."), icon: "add", action: "OpenRightClickMenu", enabled: true, type: "default" }
         ];
+    }
+
+    function defaultWidgetEntries() {
+        return [
+            { id: "edit_widgets", label: qsTr("Edit Widgets"), icon: "edit", action: "EditWidgets", enabled: true, type: "default" },
+            { id: "add_widget", label: qsTr("Add Widget"), icon: "widgets", action: "AddWidget", enabled: true, type: "default" },
+            { id: "toggle_widget_lock", label: qsTr("Lock Widgets"), icon: "lock", action: "ToggleWidgetLock", enabled: true, type: "default" },
+            { id: "toggle_widget_outlines", label: qsTr("Widget Outlines"), icon: "check_box_outline_blank", action: "ToggleWidgetOutlines", enabled: true, type: "default" }
+        ];
+    }
+
+    function widgetGroupEntry(children) {
+        return { id: "widgets", label: qsTr("Widgets"), icon: "widgets", type: "group", enabled: true, children: children };
+    }
+
+    // "Create New" on the desktop: a submenu with what can be made where the menu was opened. It is a
+    // group like "Widgets"; the actions are run by DesktopContextMenu.
+    function defaultCreateNewEntries() {
+        return [
+            { id: "create_folder", label: qsTr("Folder"), icon: "create_new_folder", action: "CreateFolder", enabled: true, type: "default" },
+            { id: "create_text_file", label: qsTr("Text File"), icon: "note_add", action: "CreateTextFile", enabled: true, type: "default" }
+        ];
+    }
+
+    function createNewGroupEntry(children) {
+        return { id: "create_new", label: qsTr("Create New"), icon: "add_circle", type: "group", enabled: true, children: children };
     }
 
     // The saved list with every default entry it lacks added. A new default goes right after the
@@ -62,6 +88,92 @@ Singleton {
         return merged;
     }
 
+    function isWidgetAction(action) {
+        return action === "EditWidgets" || action === "AddWidget" || action === "ToggleWidgetLock" || action === "ToggleWidgetOutlines";
+    }
+
+    function migrateEntries(entries) {
+        const result = [];
+        let group = null;
+
+        for (let i = 0; i < entries.length; i++) {
+            const entry = entries[i];
+            if (!entry || typeof entry !== "object")
+                continue;
+
+            if (entry.type === "group" && entry.id === "widgets") {
+                if (!group) {
+                    group = entry;
+                    result.push(group);
+                }
+                continue;
+            }
+
+            // A menu saved before "Create New" became a submenu has it as one row.
+            if (entry.action === "CreateNew" || (entry.type === "group" && entry.id === "create_new")) {
+                const saved = Array.isArray(entry.children) ? entry.children : [];
+                const kids = defaultCreateNewEntries().map(def => {
+                    const old = saved.find(c => c && c.id === def.id);
+                    return old && old.enabled === false ? Object.assign({}, def, { enabled: false }) : def;
+                });
+                const made = createNewGroupEntry(kids);
+                made.enabled = entry.enabled !== false;
+                result.push(made);
+                continue;
+            }
+
+            if (isWidgetAction(entry.action)) {
+                if (!group) {
+                    group = widgetGroupEntry([]);
+                    result.push(group);
+                }
+                group.children.push(entry);
+                continue;
+            }
+
+            result.push(entry);
+        }
+
+        if (!group)
+            return result;
+
+        if (!Array.isArray(group.children))
+            group.children = [];
+
+        const defaults = defaultWidgetEntries();
+        const children = [];
+        const seen = [];
+
+        for (let i = 0; i < group.children.length; i++) {
+            const child = group.children[i];
+            if (!child || typeof child !== "object" || !isWidgetAction(child.action) || seen.includes(child.action))
+                continue;
+
+            const def = defaults.find(d => d.action === child.action);
+            child.id = child.id || (def ? def.id : child.action);
+            child.label = def ? def.label : child.label;
+            child.icon = def ? def.icon : child.icon;
+            child.type = "default";
+            child.enabled = child.enabled !== false;
+            seen.push(child.action);
+            children.push(child);
+        }
+
+        for (let i = 0; i < defaults.length; i++) {
+            if (!seen.includes(defaults[i].action))
+                children.push(defaults[i]);
+        }
+
+        group.label = qsTr("Widgets");
+        group.icon = "widgets";
+        group.type = "group";
+        group.children = children;
+        if (group.enabled === undefined)
+            group.enabled = true;
+
+        return result;
+    }
+
     function iconsShownOn(screenName: string): bool {
         return GlobalConfig.forScreen(screenName).background.desktopIconsEnabled;
     }
@@ -69,7 +181,8 @@ Singleton {
     // Flips the icons as seen on the given screen and applies the result to
     // every screen, dropping per-screen overrides so they stay in step.
     function toggleIcons(screenName: string): void {
-        GlobalConfig.background.desktopIconsEnabled = !iconsShownOn(screenName);
+        const nextState = !iconsShownOn(screenName);
+        GlobalConfig.background.desktopIconsEnabled = nextState;
         for (const screen of Quickshell.screens)
             GlobalConfig.forScreen(screen.name)?.background.resetOption("desktopIconsEnabled");
         GlobalConfig.save();
@@ -132,6 +245,7 @@ Singleton {
                 if (!parsed || parsed.length === 0) {
                     parsed = root.defaultEntries();
                 } else {
+                    parsed = root.migrateEntries(parsed);
                     const defaults = root.defaultEntries();
                     const defaultMap = {};
                     for (let i = 0; i < defaults.length; i++) {

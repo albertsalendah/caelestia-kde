@@ -50,6 +50,8 @@ CORE_PACKAGES=(
 
     kglobalaccel kglobalacceld kguiaddons kwindowsystem
     kcoreaddons kconfig networkmanager-qt kpipewire kwin
+    
+    krunner baloo
 
     ffmpeg libqalculate libsecret ksshaskpass libx11 vulkan-headers
 
@@ -68,9 +70,10 @@ THEME_PACKAGES=(
 )
 
 UTILITY_PACKAGES=(
-    fuzzel swappy ddcutil networkmanager imagemagick tesseract tesseract-data-eng
+    fuzzel swappy ddcutil networkmanager iw imagemagick tesseract tesseract-data-eng
     satty spectacle gpu-screen-recorder slurp grim brightnessctl power-profiles-daemon
     xdg-utils sassc bat ripgrep lazygit xdg-user-dirs
+    print-manager plasma-keyboard
 )
 
 # What the independent session (KWin + the Caelestia shell, no plasmashell) needs from KDE.

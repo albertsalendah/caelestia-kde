@@ -560,8 +560,8 @@ test_the_splash_is_part_of_what_the_build_installs() {
 
 # --- the page and the service ----------------------------------------------------------------------------
 
-test_the_page_is_registered_at_the_same_place_in_both_lists_before_updates() {
-    local dict_idx comp_idx splash updates
+test_the_page_is_registered_at_the_same_place_in_both_lists_after_the_shell_pages() {
+    local dict_idx comp_idx splash services
     dict_idx="$(grep -E '^ {12}key: "' "$DICTIONARY_QML" | grep -n -m1 'key: "splash"' | cut -d: -f1)"
     comp_idx="$(awk '
         /readonly property list<Component> pageComps/ { on = 1 }
@@ -571,8 +571,8 @@ test_the_page_is_registered_at_the_same_place_in_both_lists_before_updates() {
     assert_ne "" "$comp_idx" "the page must be in the component list"
     assert_eq "$dict_idx" "$comp_idx" "pages and components are matched by position"
     splash="$(grep -n '^ *key: "splash",$' "$DICTIONARY_QML" | head -1 | cut -d: -f1)"
-    updates="$(grep -n '^ *key: "updates",$' "$DICTIONARY_QML" | head -1 | cut -d: -f1)"
-    [[ -n "$splash" && -n "$updates" && "$splash" -lt "$updates" ]] || fail "Splash must come before Updates"
+    services="$(grep -n '^ *key: "services",$' "$DICTIONARY_QML" | head -1 | cut -d: -f1)"
+    [[ -n "$splash" && -n "$services" && "$splash" -gt "$services" ]] || fail "Splash must come after the services page (the fork pages are appended)"
     assert_contains "$(sed -n "$splash,$((splash + 6))p" "$DICTIONARY_QML")" 'category: "system"' "the system group"
 }
 

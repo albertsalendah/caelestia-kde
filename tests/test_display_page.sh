@@ -135,7 +135,7 @@ test_snapshot_ignores_a_later_change_to_the_list() {
 
 test_the_page_is_registered_at_the_same_place_in_both_lists() {
     local dict_idx comp_idx
-    dict_idx="$(grep -E '^ {12}key: "' "$DICTIONARY_QML" | grep -n -m1 'key: "display"' | cut -d: -f1)"
+    dict_idx="$(grep -E '^ {12}key: "' "$DICTIONARY_QML" | grep -n -m1 'key: "displays"' | cut -d: -f1)"
     comp_idx="$(awk '
         /readonly property list<Component> pageComps/ { on = 1 }
         on && /^        Component \{$/ { n++ }
@@ -145,12 +145,10 @@ test_the_page_is_registered_at_the_same_place_in_both_lists() {
     assert_eq "$dict_idx" "$comp_idx" "pages and components are matched by position, so both must have it at the same place"
 }
 
-test_the_page_sits_with_the_system_pages_before_updates() {
-    local display updates
-    display="$(grep -n '^ *key: "display",$' "$DICTIONARY_QML" | head -1 | cut -d: -f1)"
-    updates="$(grep -n '^ *key: "updates",$' "$DICTIONARY_QML" | head -1 | cut -d: -f1)"
-    [[ -n "$display" && -n "$updates" && "$display" -lt "$updates" ]] || fail "Display must come before Updates"
-    assert_contains "$(sed -n "$display,$((display + 6))p" "$DICTIONARY_QML")" 'category: "system"' "it belongs to the system group"
+test_the_page_is_the_first_sub_page_of_display_and_sound_and_upstreams_mode_page_is_not_used() {
+    assert_contains "$(cat "$REGISTRY_QML")" 'SubPage { slot: 0; key: "displays"; Component { DisplayPage {} } }' "our page is slot 0 of Display & Sound"
+    assert_eq "0" "$(grep -c 'DisplayModesPage' "$REGISTRY_QML" "$DICTIONARY_QML" | awk -F: '{ s += $2 } END { print s }')" "upstream's mode page is not part of the fork"
+    assert_eq "0" "$(grep -c 'subPageIdx: 1 }' <(grep 'display/DisplayPage.qml' "$DICTIONARY_QML"))" "every display entry opens slot 0"
 }
 
 test_the_qml_files_import_the_logic_from_a_path_that_exists() {

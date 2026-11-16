@@ -13,7 +13,7 @@ Item {
     required property var list
     readonly property string math: list.search.text.slice(`${GlobalConfig.launcher.actionPrefix}calc `.length)
 
-    function onClicked(): void {
+    function activate(): void {
         Quickshell.execDetached(["wl-copy", Qalculator.rawResult]);
         root.list.visibilities.launcher = false;
     }
@@ -30,7 +30,7 @@ Item {
 
     StateLayer {
         radius: Tokens.rounding.large
-        onClicked: root.onClicked()
+        onClicked: root.activate()
     }
 
     RowLayout {

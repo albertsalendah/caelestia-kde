@@ -24,7 +24,6 @@ LOGOUT="$GUARD$KDE_LOGOUT"
 SITES=(
     "shell/modules/launcher/Content.qml"
     "shell/modules/session/Content.qml"
-    "shell/modules/nexus/pages/desktop/KrohnkitePage.qml"
     "src/kde/shells/caelestia.desktop/contents/lockscreen/components/Session.qml"
     "installer/tui/main.cpp"
     "uninstall.sh"

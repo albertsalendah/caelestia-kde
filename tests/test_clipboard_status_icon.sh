@@ -265,7 +265,7 @@ test_a_pinned_popout_stays_until_it_is_dismissed() {
     assert_contains "$check" 'if (popouts.pinned)' "hovering the bar leaves a pinned popout alone"
     local timer
     timer="$(sed -n '/id: popoutHideTimer/,/^    }/p' "$INTERACTIONS")"
-    assert_contains "$timer" 'if (popouts.pinned)' "so does leaving it with the pointer"
+    assert_contains "$timer" 'if (popouts.pinned || popouts.isContextPopout || panels.popoutsWrapper.hovered)' "so does leaving it with the pointer"
     assert_file_contains "$CONTENT_WINDOW" '(panels.popouts.pinned && panels.popouts.hasCurrent)' \
         "a pinned popout takes the focus grab, so a click outside it closes it"
 }
@@ -291,10 +291,10 @@ test_meta_v_opens_the_popout_and_falls_back_to_the_launcher() {
     press="$(sed -n '/name: "clipboard"/,/^    }/p' "$SHORTCUTS")"
     assert_contains "$press" 'if (Visibilities.openClipboardPopout())
                 return;' "the shortcut tries the popout first"
-    assert_contains "$press" 'actionPrefix}clipboard' "and keeps the launcher's list as the fallback"
+    assert_contains "$press" 'Visibilities.toggleLauncher("clipboard")' "and keeps the launcher's list as the fallback"
     local before after
     before="$(grep -n 'openClipboardPopout()' "$SHORTCUTS" | head -1 | cut -d: -f1)"
-    after="$(grep -n 'launcherInitialSearch = ' "$SHORTCUTS" | head -20 | cut -d: -f1 | while read -r n; do [[ "$n" -gt "$before" ]] && echo "$n" && break; done)"
+    after="$(grep -n 'toggleLauncher("clipboard")' "$SHORTCUTS" | head -20 | cut -d: -f1 | while read -r n; do [[ "$n" -gt "$before" ]] && echo "$n" && break; done)"
     [[ -n "$before" && -n "$after" && "$before" -lt "$after" ]] || fail "the popout comes before the launcher fallback"
     assert_file_contains "$VISIBILITIES" 'function openClipboardPopout(): bool {' "the service finds the opener"
     assert_file_contains "$VISIBILITIES" 'clipboardOpeners.get(Kwin.cursorOutputName())' \

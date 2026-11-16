@@ -127,7 +127,9 @@ test_a_missing_kdeglobals_is_created() {
 run_apply_kde() {
     local bash_bin
     bash_bin="$(command -v bash)"
-    PATH="$MACHINE/bin" CONFIG_HOME="$MACHINE/config" DATA_HOME="$MACHINE/data" \
+    # apply_kde first sets a dynamic scheme's selection text from the scheme file.
+    printf '{"name": "other"}\n' > "$MACHINE/scheme.json"
+    PATH="$MACHINE/bin" CONFIG_HOME="$MACHINE/config" DATA_HOME="$MACHINE/data" SCHEME_FILE="$MACHINE/scheme.json" \
         "$bash_bin" -c "
 warn() { echo \"WARN: \$*\"; }
 $(declare -f py)
