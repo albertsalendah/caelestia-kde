@@ -45,6 +45,8 @@ private:
     void call(const QString& path, const QString& iface, const QString& method, const QVariantList& args = {});
     void callManager(const QString& method);
     void callSession(const QString& method);
+    [[nodiscard]] bool callPlasmaShutdown(const QString& method);
+    [[nodiscard]] static bool stopCaelestiaSession();
 
     QString m_sessionPath;
 };

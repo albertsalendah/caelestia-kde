@@ -1,11 +1,14 @@
 #include "sessionmanager.hpp"
 
 #include <QtDBus/qdbusconnection.h>
+#include <QtDBus/qdbusconnectioninterface.h>
 #include <QtDBus/qdbuserror.h>
 #include <QtDBus/qdbusmessage.h>
 #include <QtDBus/qdbuspendingcall.h>
 #include <QtDBus/qdbuspendingreply.h>
 #include <QtDBus/qdbusreply.h>
+#include <qfile.h>
+#include <qprocess.h>
 #include <qloggingcategory.h>
 
 #include "../toaster.hpp"
@@ -22,6 +25,11 @@ const QString LOGIN_SERVICE = QStringLiteral("org.freedesktop.login1");
 const QString LOGIN_PATH = QStringLiteral("/org/freedesktop/login1");
 const QString LOGIN_IFACE = QStringLiteral("org.freedesktop.login1.Manager");
 const QString SESSION_IFACE = QStringLiteral("org.freedesktop.login1.Session");
+
+// Plasma's ksmserver. Going through it (rather than straight to logind) lets it
+// save the session for "restore previous session" and close apps gracefully.
+const QString PLASMA_SHUTDOWN_SERVICE = QStringLiteral("org.kde.Shutdown");
+const QString PLASMA_SHUTDOWN_PATH = QStringLiteral("/Shutdown");
 
 } // namespace
 
@@ -89,8 +97,25 @@ bool SessionManager::exec(const QStringList& command) {
     return false;
 }
 
+// The session program of the Caelestia session (src/session/caelestia-wm-session) keeps this marker
+// while the session runs. There a logout is what the session menu runs: stop graphical-session.target,
+// so the apps end before KWin. KDE's org.kde.Shutdown, where plasma-workspace is installed, ends the
+// session compositor-first and its clients abort.
+bool SessionManager::stopCaelestiaSession() {
+    const QString runtimeDir = qEnvironmentVariable("XDG_RUNTIME_DIR");
+    if (runtimeDir.isEmpty() || !QFile::exists(runtimeDir + QStringLiteral("/caelestia-session-active")))
+        return false;
+
+    return QProcess::startDetached(QStringLiteral("systemctl"),
+        { QStringLiteral("--user"), QStringLiteral("stop"), QStringLiteral("graphical-session.target") });
+}
+
 void SessionManager::logout() {
-    callSession(QStringLiteral("Terminate"));
+    if (stopCaelestiaSession())
+        return;
+
+    if (!callPlasmaShutdown(QStringLiteral("logout")))
+        callSession(QStringLiteral("Terminate"));
 }
 
 void SessionManager::suspend() {
@@ -124,11 +149,13 @@ void SessionManager::hibernate() {
 }
 
 void SessionManager::poweroff() {
-    callManager(QStringLiteral("PowerOff"));
+    if (!callPlasmaShutdown(QStringLiteral("logoutAndShutdown")))
+        callManager(QStringLiteral("PowerOff"));
 }
 
 void SessionManager::reboot() {
-    callManager(QStringLiteral("Reboot"));
+    if (!callPlasmaShutdown(QStringLiteral("logoutAndReboot")))
+        callManager(QStringLiteral("Reboot"));
 }
 
 std::optional<QDBusConnection> SessionManager::getSystemBus() const {
@@ -173,6 +200,23 @@ void SessionManager::call(const QString& path, const QString& iface, const QStri
             qCWarning(lcSessionManager) << "Call to" << method << "failed:" << reply.error().message();
         self->deleteLater();
     });
+}
+
+bool SessionManager::callPlasmaShutdown(const QString& method) {
+    auto bus = QDBusConnection::sessionBus();
+    if (!bus.isConnected())
+        return false;
+
+    // plasma-shutdown isn't a running daemon: it's D-Bus activated on demand, so on a fresh
+    // session it is only activatable. The message below auto-starts it.
+    const auto* const iface = bus.interface();
+    if (!iface->isServiceRegistered(PLASMA_SHUTDOWN_SERVICE) &&
+        !iface->activatableServiceNames().value().contains(PLASMA_SHUTDOWN_SERVICE))
+        return false;
+
+    const auto msg =
+        QDBusMessage::createMethodCall(PLASMA_SHUTDOWN_SERVICE, PLASMA_SHUTDOWN_PATH, PLASMA_SHUTDOWN_SERVICE, method);
+    return bus.send(msg);
 }
 
 void SessionManager::callManager(const QString& method) {
