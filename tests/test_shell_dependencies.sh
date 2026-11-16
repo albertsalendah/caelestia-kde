@@ -12,9 +12,9 @@ DEBIAN_PACKAGES="$REPO_ROOT/installer/distro/debian/packages.sh"
 SERVICES_PAGE="$REPO_ROOT/shell/modules/nexus/pages/ServicesPage.qml"
 
 # The shell defers three desktop duties to KDE: system search, printing and the
-# on-screen keyboard. Each one is dead without its package, so the installer has to
-# pull them in and Nexus has to say where they are configured.
-test_installer_pulls_the_peers_those_features_need() {
+# on-screen keyboard. Nexus has to say where they are configured. The installer pulls in
+# only system search here: the other two would bring Plasma's desktop packages with them.
+test_installer_pulls_the_peers_the_fork_can_take() {
     local arch fedora debian
     arch="$(cat "$ARCH_PACKAGES")"
     fedora="$(cat "$FEDORA_PACKAGES")"
@@ -22,8 +22,12 @@ test_installer_pulls_the_peers_those_features_need() {
 
     assert_contains "$arch" 'krunner baloo' \
         "launcher search needs krunner and baloo installed"
-    assert_contains "$arch" 'print-manager plasma-keyboard' \
-        "printing and touch typing need their KDE peers installed"
+    # The fork does not install them: on Fedora plasma-print-manager and plasma-keyboard pull
+    # plasma-workspace and plasma-desktop back in (61 packages in a dnf preview, 11-16), and on
+    # Arch plasma-keyboard brings qt6-virtualkeyboard, which the fork dropped. The Services page
+    # says when a module is missing (Launch.kcmAvailable), so the rows stay and just say so.
+    assert_not_contains "$arch" 'print-manager' "Arch does not install the printing module"
+    assert_not_contains "$arch" 'plasma-keyboard' "nor the touch keyboard"
 
     # KF6Runner is optional in the build, so a list that forgets it loses the
     # launcher's search mode with nothing but a missing feature to show for it.
@@ -31,8 +35,8 @@ test_installer_pulls_the_peers_those_features_need() {
         "Fedora has to ship the runner headers the bridge compiles against"
     assert_contains "$fedora" 'kf6-baloo' \
         "and the indexer behind its file results"
-    assert_contains "$fedora" 'plasma-print-manager plasma-keyboard' \
-        "Fedora needs printing and touch typing peers installed"
+    assert_not_contains "$fedora" 'plasma-print-manager' "Fedora does not install the printing module (it needs plasma-workspace)"
+    assert_not_contains "$fedora" 'plasma-keyboard' "nor the touch keyboard"
     assert_contains "$debian" 'libkf6runner-dev' \
         "Debian has to ship the runner headers too"
     assert_contains "$debian" 'baloo6' \

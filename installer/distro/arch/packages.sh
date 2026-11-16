@@ -73,7 +73,6 @@ UTILITY_PACKAGES=(
     fuzzel swappy ddcutil networkmanager iw imagemagick tesseract tesseract-data-eng
     satty spectacle gpu-screen-recorder slurp grim brightnessctl power-profiles-daemon
     xdg-utils sassc bat ripgrep lazygit xdg-user-dirs
-    print-manager plasma-keyboard
 )
 
 # What the independent session (KWin + the Caelestia shell, no plasmashell) needs from KDE.

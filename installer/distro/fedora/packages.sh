@@ -81,7 +81,6 @@ UTILITY_PACKAGES=(
     tesseract tesseract-langpack-eng spectacle gpu-screen-recorder
     slurp grim brightnessctl power-profiles-daemon
     xdg-utils sassc bat ripgrep xdg-user-dirs
-    plasma-print-manager plasma-keyboard
 )
 
 # What the independent session (KWin + the Caelestia shell, no plasmashell) needs from KDE; the
