@@ -102,7 +102,6 @@ Item {
         anchors.fill: parent
         fillMode: Image.PreserveAspectCrop
         asynchronous: true
-        source: avatarCandidates.length > 0 ? avatarCandidates[avatarCandidateIndex] : ""
         layer.enabled: true
         onStatusChanged: {
             if (status === Image.Error && avatarCandidateIndex < avatarCandidates.length - 1)
