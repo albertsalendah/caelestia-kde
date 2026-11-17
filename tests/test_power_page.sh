@@ -255,24 +255,27 @@ test_the_low_battery_level_row_is_only_in_the_low_battery_section_and_writes_thr
 
 # --- the QML side, which has no runtime here: checked as text -------------------------------------
 
-test_the_page_is_registered_at_the_same_place_in_both_lists() {
-    local dict_idx comp_idx
-    dict_idx="$(grep -E '^ {12}key: "' "$DICTIONARY_QML" | grep -n -m1 'key: "power"' | cut -d: -f1)"
+test_the_page_is_a_sub_page_of_system_and_services() {
+    local dict_idx comp_idx subpane block
+    subpane="$SHELL_DIR/modules/nexus/SubcategoryPane.qml"
+    dict_idx="$(grep -E '^ {12}key: "' "$DICTIONARY_QML" | grep -n -m1 'key: "services"' | cut -d: -f1)"
     comp_idx="$(awk '
         /readonly property list<Component> pageComps/ { on = 1 }
         on && /^        Component \{$/ { n++ }
         on && /PowerPage \{\}/ { print n; exit }' "$REGISTRY_QML")"
-    assert_ne "" "$dict_idx" "the page must be in the dictionary"
-    assert_ne "" "$comp_idx" "the page must be in the component list"
-    assert_eq "$dict_idx" "$comp_idx" "pages and components are matched by position, so both must have it at the same place"
-}
-
-test_the_page_sits_with_the_system_pages_after_the_shell_pages() {
-    local power services
-    power="$(grep -n '^ *key: "power",$' "$DICTIONARY_QML" | head -1 | cut -d: -f1)"
-    services="$(grep -n '^ *key: "services",$' "$DICTIONARY_QML" | head -1 | cut -d: -f1)"
-    [[ -n "$power" && -n "$services" && "$power" -gt "$services" ]] || fail "Power must come after the services page (the fork pages are appended)"
-    assert_contains "$(sed -n "$power,$((power + 6))p" "$DICTIONARY_QML")" 'category: "system"' "it belongs to the system group"
+    assert_ne "" "$dict_idx" "the parent page must be in the dictionary"
+    assert_eq "$dict_idx" "$comp_idx" "PowerPage is a slot of the System & Services stack (pages and components are matched by position)"
+    assert_contains "$(cat "$REGISTRY_QML")" 'SubPage { slot: 12; key: "power"; Component { PowerPage {} } }' "registered as slot 12"
+    assert_eq "0" "$(grep -c 'key: "power"' "$DICTIONARY_QML")" "it is no page of its own any more"
+    assert_eq "0" "$(grep 'PowerPage.qml' "$DICTIONARY_QML" | grep -c -v 'subPageIdx: 12 }')" "every entry of the page opens slot 12"
+    block="$(awk '/^ {12}key: "services",$/ { on = 1; next } on && /^ {12}key: "/ { exit } on { print }' "$DICTIONARY_QML")"
+    assert_eq "0" "$(printf '%s\n' "$block" | grep 'subPageIdx: 12 }' | grep -c -v 'PowerPage.qml')" "in the services page only PowerPage uses slot 12"
+    assert_contains "$(cat "$DICTIONARY_QML")" 'pagePath: "PowerPage.qml", subPageIdx: 12 }' "its entries open the sub-page for search"
+    assert_contains "$(cat "$DICTIONARY_QML")" '"power": 7,' "the key still finds its page"
+    assert_contains "$(cat "$DICTIONARY_QML")" '"power": 12,' "and its sub-page"
+    assert_contains "$(cat "$subpane")" 'label: qsTr("Power")
+                    status: qsTr("Power profile, screen dimming, screen off, suspend")
+                    slot: 12' "the middle column has its card"
 }
 
 test_the_qml_files_import_the_logic_from_a_path_that_exists() {

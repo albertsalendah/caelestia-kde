@@ -27,7 +27,10 @@ QtObject {
                 { label: qsTr("Library & Components"), keywords: ["library", "community", "wallhaven", "online", "tags"], pagePath: "wallandstyle/LibraryAndCommunityPage.qml", subPageIdx: 6 },
                 { label: qsTr("Lock Screen"), keywords: ["lock", "wallpaper sync", "screen lock"], pagePath: "wallandstyle/LockScreenPage.qml", subPageIdx: 8 },
                 { label: qsTr("Fingerprint"), keywords: ["fingerprint", "unlock", "attempts", "tries", "howdy", "biometric"], pagePath: "wallandstyle/LockScreenPage.qml", subPageIdx: 8 },
-                { label: qsTr("Bezel mode"), keywords: ["pitch black", "bezels", "black", "theme and effects"], pagePath: "wallandstyle/AppearancePage.qml", subPageIdx: 7 }
+                { label: qsTr("Bezel mode"), keywords: ["pitch black", "bezels", "black", "theme and effects"], pagePath: "wallandstyle/AppearancePage.qml", subPageIdx: 7 },
+                { label: qsTr("Show a splash while logging in"), keywords: ["login", "startup", "loading", "logo", "splash screen"], pagePath: "SplashPage.qml", subPageIdx: 10 },
+                { label: qsTr("Preview the splash"), keywords: ["login", "startup", "test"], pagePath: "SplashPage.qml", subPageIdx: 10 },
+                { label: qsTr("Boot splash theme"), keywords: ["plymouth", "boot", "startup", "animation", "theme"], pagePath: "SplashPage.qml", subPageIdx: 10 }
             ]
         },
         {
@@ -170,6 +173,13 @@ QtObject {
             category: "system",
             settings: [
                 { label: qsTr("Session settings"), keywords: ["power", "shutdown", "logout", "reboot", "hibernate"], pagePath: "SessionPage.qml", subPageIdx: 0 },
+                { label: qsTr("Power profile"), keywords: ["performance", "balanced", "power saver", "battery", "energy"], pagePath: "PowerPage.qml", subPageIdx: 12 },
+                { label: qsTr("Dim screen after"), keywords: ["brightness", "idle", "inactivity", "battery", "screen"], pagePath: "PowerPage.qml", subPageIdx: 12 },
+                { label: qsTr("Turn off screen after"), keywords: ["display", "idle", "inactivity", "blank", "sleep", "screen"], pagePath: "PowerPage.qml", subPageIdx: 12 },
+                { label: qsTr("Suspend after"), keywords: ["sleep", "idle", "inactivity", "hibernate", "battery"], pagePath: "PowerPage.qml", subPageIdx: 12 },
+                { label: qsTr("When the lid is closed"), keywords: ["laptop", "close", "lid", "sleep", "suspend", "lock"], pagePath: "PowerPage.qml", subPageIdx: 12 },
+                { label: qsTr("When the power button is pressed"), keywords: ["shut down", "power off", "button", "sleep", "logout"], pagePath: "PowerPage.qml", subPageIdx: 12 },
+                { label: qsTr("Low battery"), keywords: ["battery", "critical", "power saver", "low"], pagePath: "PowerPage.qml", subPageIdx: 12 },
                 { label: qsTr("System Services"), keywords: ["daemons", "systemd", "tuning", "visualiser", "microphone", "cava"], pagePath: "ServicesPage.qml", subPageIdx: 1 },
                 { label: qsTr("Remote IPC"), keywords: ["discord", "steamgriddb", "activity", "arpc", "rpc"], pagePath: "services/ArpcPage.qml", subPageIdx: 2 },
                 { label: qsTr("Calendar Integration"), keywords: ["agenda", "events", "ics", "ical", "google", "nextcloud", "reminder"], pagePath: "services/CalendarPage.qml", subPageIdx: 3 },
@@ -182,39 +192,12 @@ QtObject {
                 { label: qsTr("Updates"), keywords: ["upgrade", "packages", "pacman", "dnf", "apt", "firmware"], pagePath: "UpdatesPage.qml", subPageIdx: 10 },
                 { label: qsTr("About System"), keywords: ["hardware", "specs", "cpu", "ram", "caelestia", "quickshell", "release", "uninstall"], pagePath: "AboutPage.qml", subPageIdx: 11 }
             ]
-        },
-        {
-            label: qsTr("Power"),
-            key: "power",
-            icon: "bolt",
-            description: qsTr("Power profile, screen dimming, screen off, suspend"),
-            category: "system",
-            settings: [
-                { label: qsTr("Power profile"), keywords: ["performance", "balanced", "power saver", "battery", "energy"] },
-                { label: qsTr("Dim screen after"), keywords: ["brightness", "idle", "inactivity", "battery", "screen"] },
-                { label: qsTr("Turn off screen after"), keywords: ["display", "idle", "inactivity", "blank", "sleep", "screen"] },
-                { label: qsTr("Suspend after"), keywords: ["sleep", "idle", "inactivity", "hibernate", "battery"] },
-                { label: qsTr("When the lid is closed"), keywords: ["laptop", "close", "lid", "sleep", "suspend", "lock"] },
-                { label: qsTr("When the power button is pressed"), keywords: ["shut down", "power off", "button", "sleep", "logout"] },
-                { label: qsTr("Low battery"), keywords: ["battery", "critical", "power saver", "low"] }
-            ]
-        },
-        {
-            label: qsTr("Splash"),
-            key: "splash",
-            icon: "hourglass_top",
-            description: qsTr("Login splash screen and boot splash theme"),
-            category: "system",
-            settings: [
-                { label: qsTr("Show a splash while logging in"), keywords: ["login", "startup", "loading", "logo", "splash screen"] },
-                { label: qsTr("Preview the splash"), keywords: ["login", "startup", "test"] },
-                { label: qsTr("Boot splash theme"), keywords: ["plymouth", "boot", "startup", "animation", "theme"] }
-            ]
         }
     ]
 
     readonly property var keyAliases: ({
         "appearance": 0,
+        "splash": 0,
         "desktop": 1,
         "panels": 2,
         "network": 3,
@@ -228,6 +211,7 @@ QtObject {
         "apps": 6,
         "shortcuts": 6,
         "session": 7,
+        "power": 7,
         "services": 7,
         "language": 7,
         "accessibility": 7,
@@ -241,6 +225,7 @@ QtObject {
 
     readonly property var defaultSubPages: ({
         "appearance": 1,
+        "splash": 10,
         "desktop": 4,
         "panels": 1,
         "network": 0,
@@ -254,6 +239,7 @@ QtObject {
         "apps": 0,
         "shortcuts": 3,
         "session": 0,
+        "power": 12,
         "services": 1,
         "arpc": 2,
         "calendar": 3,

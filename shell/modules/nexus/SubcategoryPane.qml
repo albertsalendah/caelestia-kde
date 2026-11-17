@@ -256,6 +256,12 @@ ColumnLayout {
                     status: qsTr("Islands, Pitch Black, Transparency")
                     slot: 7
                 }
+                SubcategoryCard {
+                    icon: "hourglass_top"
+                    label: qsTr("Splash")
+                    status: qsTr("Login splash screen and boot splash theme")
+                    slot: 10
+                }
             }
 
             // Page 1: Desktop & Tiling
@@ -521,6 +527,12 @@ ColumnLayout {
                     label: qsTr("Session settings")
                     status: qsTr("Power, lock, and logout options")
                     slot: 0
+                }
+                SubcategoryCard {
+                    icon: "bolt"
+                    label: qsTr("Power")
+                    status: qsTr("Power profile, screen dimming, screen off, suspend")
+                    slot: 12
                 }
                 SubcategoryCard {
                     icon: "build"

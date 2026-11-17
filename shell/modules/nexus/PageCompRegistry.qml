@@ -39,6 +39,7 @@ QtObject {
                 SubPage { slot: 7; key: "appearance"; Component { AppearancePage {} } }
                 SubPage { slot: 8; key: "lockScreen"; Component { LockScreenPage {} } }
                 SubPage { slot: 9; key: "advancedColors"; Component { AdvancedColorsPage {} } }
+                SubPage { slot: 10; key: "splash"; Component { SplashPage {} } }
             }
         },
         // Page 1: Desktop & Tiling
@@ -149,18 +150,7 @@ QtObject {
                 SubPage { slot: 9; key: "plugins"; Component { PluginsPage {} } }
                 SubPage { slot: 10; key: "updates"; Component { UpdatesPage {} } }
                 SubPage { slot: 11; key: "about"; Component { AboutPage {} } }
-            }
-        },
-        // Page 8: Power (fork)
-        Component {
-            StackPage {
-                SubPage { slot: 0; key: "power"; Component { PowerPage {} } }
-            }
-        },
-        // Page 9: Splash (fork)
-        Component {
-            StackPage {
-                SubPage { slot: 0; key: "splash"; Component { SplashPage {} } }
+                SubPage { slot: 12; key: "power"; Component { PowerPage {} } }
             }
         }
     ]
