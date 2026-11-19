@@ -14,6 +14,8 @@ source "${BUNDLE_DIR:-$(cd "$(dirname "${BASH_SOURCE[0]}")/../../.." && pwd)}/sc
 source "${BUNDLE_DIR:-$(cd "$(dirname "${BASH_SOURCE[0]}")/../../.." && pwd)}/scripts/lib/darkly.sh"
 # shellcheck source=scripts/lib/plasma-stub.sh
 source "${BUNDLE_DIR:-$(cd "$(dirname "${BASH_SOURCE[0]}")/../../.." && pwd)}/scripts/lib/plasma-stub.sh"
+# shellcheck source=scripts/lib/install-fs.sh
+source "${BUNDLE_DIR:-$(cd "$(dirname "${BASH_SOURCE[0]}")/../../.." && pwd)}/scripts/lib/install-fs.sh"
 
 info "Installing Arch packages..."
 
@@ -50,7 +52,7 @@ CORE_PACKAGES=(
 
     kglobalaccel kglobalacceld kguiaddons kwindowsystem
     kcoreaddons kconfig networkmanager-qt kpipewire kwin
-    
+
     krunner baloo
 
     ffmpeg libqalculate libsecret ksshaskpass libx11 vulkan-headers
@@ -203,14 +205,14 @@ build_from_source() {
     (
         cd "$tmpdir" || exit 1
         if [ -f "meson.build" ]; then
-            meson setup build && meson compile -C build && caelestia_sudo meson install -C build
+            meson setup build && meson compile -C build && install_staged_tree / meson install -C build
         elif [ -f "CMakeLists.txt" ]; then
-            cmake -B build && cmake --build build && caelestia_sudo cmake --install build
+            cmake -B build && cmake --build build && install_staged_tree / cmake --install build
         elif [ -x "autogen.sh" ] || [ -f "configure.ac" ] || [ -f "configure" ]; then
             if [ -x "autogen.sh" ]; then ./autogen.sh; fi
-            ./configure && make && caelestia_sudo make install
+            ./configure && make && install_staged_tree / make install
         elif [ -f "Makefile" ] || [ -f "makefile" ] || [ -f "GNUmakefile" ]; then
-            make && caelestia_sudo make install
+            make && install_staged_tree / make install
         else
             err "No recognized build system for $pkg; skipping source build."
             exit 1

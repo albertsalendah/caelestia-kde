@@ -96,26 +96,17 @@ MouseArea {
     signal itemSelected(item: MenuItem)
     signal rightClickedAt(real x, real y)
 
-    // Plays the opening animation again, e.g. after the menu moved while open.
     // Keeps a span of `size` that starts at `pos` inside 0..limit, `edge` away from both ends. A span
     // wider than the room starts at `edge`.
     function clampSpan(pos: real, size: real, limit: real, edge: real): real {
         return Math.max(edge, Math.min(pos, limit - size - edge));
     }
 
-    function replayReveal(): void {
-        if (!revealHorizontal || !expanded)
-            return;
-        revealOut.stop();
-        revealIn.stop();
-        menu.hScale = 0;
-        revealIn.start();
-    }
-
     function openSubmenu(row: Item, entries: var): void {
         closeTimer.stop();
         submenuRow = row;
         submenuItems = entries ?? [];
+        root.positionSubmenu();
         submenuOpen = true;
         Qt.callLater(root.positionSubmenu);
     }
@@ -125,9 +116,7 @@ MouseArea {
         if (!row || !submenu)
             return;
         const panelRight = menu.x + menu.implicitWidth;
-        const overlap = Tokens.padding.extraSmall / 2;
         submenu.opensRight = panelRight + submenu.implicitWidth <= root.width;
-        submenu.x = submenu.opensRight ? panelRight - overlap : menu.x - submenu.implicitWidth + overlap;
         const rowTop = row.mapToItem(root, 0, 0).y;
         const rowBottom = rowTop + row.height;
         const panelBottom = menu.y + menu.implicitHeight;
@@ -163,6 +152,7 @@ MouseArea {
         if (expanded) {
             closeTimer.stop();
         } else {
+            submenuOpen = false;
             submenuRow = null;
             submenuItems = [];
         }
@@ -212,6 +202,21 @@ MouseArea {
         Anim {
             type: root.revealHorizontal ? Anim.FastEffects : Anim.DefaultEffects
         }
+    }
+
+    // The menu lives outside the item it is attached to, so it would outlast a
+    // drawer or popout that hides that item. Close it along with the item.
+    Connections {
+        function onVisibleChanged(): void {
+            if (!root.attachTo || !root.attachTo.visible) {
+                root.closeSubmenu();
+                closeTimer.stop();
+                root.expanded = false;
+            }
+        }
+
+        enabled: root.expanded
+        target: root.attachTo
     }
 
     Timer {
@@ -363,6 +368,7 @@ MouseArea {
     Elevation {
         id: submenu
 
+        readonly property real overlap: Tokens.padding.extraSmall / 2
         property bool opensRight: true
         property real hScale: root.submenuOpen ? 1 : 0
         property bool flushTop: false
@@ -377,6 +383,7 @@ MouseArea {
         level: root.transparentBackground ? 0 : 2
         implicitWidth: Math.max(200, submenuColumn.implicitWidth + Tokens.padding.extraSmall * 2)
         implicitHeight: Math.min(root.maxHeight, submenuColumn.implicitHeight + Tokens.padding.extraSmall * 2)
+        x: opensRight ? (menu.x + menu.implicitWidth - overlap) : (menu.x + overlap - width)
         width: implicitWidth * hScale
         height: implicitHeight
         clip: true
@@ -487,8 +494,8 @@ MouseArea {
             // qmllint enable missing-property
             readonly property bool hasSubmenu: entries.length > 0
             readonly property bool active: modelData === root?.active || root?.submenuRow === item
-            readonly property int firstIndex: inSubmenu ? root.submenuFirstVisibleIndex : root.firstVisibleIndex
-            readonly property int lastIndex: inSubmenu ? root.submenuLastVisibleIndex : root.lastVisibleIndex
+            readonly property int firstIndex: (inSubmenu ? root?.submenuFirstVisibleIndex : root?.firstVisibleIndex) ?? -1
+            readonly property int lastIndex: (inSubmenu ? root?.submenuLastVisibleIndex : root?.lastVisibleIndex) ?? -1
 
             visible: item.modelData ? item.modelData.visible : false
 

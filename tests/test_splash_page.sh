@@ -12,7 +12,6 @@ PAGE_QML="$SHELL_DIR/modules/nexus/pages/SplashPage.qml"
 SPLASH_QML="$SHELL_DIR/modules/splash/shell.qml"
 SHELL_QML="$SHELL_DIR/shell.qml"
 PROGRAM="$REPO_ROOT/src/session/caelestia-wm-session"
-DICTIONARY_QML="$SHELL_DIR/modules/nexus/PageDictionary.qml"
 REGISTRY_QML="$SHELL_DIR/modules/nexus/PageCompRegistry.qml"
 
 # Runs a snippet against splash.js the way QML loads it (without its `.pragma library` line).
@@ -560,27 +559,22 @@ test_the_splash_is_part_of_what_the_build_installs() {
 
 # --- the page and the service ----------------------------------------------------------------------------
 
-test_the_page_is_a_sub_page_of_appearance() {
-    local dict_idx comp_idx subpane block
-    subpane="$SHELL_DIR/modules/nexus/SubcategoryPane.qml"
-    dict_idx="$(grep -E '^ {12}key: "' "$DICTIONARY_QML" | grep -n -m1 'key: "appearance"' | cut -d: -f1)"
-    comp_idx="$(awk '
-        /readonly property list<Component> pageComps/ { on = 1 }
-        on && /^        Component \{$/ { n++ }
-        on && /SplashPage \{\}/ { print n; exit }' "$REGISTRY_QML")"
-    assert_ne "" "$dict_idx" "the parent page must be in the dictionary"
-    assert_eq "$dict_idx" "$comp_idx" "SplashPage is a slot of the Appearance stack (pages and components are matched by position)"
-    assert_contains "$(cat "$REGISTRY_QML")" 'SubPage { slot: 10; key: "splash"; Component { SplashPage {} } }' "registered as slot 10"
-    assert_eq "0" "$(grep -c 'key: "splash"' "$DICTIONARY_QML")" "it is no page of its own any more"
-    assert_eq "0" "$(grep 'SplashPage.qml' "$DICTIONARY_QML" | grep -c -v 'subPageIdx: 10 }')" "every entry of the page opens slot 10"
-    block="$(awk '/^ {12}key: "appearance",$/ { on = 1; next } on && /^ {12}key: "/ { exit } on { print }' "$DICTIONARY_QML")"
-    assert_eq "0" "$(printf '%s\n' "$block" | grep 'subPageIdx: 10 }' | grep -c -v 'SplashPage.qml')" "in the appearance page only SplashPage uses slot 10"
-    assert_contains "$(cat "$DICTIONARY_QML")" 'pagePath: "SplashPage.qml", subPageIdx: 10 }' "its entries open the sub-page for search"
-    assert_contains "$(cat "$DICTIONARY_QML")" '"splash": 0,' "the key still finds its page"
-    assert_contains "$(cat "$DICTIONARY_QML")" '"splash": 10,' "and its sub-page"
-    assert_contains "$(cat "$subpane")" 'label: qsTr("Splash")
-                    status: qsTr("Login splash screen and boot splash theme")
-                    slot: 10' "the middle column has its card"
+category_block() {
+    # The registry lists each category as one block: print the one whose key is $1.
+    awk -v key="$1" '
+        /^        Category \{$/ { cat = ""; collecting = 1 }
+        collecting { cat = cat $0 "\n" }
+        /^        \},?$/ { if (index(cat, "\n            key: \"" key "\"\n")) printf "%s", cat; collecting = 0 }' "$REGISTRY_QML"
+}
+
+test_the_page_is_a_page_of_appearance() {
+    local block
+    block="$(category_block appearance)"
+    assert_ne "" "$block" "the Appearance category must be in the registry"
+    assert_contains "$block" 'key: "splash"' "Splash is a page of the Appearance category"
+    assert_contains "$block" 'component: Component { SplashPage {} }' "and it opens the splash page"
+    assert_contains "$block" 'status: qsTr("Login splash screen and boot splash theme")' "with the card text the page had"
+    assert_contains "$(cat "$SHELL_DIR/modules/nexus/PageRowIndex.qml")" 'label: qsTr("Show a splash while logging in")' "its rows are in the search index"
 }
 
 test_the_qml_files_import_the_logic_from_a_path_that_exists() {

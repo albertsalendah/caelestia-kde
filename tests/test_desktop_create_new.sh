@@ -10,7 +10,7 @@ ICONS="$SHELL_DIR/modules/background/DesktopIcons.qml"
 MENU="$SHELL_DIR/modules/background/DesktopContextMenu.qml"
 STORE="$SHELL_DIR/services/ContextMenuStore.qml"
 LAYOUT="$SHELL_DIR/services/DesktopLayout.qml"
-PAGE="$SHELL_DIR/modules/nexus/pages/DesktopPage.qml"
+PAGE="$SHELL_DIR/modules/nexus/pages/desktop/DesktopSettingsPage.qml"
 
 # "Create New" in the desktop's right-click menu is a submenu (Folder, Text File) like Widgets. The pick makes the item in the desktop folder at the click, and its name can be typed at
 # once. The choice of a free name runs for real in node; the wiring is checked as text.

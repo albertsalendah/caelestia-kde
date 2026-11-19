@@ -6,7 +6,9 @@
 # normalize_repo_url comes from here.
 source "$(dirname "${BASH_SOURCE[0]}")/update-state.sh"
 
-UPSTREAM_REPO_URL="https://github.com/ladybug-me/caelestia-kde.git"
+UPSTREAM_REPO_URL="https://github.com/caelestia-kde/caelestia.git"
+# The repository was renamed: a clone of the old address is still a clone of upstream.
+LEGACY_UPSTREAM_REPO_URL="https://github.com/ladybug-me/caelestia-kde.git"
 
 # clone_is_fork BUNDLE: succeeds when the clone's origin is a repository other than upstream's.
 # A clone with no origin is not counted as a fork: there is nothing else for it to follow.
@@ -14,7 +16,7 @@ clone_is_fork() {
     local origin
     origin="$(normalize_repo_url "$(git -C "$1" remote get-url origin 2>/dev/null || true)")"
 
-    [[ -n "$origin" && "${origin,,}" != "${UPSTREAM_REPO_URL,,}" ]]
+    [[ -n "$origin" && "${origin,,}" != "${UPSTREAM_REPO_URL,,}" && "${origin,,}" != "${LEGACY_UPSTREAM_REPO_URL,,}" ]]
 }
 
 # fork_update_branch BUNDLE [REQUESTED]: the branch to update in a clone of a fork, which is the

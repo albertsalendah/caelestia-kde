@@ -6,7 +6,9 @@ export PATH="$HOME/.local/bin:$PATH"
 # (.update_source) and the branch (.update_branch); one with no record is upstream's, as it always
 # was. src/bin/caelestia-check-updates carries an identical copy of this function, and
 # tests/test_update_source.sh keeps the two the same.
-UPSTREAM_REPO="https://github.com/ladybug-me/caelestia-kde.git"
+UPSTREAM_REPO="https://github.com/caelestia-kde/caelestia.git"
+# The repository was renamed: an install recorded under the old address is still upstream's.
+LEGACY_UPSTREAM_REPO="https://github.com/ladybug-me/caelestia-kde.git"
 resolve_update_source() {
     local config="${1:-$HOME/.config/quickshell/caelestia}" recorded branch
 
@@ -15,7 +17,7 @@ resolve_update_source() {
     FORK_BRANCH=""
 
     recorded="$(head -n 1 -- "$config/.update_source" 2>/dev/null | tr -d '[:space:]')"
-    if [[ -z "$recorded" || "${recorded,,}" == "${UPSTREAM_REPO,,}" ]]; then
+    if [[ -z "$recorded" || "${recorded,,}" == "${UPSTREAM_REPO,,}" || "${recorded,,}" == "${LEGACY_UPSTREAM_REPO,,}" ]]; then
         return 0
     fi
 
@@ -46,7 +48,9 @@ if command -v jq >/dev/null && [ -f "$HOME/.config/caelestia/shell.json" ]; then
 fi
 
 # UI updates (GitHub)
-REPO="$HOME/.cache/caelestia-update-repo"
+# The bare clone the commit count is taken from. It is a cache of the history of this install's
+# repository, so it lives with the other cached state rather than anywhere the user owns directly.
+REPO="$HOME/.cache/caelestia-kde/upstream.git"
 resolve_update_source
 STATE_CONFIG="$HOME/.config/quickshell/caelestia"
 STATE_HELPER=""

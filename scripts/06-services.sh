@@ -5,6 +5,7 @@ set -euo pipefail
 source "$(dirname "${BASH_SOURCE[0]}")/lib/install-kind.sh"
 source "$(dirname "${BASH_SOURCE[0]}")/lib/log.sh"
 source "$(dirname "${BASH_SOURCE[0]}")/lib/privileges.sh"
+source "$(dirname "${BASH_SOURCE[0]}")/lib/install-fs.sh"
 source "$(dirname "${BASH_SOURCE[0]}")/lib/virtual-desktops.sh"
 
 echo
@@ -123,11 +124,19 @@ configure_quick_share() {
         return 0
     fi
 
+    # Everything below runs elevated, so it runs against the root-owned copy of the helper rather
+    # than the one in this checkout: sudo given a script this user can rewrite would run the rewrite.
+    local privileged=""
+    if ! privileged="$(install_privileged_helper "$setup")"; then
+        warn "Quick Share setup did not finish; retry from Settings -> Services -> Quick Share."
+        return 0
+    fi
+
     # The report runs as root, like the setup after it. Run as the person, its firewalld question
     # (`firewall-cmd --query-port`) goes to polkit, which does not count this installer as part of an
     # active session when it was started from the shell, and a password window opened on every install
     # and update right after the one the installer had already asked for.
-    status="$(caelestia_sudo bash "$setup" --status --port "$port" 2>/dev/null || true)"
+    status="$(caelestia_sudo bash "$privileged" --status --port "$port" 2>/dev/null || true)"
     if [[ -z "$status" ]]; then
         warn "Could not check whether Quick Share has the access it needs; if it cannot receive, run its setup from Settings -> Services -> Quick Share."
         return 0
@@ -137,7 +146,7 @@ configure_quick_share() {
         return 0
     fi
 
-    if caelestia_sudo bash "$setup" --port "$port"; then
+    if caelestia_sudo bash "$privileged" --port "$port"; then
         ok "Quick Share can receive: Avahi is running and port $port is open."
     else
         warn "Quick Share setup did not finish; retry from Settings -> Services -> Quick Share."

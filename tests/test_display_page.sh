@@ -9,7 +9,6 @@ SHELL_DIR="$REPO_ROOT/shell"
 LOGIC_JS="$SHELL_DIR/utils/scripts/displays.js"
 SERVICE_QML="$SHELL_DIR/services/Displays.qml"
 PAGE_QML="$SHELL_DIR/modules/nexus/pages/DisplayPage.qml"
-DICTIONARY_QML="$SHELL_DIR/modules/nexus/PageDictionary.qml"
 REGISTRY_QML="$SHELL_DIR/modules/nexus/PageCompRegistry.qml"
 
 # Runs a snippet against displays.js the way QML loads it (without its `.pragma library`
@@ -133,22 +132,20 @@ test_snapshot_ignores_a_later_change_to_the_list() {
 
 # --- the QML side, which has no runtime here: checked as text -------------------------------------
 
-test_the_page_is_registered_at_the_same_place_in_both_lists() {
-    local dict_idx comp_idx
-    dict_idx="$(grep -E '^ {12}key: "' "$DICTIONARY_QML" | grep -n -m1 'key: "displays"' | cut -d: -f1)"
-    comp_idx="$(awk '
-        /readonly property list<Component> pageComps/ { on = 1 }
-        on && /^        Component \{$/ { n++ }
-        on && /DisplayPage \{\}/ { print n; exit }' "$REGISTRY_QML")"
-    assert_ne "" "$dict_idx" "the page must be in the dictionary"
-    assert_ne "" "$comp_idx" "the page must be in the component list"
-    assert_eq "$dict_idx" "$comp_idx" "pages and components are matched by position, so both must have it at the same place"
+category_block() {
+    # The registry lists each category as one block: print the one whose key is $1.
+    awk -v key="$1" '
+        /^        Category \{$/ { cat = ""; collecting = 1 }
+        collecting { cat = cat $0 "\n" }
+        /^        \},?$/ { if (index(cat, "\n            key: \"" key "\"\n")) printf "%s", cat; collecting = 0 }' "$REGISTRY_QML"
 }
 
-test_the_page_is_the_first_sub_page_of_display_and_sound_and_upstreams_mode_page_is_not_used() {
-    assert_contains "$(cat "$REGISTRY_QML")" 'SubPage { slot: 0; key: "displays"; Component { DisplayPage {} } }' "our page is slot 0 of Display & Sound"
-    assert_eq "0" "$(grep -c 'DisplayModesPage' "$REGISTRY_QML" "$DICTIONARY_QML" | awk -F: '{ s += $2 } END { print s }')" "upstream's mode page is not part of the fork"
-    assert_eq "0" "$(grep -c 'subPageIdx: 1 }' <(grep 'display/DisplayPage.qml' "$DICTIONARY_QML"))" "every display entry opens slot 0"
+test_the_page_is_registered_and_upstreams_mode_page_is_not_used() {
+    local block
+    block="$(category_block displays)"
+    assert_ne "" "$block" "the Display & Sound category must be in the registry"
+    assert_contains "$block" 'component: Component { DisplayPage {} }' "our page is the Displays page of Display & Sound"
+    assert_eq "0" "$(grep -c 'DisplayModesPage' "$REGISTRY_QML")" "upstream's mode page is not part of the fork"
 }
 
 test_the_qml_files_import_the_logic_from_a_path_that_exists() {

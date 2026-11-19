@@ -109,7 +109,7 @@ test_the_updates_page_setting_is_off_by_default_and_reaches_the_updater() {
     # Upstream runs the updater in the person's terminal, so the opt-in travels as the environment
     # variable the updater reads, set only when the switch is on.
     assert_contains "$page" 'const env = UpdateChecker.systemUpdate ? ["env", "CAELESTIA_UPDATE_SYSTEM=1"] : [];' "and be handed to caelestia-update, only when on"
-    assert_contains "$page" 'Launch.terminalCommand([...env, "sh", "-c", hold, "sh", ...command], root.terminalCommand)' "through the terminal command that adds the terminal's own flag"
+    assert_contains "$page" 'Launch.terminalCommand([...env, "sh", "-c", hold, "sh", ...UpdateChecker.updaterArgs(version).slice(1)], root.terminalCommand)' "through the terminal command that adds the terminal's own flag, without the command name the hold script already runs"
 }
 
 test_the_switch_is_remembered_in_the_updater_settings() {

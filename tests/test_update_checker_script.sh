@@ -8,7 +8,8 @@ REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 CHECKER_QML="$REPO_ROOT/shell/services/UpdateChecker.qml"
 UPDATES_PAGE="$REPO_ROOT/shell/modules/nexus/pages/UpdatesPage.qml"
 FORK_URL="https://github.com/albertsalendah/caelestia-kde.git"
-UPSTREAM_URL="https://github.com/ladybug-me/caelestia-kde.git"
+UPSTREAM_URL="https://github.com/caelestia-kde/caelestia.git"
+LEGACY_UPSTREAM_URL="https://github.com/ladybug-me/caelestia-kde.git"
 
 # The bash that UpdateChecker.qml hands to `bash -c`, as bash receives it: the template literal it
 # is written in is evaluated the way QML evaluates it. A ${ that is not escaped is QML
@@ -74,7 +75,17 @@ make_stubs() {
 #!/usr/bin/env bash
 echo "$*" >> "$STUB_LOG"
 case " $* " in
-    *" ls-remote "*) exit "${STUB_LS_STATUS:-0}" ;;
+    *" ls-remote "*)
+        [[ -n "${STUB_LS_FAIL:-}" ]] && exit 128
+        if [[ " $* " == *" --exit-code "* ]]; then exit "${STUB_LS_STATUS:-0}"; fi
+        # The channel lookup has no --exit-code: a branch that is gone gives no lines and status 0.
+        [[ "${STUB_LS_STATUS:-0}" -ne 0 ]] && exit 0
+        seen=0
+        for a in "$@"; do
+            [[ $seen == 1 ]] && printf '0000\trefs/heads/%s\n' "$a"
+            [[ "$a" == http* ]] && seen=1
+        done
+        exit 0 ;;
     *" clone "*) for last; do :; done; mkdir -p "$last"; exit 0 ;;
     *" fetch "*) exit 0 ;;
 esac
@@ -129,7 +140,7 @@ test_a_fork_install_checks_its_own_repository_and_branch_in_commit_mode() {
     assert_contains "$OUTPUT" "AHEAD|2" "two of them are newer than the installed one"
     assert_contains "$OUTPUT" "LOCAL|$first" "and the installed commit is reported"
     assert_not_contains "$OUTPUT" "META|" "a fork has no release versions to summarise"
-    assert_contains "$(cat "$tmp/git.log")" "ls-remote --exit-code --heads $FORK_URL independent-session" "the branch is looked up on the fork"
+    assert_contains "$(cat "$tmp/git.log")" "ls-remote --heads $FORK_URL independent-session" "the branch is looked up on the fork, in one lookup"
     assert_not_contains "$(cat "$tmp/git.log")" "ladybug-me" "upstream must not be touched"
     assert_eq "independent-session" "$(cat "$tmp/home/.config/quickshell/caelestia/.update_branch")" "the recorded branch stays as it was"
 }
@@ -163,7 +174,7 @@ test_an_install_with_no_record_is_checked_against_upstream_as_before() {
     assert_contains "$OUTPUT" "SOURCE|0|$UPSTREAM_URL|" "upstream's check should say so"
     assert_contains "$OUTPUT" "BRANCHES|main,dev" "and keep both its channels"
     assert_contains "$OUTPUT" "META|" "main is the release channel"
-    assert_contains "$(cat "$tmp/git.log")" "ls-remote --exit-code --heads $UPSTREAM_URL dev" "and ask upstream about dev"
+    assert_contains "$(cat "$tmp/git.log")" "ls-remote --heads $UPSTREAM_URL main dev" "and ask upstream about main and dev in one lookup"
 }
 
 test_a_fork_install_whose_branch_is_gone_checks_nothing_and_does_not_fall_back_to_main() {
@@ -178,6 +189,18 @@ test_a_fork_install_whose_branch_is_gone_checks_nothing_and_does_not_fall_back_t
     assert_contains "$OUTPUT" "BRANCHES|" "with no branch to offer"
     assert_not_contains "$OUTPUT" "main" "main is upstream's branch"
     assert_not_contains "$(cat "$tmp/git.log")" " clone " "and nothing is cloned"
+}
+
+test_a_lookup_that_fails_is_unreachable_not_a_branch_that_is_gone() {
+    require_tools || return 0
+    local tmp
+    tmp="$(new_tmpdir)"
+    records "$tmp" "$FORK_URL" independent-session
+
+    STUB_LS_FAIL=1 run_check "$tmp"
+
+    assert_contains "$OUTPUT" "FAIL|GitHub is unreachable" "a lookup that fails says so"
+    assert_not_contains "$OUTPUT" "BRANCHES|" "and is not mistaken for a branch that is gone (which a fork answers with no channels)"
 }
 
 test_a_fork_install_with_no_recorded_branch_asks_the_network_nothing() {

@@ -41,7 +41,7 @@ STUB
     body="$(sed -n '/^install_custom_fonts() {/,/^}/p' "$LIST")"
     CALLS="$m/calls" FC_LIST_OUTPUT="$installed" HOME="$m/home" XDG_DATA_HOME="$m/home/.local/share" \
         LD_PRELOAD=/usr/libexec/coreutils/libstdbuf.so PATH="$m/bin:$PATH" BODY="$body" \
-        bash -c 'info() { :; }; err() { echo "err: $*" >> "$CALLS"; }; FAILED_PKGS=(); eval "$BODY"; install_custom_fonts; echo "failed: ${FAILED_PKGS[*]:-none}" >> "$CALLS"' > /dev/null 2>&1
+        bash -c 'info() { :; }; err() { echo "err: $*" >> "$CALLS"; }; FAILED_PKGS=(); NERD_FONTS_VERSION=3.0.2; CASCADIA_CODE_SHA256=x; JETBRAINS_MONO_SHA256=x; user_font_dir() { echo "$XDG_DATA_HOME/fonts"; }; fetch_asset() { curl -fsSL "$1" -o "$2"; }; install_checked_font() { cp "$1" "$(user_font_dir)/$2"; }; nerd_font_archive_matches() { return 0; }; eval "$BODY"; install_custom_fonts; echo "failed: ${FAILED_PKGS[*]:-none}" >> "$CALLS"' > /dev/null 2>&1
     cat "$m/calls"
     rm -rf "$m"
 }

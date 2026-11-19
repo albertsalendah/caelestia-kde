@@ -7,7 +7,7 @@ source "$(dirname "${BASH_SOURCE[0]}")/helpers.sh"
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 STORE="$REPO_ROOT/shell/services/ContextMenuStore.qml"
 PAGE="$REPO_ROOT/shell/modules/nexus/pages/desktop/ContextMenuPage.qml"
-DICT="$REPO_ROOT/shell/modules/nexus/PageDictionary.qml"
+DICT="$REPO_ROOT/shell/modules/nexus/PageCompRegistry.qml"
 
 # A new default entry of the desktop menu ("Create New") was added at the far end of a saved menu,
 # below the fold of the Nexus list. It now goes after the default entry that comes before it.
@@ -68,8 +68,8 @@ test_the_store_and_the_nexus_page_both_use_it() {
 }
 
 test_nexus_no_longer_names_a_kde_desktop() {
-    assert_eq "0" "$(grep -c 'KDE Desktop' "$DICT")" "the sidebar text and the search entry follow the removed switch"
-    assert_contains "$(cat "$DICT")" 'description: qsTr("Desktop, addons, tiling")' "the page's subtitle"
+    assert_eq "0" "$(cat "$DICT" "$REPO_ROOT/shell/modules/nexus/PageRowIndex.qml" | grep -c 'KDE Desktop')" "the category text follows the removed switch"
+    assert_contains "$(cat "$DICT")" 'description: qsTr("Desktop, addons, tiling")' "the category's subtitle"
 }
 
 run_tests

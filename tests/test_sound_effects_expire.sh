@@ -49,4 +49,15 @@ test_the_idle_time_is_a_few_seconds() {
         "the idle time (${ms:-not a number} ms) is long enough for a burst and short enough to leave no stream open"
 }
 
+test_every_way_to_play_a_sound_goes_through_the_expiring_cache() {
+    local text
+    text="$(cat "$AUDIO")"
+    # Upstream added a second caller (the timer's alarm) that shares the playing function: a new
+    # path that made its own effects would keep a PipeWire stream open for the whole session.
+    assert_eq "1" "$(grep -c 'createObject' "$AUDIO")" "one place makes sound effects, so none can skip the idle timer"
+    assert_contains "$(sed -n '/function playSoundSource/,/^    }/p' "$AUDIO")" 'root._playAudioFile(' "the shell's own sounds"
+    assert_contains "$(sed -n '/function playSystemSound/,/^    }/p' "$AUDIO")" 'root._playAudioFile(' "the system sounds, such as the timer's alarm"
+    assert_contains "$(sed -n '/function _playAudioFile/,/^    }/p' "$AUDIO")" 'sfx.idle.restart();' "and the function they share restarts the idle timer on every play"
+}
+
 run_tests

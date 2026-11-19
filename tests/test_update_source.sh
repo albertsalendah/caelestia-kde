@@ -8,7 +8,8 @@ REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 UPDATE="$REPO_ROOT/src/bin/caelestia-update"
 CHECK="$REPO_ROOT/src/bin/caelestia-check-updates"
 FORK_URL="https://github.com/albertsalendah/caelestia-kde.git"
-UPSTREAM_URL="https://github.com/ladybug-me/caelestia-kde.git"
+UPSTREAM_URL="https://github.com/caelestia-kde/caelestia.git"
+LEGACY_UPSTREAM_URL="https://github.com/ladybug-me/caelestia-kde.git"
 COMMIT="0123456789abcdef0123456789abcdef01234567"
 
 # --- fixtures ------------------------------------------------------------------------------------
@@ -145,6 +146,22 @@ test_the_checker_still_follows_upstream_for_an_install_with_no_record() {
     assert_contains "$(git_log "$tmp")" "ls-remote --exit-code --heads $UPSTREAM_URL dev" "an install with no record behaves as it did"
 }
 
+test_an_install_recorded_under_the_old_upstream_address_is_still_upstreams() {
+    local tmp
+    tmp="$(new_tmpdir)"
+    write_records "$tmp/home/.config/quickshell/caelestia" "$LEGACY_UPSTREAM_URL" dev "$COMMIT"
+
+    run_script "$CHECK" "$tmp"
+
+    assert_contains "$(git_log "$tmp")" "ls-remote --exit-code --heads $UPSTREAM_URL dev" "the renamed repository is not taken for a fork"
+    assert_not_contains "$(git_log "$tmp")" "$LEGACY_UPSTREAM_URL" "and the old address is no longer asked"
+
+    tmp="$(new_tmpdir)"
+    write_records "$tmp/home/.config/quickshell/caelestia" "$LEGACY_UPSTREAM_URL" ""
+    run_script "$UPDATE" "$tmp" some-feature
+    assert_contains "$OUTPUT" "Warning: Branch 'some-feature' is not allowed. Falling back to 'main'." "the updater applies upstream's channel rule to it as well"
+}
+
 test_the_checker_leaves_a_forks_branch_alone_when_the_fork_lost_it() {
     local tmp
     tmp="$(new_tmpdir)"
@@ -172,8 +189,8 @@ test_the_checker_replaces_a_cache_that_belongs_to_another_repository() {
     local tmp
     tmp="$(new_tmpdir)"
     write_records "$tmp/home/.config/quickshell/caelestia" "$FORK_URL" independent-session "$COMMIT"
-    git init -q --bare "$tmp/home/.cache/caelestia-update-repo"
-    git -C "$tmp/home/.cache/caelestia-update-repo" remote add origin "$UPSTREAM_URL"
+    git init -q --bare "$tmp/home/.cache/caelestia-kde/upstream.git"
+    git -C "$tmp/home/.cache/caelestia-kde/upstream.git" remote add origin "$UPSTREAM_URL"
 
     run_script "$CHECK" "$tmp"
 
@@ -184,8 +201,8 @@ test_the_checker_keeps_a_cache_that_already_belongs_to_the_repository() {
     local tmp
     tmp="$(new_tmpdir)"
     write_records "$tmp/home/.config/quickshell/caelestia" "$FORK_URL" independent-session "$COMMIT"
-    git init -q --bare "$tmp/home/.cache/caelestia-update-repo"
-    git -C "$tmp/home/.cache/caelestia-update-repo" remote add origin "$FORK_URL"
+    git init -q --bare "$tmp/home/.cache/caelestia-kde/upstream.git"
+    git -C "$tmp/home/.cache/caelestia-kde/upstream.git" remote add origin "$FORK_URL"
 
     run_script "$CHECK" "$tmp"
 

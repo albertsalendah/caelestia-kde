@@ -10,14 +10,16 @@ source "$(dirname "${BASH_SOURCE[0]}")/helpers.sh"
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 SHELL_DIR="$REPO_ROOT/shell"
 BARCONFIG="$SHELL_DIR/plugin/src/Caelestia/Config/barconfig.hpp"
-ICONS="$SHELL_DIR/modules/bar/components/StatusIcons.qml"
+ICONS="$SHELL_DIR/modules/bar/components/StatusIcon.qml"
+ICON_META="$SHELL_DIR/services/BarIconMeta.qml"
+BAR_WIDGETS="$SHELL_DIR/modules/bar/BarWidgets.qml"
 POPOUTS="$SHELL_DIR/modules/bar/popouts"
 CONTENT="$POPOUTS/Content.qml"
 POPOUT="$POPOUTS/ClipHistory.qml"
 CLIP_ITEM="$SHELL_DIR/modules/launcher/items/ClipItem.qml"
 LAUNCHER_PAGE="$SHELL_DIR/modules/nexus/pages/panels/LauncherPanel.qml"
 ICON_PAGE="$SHELL_DIR/modules/nexus/pages/panels/taskbar/BarStatusIcons.qml"
-DICTIONARY="$SHELL_DIR/modules/nexus/PageDictionary.qml"
+ROW_INDEX="$SHELL_DIR/modules/nexus/PageRowIndex.qml"
 WRAPPER="$POPOUTS/Wrapper.qml"
 BAR="$SHELL_DIR/modules/bar/Bar.qml"
 INTERACTIONS="$SHELL_DIR/modules/drawers/Interactions.qml"
@@ -43,37 +45,38 @@ test_every_default_icon_has_a_loader_case_and_a_settings_label() {
     ids="$(default_icon_ids)"
     [[ -n "$ids" ]] || fail "could not read the default status icon list"
     for id in $ids; do
-        assert_file_contains "$ICONS" "case \"$id\": return " \
-            "the icon loader has to draw $id"
-        assert_file_contains "$ICON_PAGE" "            $id: qsTr(" \
+        assert_file_contains "$ICONS" "        case \"$id\":" \
+            "the status icon has to draw $id"
+        assert_file_contains "$ICON_META" "$id: { name: qsTr(" \
             "the Status icons page needs a label for $id"
     done
 }
 
 test_the_icon_is_always_active_and_has_its_own_component() {
-    assert_file_contains "$ICONS" 'case "clipboard": return clipboardComp;' \
-        "the loader maps the entry to its component"
+    assert_file_contains "$ICONS" 'case "clipboard":
+            return clipboardComp;' \
+        "the glyph switch maps the entry to its component"
     assert_file_contains "$ICONS" 'id: clipboardComp' "the component exists"
     assert_file_contains "$ICONS" 'text: "content_paste"' "the icon is the clipboard glyph"
     local active
-    active="$(sed -n '/function entryActive/,/^    }/p' "$ICONS")"
-    assert_contains "$active" 'case "clipboard":' "entryActive must not hide the icon"
+    active="$(sed -n '/function statusIconActive/,/^    }/p' "$BAR_WIDGETS")"
+    assert_contains "$active" 'case "clipboard":' "statusIconActive must not hide the icon"
 }
 
 test_a_click_opens_the_popout_where_the_icon_is() {
-    assert_file_contains "$ICONS" 'root.clickClipboard(delegateContainer)' \
+    assert_file_contains "$ICONS" 'root.clickClipboard();' \
         "a click on the icon goes to the clipboard click handler"
-    assert_file_contains "$ICONS" 'function openPopout(name: string, item: Item, pin: bool): void' \
-        "the helper centres the popout on the item and can pin it"
-    assert_file_contains "$ICONS" 'popouts.currentName = name;' "it names the popout"
+    assert_file_contains "$ICONS" 'function showClipboardPopout(pin: bool): void' \
+        "the helper centres the popout on the icon and can pin it"
+    assert_file_contains "$ICONS" 'popouts.currentName = "clipboard";' "it names the popout"
     assert_file_contains "$ICONS" 'popouts.hasCurrent = true;' "and shows it"
     assert_file_contains "$ICONS" 'popouts.pinned = pin;' "pinned or not"
 }
 
 test_hover_reaches_the_popout_by_the_entry_id() {
     # Bar.qml opens `icon.popoutName ?? icon.name`; with no alias the id is the name.
-    assert_file_not_contains "$ICONS" 'clipboard: "' \
-        "no popout alias: the hover popout name is the entry id, clipboard"
+    assert_not_contains "$(sed -n '/readonly property string popoutName/,/^    }/p' "$ICONS")" 'clipboard' \
+        "no popout alias: the popout name is the entry id, clipboard"
     assert_file_contains "$CONTENT" 'name: "clipboard"' "the popout host has a clipboard popout"
     assert_file_contains "$CONTENT" 'sourceComponent: ClipHistory {' "it shows ClipHistory"
 }
@@ -273,15 +276,17 @@ test_a_pinned_popout_stays_until_it_is_dismissed() {
 test_hovering_and_clicking_the_icon_follow_the_setting() {
     assert_file_contains "$BARCONFIG" 'CONFIG_PROPERTY(bool, clipboardOpenOnHover, true)' \
         "open on hover is the default, as before"
-    assert_file_contains "$BAR" '=== "clipboard" && !Config.bar.status.clipboardOpenOnHover' \
+    assert_file_contains "$BAR" 'BarWidgets.statusIconId(id) === "clipboard" && Config.bar.status.clipboardOpenOnHover' \
         "set to click, hovering the icon opens nothing"
     local click
-    click="$(sed -n '/function clickClipboard(item: Item): void {/,/^    }/p' "$ICONS")"
+    click="$(sed -n '/function clickClipboard(): void {/,/^    }/p' "$ICONS")"
     assert_contains "$click" 'if (Config.bar.status.clipboardOpenOnHover)
-            root.openPopout("clipboard", item, false);' "on hover, a click does not pin"
+            root.showClipboardPopout(false);' "on hover, a click does not pin"
     assert_contains "$click" 'else if (root.isClipboardPinned())
             root.popouts.hasCurrent = false;' "on click, a second click closes it"
-    assert_contains "$click" 'root.openPopout("clipboard", item, true);' "and the first one pins it"
+    assert_contains "$click" 'root.showClipboardPopout(true);' "and the first one pins it"
+    assert_contains "$(sed -n '/else if (root.isInfoOnlyOnHover(id)) {/,/return;/p' "$BAR")" 'popouts.currentName === "clipboard" && !popouts.pinned' \
+        "a popout the pointer opened closes when the pointer moves on to another icon"
     assert_file_contains "$ICON_PAGE" 'checked: Config.bar.status.clipboardOpenOnHover' "the page shows the setting"
     assert_file_contains "$ICON_PAGE" 'GlobalConfig.bar.status.clipboardOpenOnHover = checked' "and changes it"
 }
@@ -303,30 +308,29 @@ test_meta_v_opens_the_popout_and_falls_back_to_the_launcher() {
 }
 
 test_the_status_icons_register_and_unregister_their_opener() {
-    assert_file_contains "$ICONS" 'Visibilities.registerClipboardOpener(name, root.clipboardOpener)' \
-        "each bar registers where its popout opens"
+    assert_file_contains "$ICONS" 'Visibilities.registerClipboardOpener(root.openerName, root.clipboardOpener)' \
+        "each bar's clipboard icon registers where its popout opens"
     assert_file_contains "$ICONS" 'Visibilities.unregisterClipboardOpener(root.openerScreen, root.clipboardOpener)' \
         "and removes it again"
-    assert_file_contains "$ICONS" 'Component.onDestruction: unregisterOpener()' "when it goes away"
-    assert_file_contains "$ICONS" 'onBarChanged: registerOpener()' "also when the bar is set after creation"
+    assert_file_contains "$ICONS" 'Component.onDestruction: root.unregisterOpener()' "when it goes away"
+    assert_file_contains "$ICONS" 'onOpenerNameChanged: root.registerOpener()' "also when the bar is set after creation"
     local open
     open="$(sed -n '/function openClipboard(): bool {/,/^    }/p' "$ICONS")"
     assert_contains "$open" 'if (root.isClipboardPinned()) {
             root.popouts.hasCurrent = false;
             return true;' "the shortcut pressed again closes the popout"
-    assert_contains "$open" 'let target = root.items;' "with no clipboard icon in the bar it opens on the status icons"
-    assert_contains "$open" 'root.openPopout("clipboard", target, true);' "pinned"
+    assert_contains "$open" 'root.showClipboardPopout(true);' "pinned"
+    assert_contains "$(sed -n '/readonly property string openerName/p' "$ICONS")" 'root.isClipboard ?' \
+        "only a clipboard icon registers: with none in the bar the shortcut falls back to the launcher"
     assert_file_contains "$VISIBILITIES" 'if (clipboardOpeners.get(screenName) === opener)' \
         "only the opener that registered can remove itself"
 }
 
-test_the_clipboard_page_is_found_by_the_new_words() {
-    local entry
-    entry="$(grep 'qsTr("Clipboard popout")' "$DICTIONARY")"
-    assert_contains "$entry" '"status bar", "icon", "popout", "scroll"' \
-        "searching for the status bar finds the clipboard popout settings"
-    assert_contains "$entry" 'pagePath: "panels/taskbar/BarStatusIcons.qml"' \
-        "and lands on the Status icons page"
+test_the_clipboard_settings_are_in_the_search_index() {
+    local index
+    index="$(cat "$ROW_INDEX")"
+    assert_contains "$index" 'label: qsTr("Rows visible in popout")' "searching finds the clipboard popout rows"
+    assert_contains "$index" 'label: qsTr("Open on hover")' "and the hover choice"
 }
 
 # The popout host sets scaleOffset, fontScale and _isSidebarOpen on whatever popout it shows

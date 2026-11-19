@@ -306,7 +306,9 @@ run_configure_quick_share() {
     local bundle="$1" packaged_status="$2" log="${3:-/dev/null}" sudo_status="${4:-0}" report_fails="${5:-0}"
     env BUNDLE_DIR="$bundle" CONFIGURE_LOG="$log" PACKAGED="$packaged_status" SUDO_STATUS="$sudo_status" \
         REPORT_FAILS="$report_fails" \
-        bash -c 'install_is_packaged() { return "$PACKAGED"; }
+        INSTALL_FS="$REPO_ROOT/scripts/lib/install-fs.sh" \
+        bash -c 'source "$INSTALL_FS"
+install_is_packaged() { return "$PACKAGED"; }
 skip() { printf "SKIP %s\n" "$*"; }
 warn() { printf "WARN %s\n" "$*"; }
 ok() { printf "OK %s\n" "$*"; }
@@ -314,7 +316,13 @@ caelestia_sudo() {
     printf "ESCALATE %s\n" "$*" >> "$CONFIGURE_LOG"
     if [[ "$*" == *"--status"* ]]; then
         [[ "$REPORT_FAILS" == 1 ]] && return 1
-        "$@"
+        # The elevated run names the root-owned copy, which does not exist here: the report is
+        # read for real from the stub in the bundle.
+        local _args=("$@") _i
+        for _i in "${!_args[@]}"; do
+            [[ "${_args[$_i]}" == /usr/lib/caelestia/scripts/quickshare_setup.sh ]] && _args[$_i]="$BUNDLE_DIR/shell/scripts/quickshare_setup.sh"
+        done
+        "${_args[@]}"
         return
     fi
     return "$SUDO_STATUS"
@@ -427,6 +435,25 @@ test_a_report_nobody_could_give_warns_instead_of_claiming_access() {
     assert_contains "$out" "Could not check whether Quick Share" "an empty report is not an answer"
     assert_not_contains "$out" "already has the access it needs" "so it must not be read as one"
     assert_not_contains "$(cat "$log")" "quickshare_setup.sh --port" "and the setup must not run on a guess"
+}
+
+test_the_elevated_run_is_never_the_copy_in_the_checkout() {
+    local tmp log bundle out
+    tmp="$(new_tmpdir)"
+    log="$tmp/calls.log"
+    bundle="$(stub_bundle_reporting "$tmp/bundle" needed)"
+
+    out="$(run_configure_quick_share "$bundle" 1 "$log" 2>&1)"
+
+    # The checkout is this user's to rewrite, so sudo must not be handed a path in it:
+    # what is elevated is the copy the installer puts where only root can change it.
+    assert_not_contains "$(cat "$log")" "ESCALATE bash $bundle/shell/scripts/quickshare_setup.sh" \
+        "the user-writable helper must never be what root runs"
+    assert_contains "$(cat "$log")" "ESCALATE bash /usr/lib/caelestia/scripts/quickshare_setup.sh --port $PORT" \
+        "the elevated run carries the port against the root-owned helper"
+    assert_contains "$out" "Quick Share can receive" "and the step still reports what it achieved"
+    assert_contains "$(cat "$log")" "ESCALATE install -d -m 0755 -o root -g root /usr/lib/caelestia/scripts" \
+        "the helper is installed into a directory root owns"
 }
 
 run_tests
