@@ -32,9 +32,11 @@ Item {
     readonly property bool isHorizontal: Config.bar.position === "top" || Config.bar.position === "bottom"
     readonly property int barThickness: Math.round(Tokens.sizes.bar.innerWidth * Math.max(0.6, !isNaN(Config.bar.scale) ? Config.bar.scale : 1.0))
 
-    // The chevron is the box's handle, so it is on the bar for as long as the tray
-    // is: an empty box still needs somewhere to be opened from.
-    readonly property bool showArrow: root.showTrayIcons
+    // The chevron is the box's handle, so it is on the bar for as long as the box can
+    // hold an icon: an empty box still needs somewhere to be opened from. With Compact
+    // off every icon stays on the bar, nothing ever goes into the box, and the chevron
+    // would open an empty panel, so it is not shown.
+    readonly property bool showArrow: root.showTrayIcons && Config.bar.tray.compact
 
     readonly property real nonAnimHeight: {
         if (isHorizontal)
