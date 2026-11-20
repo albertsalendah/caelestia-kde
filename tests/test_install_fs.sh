@@ -578,4 +578,104 @@ test_install_staged_tree_reports_a_failed_install() {
     assert_status 1 "$status" "a failed install must be reported to the caller"
 }
 
+# The login screen theme is shipped by the project and is laid out as the theme folder, not as
+# /usr/...: upstream's v2.7.5 build-staging check refused every file of it, and step 05 died
+# with "Could not install the login screen theme" after it had emptied the installed folder.
+make_theme_fixture() {
+    local tmp="$1"
+    mkdir -p "$tmp/theme/components" "$tmp/theme/assets" "$tmp/dest"
+    printf 'import QtQuick\n' > "$tmp/theme/Main.qml"
+    printf '[General]\n' > "$tmp/theme/theme.conf"
+    printf 'x\n' > "$tmp/theme/components/Avatar.qml"
+    printf 'png\n' > "$tmp/theme/assets/bg.png"
+}
+
+test_privileged_copy_tree_free_layout_installs_a_theme_shaped_tree() {
+    local tmp status
+    tmp="$(new_tmpdir)"
+    make_theme_fixture "$tmp"
+
+    privileged_copy_tree "$tmp/theme" "$tmp/dest" free
+    status=$?
+
+    assert_status 0 "$status" "a tree the project ships may have any layout"
+    assert_file_exists "$tmp/dest/Main.qml"
+    assert_file_exists "$tmp/dest/components/Avatar.qml"
+    assert_file_exists "$tmp/dest/assets/bg.png"
+}
+
+test_privileged_copy_tree_without_free_still_refuses_a_theme_shaped_tree() {
+    local tmp status
+    tmp="$(new_tmpdir)"
+    make_theme_fixture "$tmp"
+
+    privileged_copy_tree "$tmp/theme" "$tmp/dest" 2>/dev/null
+    status=$?
+
+    assert_status 1 "$status" "a build's staged tree keeps the install-prefix rule"
+    assert_file_missing "$tmp/dest/Main.qml"
+}
+
+test_privileged_copy_tree_free_layout_still_refuses_a_setuid_file_and_a_link_out() {
+    local tmp status
+    tmp="$(new_tmpdir)"
+    make_theme_fixture "$tmp"
+    chmod 4755 "$tmp/theme/Main.qml"
+
+    privileged_copy_tree "$tmp/theme" "$tmp/dest" free 2>/dev/null
+    status=$?
+    assert_status 1 "$status" "free layout must not let a setuid file through"
+    assert_file_missing "$tmp/dest/Main.qml"
+
+    chmod 0644 "$tmp/theme/Main.qml"
+    ln -s /etc/passwd "$tmp/theme/escape"
+    privileged_copy_tree "$tmp/theme" "$tmp/dest" free 2>/dev/null
+    status=$?
+    assert_status 1 "$status" "nor a link that leaves the tree"
+    assert_file_missing "$tmp/dest/Main.qml"
+}
+
+test_privileged_copy_tree_free_layout_still_refuses_a_tree_that_holds_nothing() {
+    local tmp status
+    tmp="$(new_tmpdir)"
+    mkdir -p "$tmp/theme/components" "$tmp/dest"
+
+    privileged_copy_tree "$tmp/theme" "$tmp/dest" free 2>/dev/null
+    status=$?
+
+    assert_status 1 "$status" "an empty theme must not report success"
+}
+
+test_privileged_copy_tree_says_why_it_refused() {
+    local tmp err
+    tmp="$(new_tmpdir)"
+    make_theme_fixture "$tmp"
+
+    err="$(privileged_copy_tree "$tmp/theme" "$tmp/dest" 2>&1 >/dev/null)"
+
+    assert_contains "$err" "is not under a path this install may write" "the refusal should name its reason"
+}
+
+test_the_real_login_theme_installs_with_free_layout() {
+    local root tmp status
+    root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+    tmp="$(new_tmpdir)"
+    mkdir -p "$tmp/dest"
+
+    privileged_copy_tree "$root/src/sddm/themes/full" "$tmp/dest" free
+    status=$?
+
+    assert_status 0 "$status" "the theme in this repository must pass the copy step 05 runs"
+    assert_file_exists "$tmp/dest/Main.qml"
+    assert_file_exists "$tmp/dest/components/Avatar.qml"
+}
+
+test_step_05_copies_the_theme_and_the_shapes_with_free_layout() {
+    local root count
+    root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+    count="$(grep -c 'privileged_copy_tree .* free; then' "$root/scripts/05-sddm-theme.sh")"
+
+    assert_eq "2" "$count" "both tree copies of step 05 are laid out as the theme, not as /usr"
+}
+
 run_tests

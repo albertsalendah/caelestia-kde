@@ -61,26 +61,43 @@ staged_path_is_installable() {
 # target. One privileged step, because a prompt per file is not something a build can ask
 # for.
 privileged_copy_tree() {
-    local src="${1%/}" dest="$2" escaping status=0
+    local src="${1%/}" dest="$2" layout="${3:-build}" escaping status=0
 
-    [[ -d "$src" && ! -L "$src" && -d "$dest" ]] || return 1
+    [[ -d "$src" && ! -L "$src" && -d "$dest" ]] || {
+        printf 'privileged_copy_tree: %s or %s is not a directory\n' "$src" "$dest" >&2
+        return 1
+    }
 
     # Two things a build has no business staging: a link that leaves its own directory,
     # which would let the build pick a path root later opens, and a setuid or setgid file,
     # which would arrive as root's. Both fail here, before the prompt; the privileged side
     # checks the first again and drops the bits of the second.
     escaping="$(find "$src" -type l \( -lname '*/*' -o -lname . -o -lname .. \) -print -quit 2>/dev/null || true)"
-    [[ -z "$escaping" ]] || return 1
+    [[ -z "$escaping" ]] || {
+        printf 'privileged_copy_tree: %s is a link that leaves its own directory\n' "$escaping" >&2
+        return 1
+    }
     escaping="$(find "$src" -type f \( -perm -4000 -o -perm -2000 \) -print -quit 2>/dev/null || true)"
-    [[ -z "$escaping" ]] || return 1
+    [[ -z "$escaping" ]] || {
+        printf 'privileged_copy_tree: %s is setuid or setgid\n' "$escaping" >&2
+        return 1
+    }
 
-    # And a tree may only put files where an install of this project puts them. Without
-    # this, a build tool that staged etc/sudoers.d/… would have root write it: the copy
-    # below trusts the tree's own layout, and the tree is this user's to shape.
+    # And a build's tree may only put files where an install of this project puts them.
+    # Without this, a build tool that staged etc/sudoers.d/… would have root write it: the
+    # copy below trusts the tree's own layout, and the tree is this user's to shape.
+    # A third argument "free" is for a tree the project itself ships (the login screen
+    # theme): its files are not laid out as /usr/..., and the destination is fixed by the
+    # caller, so only the checks above and the privileged side's own checks apply.
     local entry
-    while IFS= read -r entry; do
-        staged_path_is_installable "${entry#"$src"/}" || return 1
-    done < <(find "$src" -mindepth 1 \( -type f -o -type l \) -print 2>/dev/null)
+    if [[ "$layout" != "free" ]]; then
+        while IFS= read -r entry; do
+            staged_path_is_installable "${entry#"$src"/}" || {
+                printf 'privileged_copy_tree: %s is not under a path this install may write\n' "${entry#"$src"/}" >&2
+                return 1
+            }
+        done < <(find "$src" -mindepth 1 \( -type f -o -type l \) -print 2>/dev/null)
+    fi
 
     caelestia_sudo bash -s -- "$src" "$dest" << 'EOF' || status=$?
 src="$1"

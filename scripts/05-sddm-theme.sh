@@ -273,7 +273,7 @@ install_theme_files() {
     # Copied file by file as root with O_NOFOLLOW rather than with `cp -r`: the tree was
     # checked a moment ago, and a link planted since then is refused by the kernel instead
     # of being followed or left for root to open later.
-    if ! privileged_copy_tree "$THEME_SOURCE" "$INSTALL_DIR"; then
+    if ! privileged_copy_tree "$THEME_SOURCE" "$INSTALL_DIR" free; then
         die "Could not install the login screen theme from $THEME_SOURCE."
     fi
     caelestia_sudo mkdir -p "$INSTALL_DIR/scripts"
@@ -298,7 +298,7 @@ install_theme_files() {
                 die "The shape components at $SRC_DIR/themes/full/components/shapes contain a symlink; refusing to install them as root."
             fi
             caelestia_sudo mkdir -p "$INSTALL_DIR/components/shapes"
-            if ! privileged_copy_tree "$SRC_DIR/themes/full/components/shapes" "$INSTALL_DIR/components/shapes"; then
+            if ! privileged_copy_tree "$SRC_DIR/themes/full/components/shapes" "$INSTALL_DIR/components/shapes" free; then
                 die "Could not install the shape components from $SRC_DIR/themes/full/components/shapes."
             fi
         else
