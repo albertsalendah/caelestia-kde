@@ -228,9 +228,7 @@ test_resize_plan_passes_locked_keys_as_immovable() {
         "resizePlan must pass lockedKeys() as immovable to planMove"
 }
 
-test_desktop_grid_is_aligned_to_margin_and_margin_is_halved() {
-    assert_contains "$ICONS_SRC" 'readonly property int baseMargin: Math.round(Tokens.padding.large * 0.5 * root.effectiveScale)' \
-        "baseMargin must be halved (0.5 * large token)"
+test_desktop_grid_is_aligned_to_the_margin_without_centering() {
     assert_contains "$ICONS_SRC" 'x: marginLeft' \
         "grid must align directly to marginLeft without centering offset"
     assert_contains "$ICONS_SRC" 'y: marginTop' \
@@ -239,6 +237,8 @@ test_desktop_grid_is_aligned_to_margin_and_margin_is_halved() {
         "grid must no longer center horizontally"
     assert_not_contains "$ICONS_SRC" 'y: marginTop + Math.floor((areaHeight - height) / 2)' \
         "grid must no longer center vertically"
+    assert_not_contains "$ICONS_SRC" 'baseMargin' \
+        "the margin is the border's thickness now, not a padding of its own (see test_desktop_grid_margins.sh)"
 }
 
 run_tests

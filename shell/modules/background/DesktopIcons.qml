@@ -69,10 +69,16 @@ Item {
 
     readonly property real effectiveScale: Math.max(0.75, Math.min(2.0, resolutionScale))
     readonly property int iconSize: Math.round(DesktopLayout.iconSize * effectiveScale)
-    readonly property int cellWidth: Math.round(iconSize + 36 * effectiveScale)
-    readonly property int cellHeight: Math.round(iconSize + 56 * effectiveScale)
-    readonly property int cols: Math.max(1, Math.floor(gridItem.areaWidth / cellWidth))
-    readonly property int rows: Math.max(1, Math.floor(gridItem.areaHeight / cellHeight))
+    // The size a cell would have: it decides how many fit.
+    readonly property int baseCellWidth: Math.round(iconSize + 36 * effectiveScale)
+    readonly property int baseCellHeight: Math.round(iconSize + 56 * effectiveScale)
+    readonly property int cols: Math.max(1, Math.floor(gridItem.areaWidth / baseCellWidth))
+    readonly property int rows: Math.max(1, Math.floor(gridItem.areaHeight / baseCellHeight))
+    // Only whole cells fit, so the cells are stretched a little (by less than one cell's worth
+    // across the whole grid) until they fill the area exactly. The leftover no longer piles up
+    // on the right and bottom: all four edges are as far from the border as the first one.
+    readonly property real cellWidth: gridItem.areaWidth >= baseCellWidth ? gridItem.areaWidth / cols : baseCellWidth
+    readonly property real cellHeight: gridItem.areaHeight >= baseCellHeight ? gridItem.areaHeight / rows : baseCellHeight
     readonly property bool isPrimaryScreen: Screens.screens.length > 0 && Screens.screens[0].name === screenData.name
     readonly property bool gridReady: gridItem.areaWidth > 0 && gridItem.areaHeight > 0
     readonly property bool folderReady: folderModel.status === FolderListModel.Ready
@@ -2024,14 +2030,18 @@ wl-paste --no-newline --type text/uri-list`]
         readonly property var barConfig: GlobalConfig.forScreen(root.screenData.name).bar
         readonly property bool barEnabled: !Strings.testRegexList(barConfig.excludedScreens, root.screenData.name)
         readonly property string barPosition: barConfig.position ?? Config.bar.position
-        readonly property int barZone: barEnabled ? (Visibilities.bars.get(root.screenData.name)?.visualThickness ?? (Tokens.sizes.bar.innerWidth + Math.max(Tokens.padding.small, Config.border.thickness))) : 0
-        readonly property int baseMargin: Math.round(Tokens.padding.large * 0.5 * root.effectiveScale)
-        readonly property int marginLeft: barPosition === "left" ? baseMargin + barZone : baseMargin
-        readonly property int marginRight: barPosition === "right" ? baseMargin + barZone : baseMargin
-        readonly property int marginTop: barPosition === "top" ? baseMargin + barZone : baseMargin
-        readonly property int marginBottom: barPosition === "bottom" ? baseMargin + barZone : baseMargin
-        // Space the cells may use. Only whole cells fit, so the grid is centred in it
-        // and the leftover is split between both sides instead of all going right and down.
+        // Every edge of the grid is the border's own thickness away from the screen edge, so the
+        // widgets sit right beside the border and follow its thickness setting.
+        readonly property int edgeInset: Math.max(Tokens.padding.small, Config.border.thickness)
+        // On the bar's edge it is the bar's thickness, but only for a bar that stays on the screen:
+        // the zone comes from the setting, not from whether the bar is showing right now, or
+        // every desktop item would shift each time an auto-hiding bar slides in.
+        readonly property int barZone: barEnabled && barConfig.persistent ? (Visibilities.bars.get(root.screenData.name)?.contentWidth ?? (Tokens.sizes.bar.innerWidth + edgeInset)) : edgeInset
+        readonly property int marginLeft: barPosition === "left" ? barZone : edgeInset
+        readonly property int marginRight: barPosition === "right" ? barZone : edgeInset
+        readonly property int marginTop: barPosition === "top" ? barZone : edgeInset
+        readonly property int marginBottom: barPosition === "bottom" ? barZone : edgeInset
+        // Space the cells fill, exactly (see cellWidth and cellHeight above).
         readonly property real areaWidth: root.width - marginLeft - marginRight
         readonly property real areaHeight: root.height - marginTop - marginBottom
 
