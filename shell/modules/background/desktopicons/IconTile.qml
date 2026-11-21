@@ -155,15 +155,20 @@ Item {
                     columns: 2
                     spacing: root.iconSize * 0.08
 
+                    // The previews are counted, not listed: a model made of the member objects
+                    // goes through Qt's list-delegate property copy, which crashed once while
+                    // files moved and the members changed under it. A count has no rows to copy,
+                    // and each preview reads its member itself, so a missing one is just empty.
                     Repeater {
-                        model: root.isGroup ? root.groupMembers.slice(0, 4) : []
+                        model: root.isGroup ? Math.min(4, root.groupMembers.length) : 0
 
                         EntryIcon {
-                            required property var modelData
+                            required property int index
 
                             width: root.iconSize * 0.4
                             height: root.iconSize * 0.4
-                            entry: modelData
+                            entry: root.groupMembers[index] ?? null
+                            visible: !!entry
                             materialYou: root.materialYou
                             vibrant: root.vibrant
                             vibrancy: root.vibrancy
