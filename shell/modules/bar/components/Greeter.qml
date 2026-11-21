@@ -58,15 +58,38 @@ Item {
         return `${msg}, ${formattedUser}!`;
     }
 
+    // The room this widget may take along the bar. The bar draws three zone layouts, so
+    // what is left is the bar's length less the other zones and the rest of this widget's own
+    // zone (read from its siblings, never from this widget, so that its own width cannot
+    // feed back into the limit). A greeting is short: no more than 40% of the bar, which
+    // also keeps it clear of the clock where the zone is drawn inside the tray.
     readonly property int maxSize: {
-        const otherModules = bar.children.filter(c => c.id && c.item && c.item !== this && c.id !== "spacer");
-        if (bar.isHorizontal) {
-            const otherWidth = otherModules.reduce((acc, curr) => acc + (curr.item.nonAnimWidth ?? curr.width), 0);
-            return bar.width - otherWidth - bar.spacing * (bar.children.length - 1) - bar.vPadding * 2;
-        } else {
-            const otherHeight = otherModules.reduce((acc, curr) => acc + (curr.item.nonAnimHeight ?? curr.height), 0);
-            return bar.height - otherHeight - bar.spacing * (bar.children.length - 1) - bar.vPadding * 2;
+        const horizontal = bar.isHorizontal;
+        const wrapper = root.parent;
+        const siblings = wrapper && wrapper.parent ? wrapper.parent.children : [];
+        const gap = Tokens.spacing.medium;
+        const zone = wrapper && wrapper.zone ? wrapper.zone : "left";
+
+        let own = 0;
+        for (const sibling of siblings) {
+            if (sibling === wrapper || !sibling.visible)
+                continue;
+            const size = horizontal ? sibling.implicitWidth : sibling.implicitHeight;
+            if (size > 0)
+                own += size + gap;
         }
+
+        let others = bar.leftZoneSize + bar.middleZoneSize + bar.rightZoneSize;
+        if (zone === "left")
+            others = bar.middleZoneSize + bar.rightZoneSize;
+        else if (zone === "middle")
+            others = bar.leftZoneSize + bar.rightZoneSize;
+        else if (zone === "right")
+            others = bar.leftZoneSize + bar.middleZoneSize;
+
+        const total = horizontal ? bar.width : bar.height;
+        const room = total - others - own - bar.vPadding * 2 - gap * 2;
+        return Math.max(0, Math.floor(Math.min(room, total * 0.4)));
     }
     property Title current: text1
 
