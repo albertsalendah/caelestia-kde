@@ -46,4 +46,16 @@ test_the_things_that_honour_stays_open_are_still_there() {
         "hovering the bar leaves it alone"
 }
 
+test_a_click_on_the_empty_desktop_reaches_the_click_away_handler() {
+    # The layer takes input over the whole screen only while an overlay is open. A staying
+    # popout was not counted, so a click on the desktop (which gives no window the focus)
+    # went to the desktop and the menu stayed until the next right click or Escape.
+    local expr
+    expr="$(grep -n 'readonly property bool transientOverlayOpen:' "$REPO_ROOT/shell/modules/drawers/ContentWindow.qml")"
+    assert_contains "$expr" '(panels.popouts.staysOpen && panels.popouts.hasCurrent)' \
+        "an open staying popout makes the drawers layer capture input"
+    assert_file_contains "$REPO_ROOT/shell/modules/drawers/ContentWindow.qml" 'if (capturesOverlayInput && !sidebarPassthrough) return fullRegion;' \
+        "an open overlay gives the layer the full-screen input region"
+}
+
 run_tests
