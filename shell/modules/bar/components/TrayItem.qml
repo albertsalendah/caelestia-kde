@@ -38,12 +38,18 @@ BarIcon {
     }
 
     // The menu belongs to the app, so it is asked for by name; an app without one has
-    // only its second action to offer.
+    // only its second action to offer. A menu is opened to be picked from, so it stays
+    // open the way the hidden-icons box does: moving the pointer from the icon towards it
+    // crosses a gap that is neither the bar nor the menu, and a transient popout was taken
+    // away there. A click elsewhere, Escape, or choosing an entry dismisses it.
     onContextMenuRequested: {
-        if (root.hasMenuEntries && root.popouts)
+        if (root.hasMenuEntries && root.popouts) {
             root.openPopout(root.popoutName);
-        else if (root.modelData)
+            if (root.popouts.hasCurrent && root.popouts.currentName === root.popoutName)
+                root.popouts.staysOpen = true;
+        } else if (root.modelData) {
             root.modelData.secondaryActivate();
+        }
     }
 
     glyphComponent: Component {
