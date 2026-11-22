@@ -710,7 +710,12 @@ esac
 EOS
     chmod +x "$PROG_DIR/kwin-answer"
     # With scripted answers the 2 s pauses between polls would only slow the test down.
-    [[ -n "${KWIN_STATES:-}" ]] && stub_bin "$PROG_DIR/bin" sleep 'exit 0'
+    # SLEEP_BROKEN: what a program that cannot be started looks like while glibc is replaced.
+    if [[ "${SLEEP_BROKEN:-no}" == yes ]]; then
+        stub_bin "$PROG_DIR/bin" sleep 'echo "sleep: cannot execute: required file not found" >&2; exit 127'
+    elif [[ -n "${KWIN_STATES:-}" ]]; then
+        stub_bin "$PROG_DIR/bin" sleep 'exit 0'
+    fi
     stub_bin "$PROG_DIR/bin" systemctl "echo \"\$*\" >> '$PROG_DIR/calls'
 case \"\$*\" in
     '--user start caelestia-session.target')
@@ -745,6 +750,7 @@ exit 0"
     fi
     env -i PATH="$PROG_DIR/bin:/usr/bin:/bin" HOME="$PROG_DIR/home" XDG_RUNTIME_DIR="$PROG_RUN" \
         XDG_CONFIG_DIRS="$PROG_DIR/none" \
+        CAELESTIA_WM_POLL="${WM_POLL:-0.02}" CAELESTIA_WM_NO_ANSWER_LIMIT="${WM_LIMIT:-3}" \
         "$(command -v bash)" "$SESSION_SRC/caelestia-wm-session" > "$PROG_DIR/out" 2>&1
     PROG_STATUS=$?
 }
@@ -913,16 +919,50 @@ test_missing_answers_are_counted_per_run_not_in_total() {
     KWIN_STATES="active $(printf 'none %.0s' $(seq 1 10)) active $(printf 'none %.0s' $(seq 1 10)) active inactive" run_program up
 
     assert_eq "24" "$(polls)" "two runs of 10 missing answers must not add up to the limit of 15"
-    assert_not_contains "$(cat "$PROG_DIR/out")" 'for 30 s' "so it never gave up"
+    assert_not_contains "$(cat "$PROG_DIR/out")" 'no answer about caelestia-kwin.service for' "so it never gave up"
     rm -rf "$PROG_DIR"
 }
 
-test_a_manager_that_never_answers_ends_the_session_after_about_30_seconds() {
-    KWIN_STATES="active $(printf 'none %.0s' $(seq 1 20))" run_program up
+test_a_manager_that_never_answers_ends_the_session_after_the_time_limit() {
+    local t0=$SECONDS
+    WM_LIMIT=2 KWIN_STATES="active $(printf 'none %.0s' $(seq 1 400))" run_program up
 
-    assert_eq "16" "$(polls)" "one answer, then 15 missing ones"
-    assert_contains "$(cat "$PROG_DIR/out")" 'no answer about caelestia-kwin.service for 30 s; ending the session' "then it gives up and says so"
+    # The limit is real time, not a number of polls: far more than 15 polls fit into it.
+    [[ $((SECONDS - t0)) -ge 2 ]] || fail "it gave up after $((SECONDS - t0)) s, before the 2 s limit"
+    [[ "$(polls)" -gt 20 ]] || fail "only $(polls) polls: the limit must not be a count of polls"
+    assert_contains "$(cat "$PROG_DIR/out")" 'no answer about caelestia-kwin.service for' "then it gives up and says so"
     assert_contains "$(cat "$PROG_DIR/calls")" '--user stop caelestia-session.target' "and cleans up"
+    rm -rf "$PROG_DIR"
+}
+
+# The silence is measured from its own start, not from the start of the session: a session that has
+# been up for hours must not give up at its first missed poll.
+test_a_missing_answer_late_in_a_long_session_is_timed_from_when_it_began() {
+    WM_POLL=0.1 WM_LIMIT=1 KWIN_STATES="$(printf 'active %.0s' $(seq 1 30)) none active inactive" run_program up
+    local out
+    out="$(cat "$PROG_DIR/out")"
+
+    assert_eq "33" "$(polls)" "one missing answer after about 3 s of answers is asked again"
+    assert_not_contains "$out" 'no answer about caelestia-kwin.service for' "and does not end the session"
+    assert_contains "$out" 'answers again (active) after 1 missed polls' "the recovery is logged"
+    rm -rf "$PROG_DIR"
+}
+
+# 11-22 (Asus): while glibc was replaced no program could be started, so every poll failed at once
+# and the pause between polls ("sleep") returned at once; 15 polls went by in milliseconds, the
+# loop gave up for "30 s" and the session ended with KWin and the shell still running. Here the
+# pause is a failing "sleep" and many polls get no answer within a limit of real time: the
+# program must keep asking, and must not need "sleep" to wait.
+test_polls_that_fail_at_once_and_a_sleep_that_cannot_run_do_not_end_the_session() {
+    SLEEP_BROKEN=yes WM_LIMIT=5 KWIN_STATES="active $(printf 'none %.0s' $(seq 1 60)) active inactive" run_program up
+    local out
+    out="$(cat "$PROG_DIR/out")"
+
+    assert_eq "63" "$(polls)" "60 missing answers are asked again, not taken for KWin being gone"
+    assert_not_contains "$out" 'cannot execute' "the wait between polls starts no program"
+    assert_not_contains "$out" 'no answer about caelestia-kwin.service for' "and it did not give up"
+    assert_contains "$out" 'answers again (active) after 60 missed polls' "the recovery says how many polls were missed"
+    assert_contains "$out" 'caelestia-kwin.service is inactive; ending the session' "the session ends when KWin really exits"
     rm -rf "$PROG_DIR"
 }
 
