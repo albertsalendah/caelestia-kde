@@ -678,4 +678,98 @@ test_step_05_copies_the_theme_and_the_shapes_with_free_layout() {
     assert_eq "2" "$count" "both tree copies of step 05 are laid out as the theme, not as /usr"
 }
 
+# A running KWin has its effect plugin mapped. Writing into the same inode changed the pages
+# under it and crashed the compositor (11-22, Asus), so a copy must put a new file in place
+# and leave the old one to whoever has it open.
+test_privileged_copy_tree_replaces_a_file_instead_of_writing_into_it() {
+    local tmp status inode_before
+    tmp="$(new_tmpdir)"
+    make_stage_fixture "$tmp"
+    mkdir -p "$tmp/dest/usr/share/app"
+    printf 'old-data\n' > "$tmp/dest/usr/share/app/data.txt"
+    inode_before="$(stat -c %i "$tmp/dest/usr/share/app/data.txt")"
+
+    exec 9< "$tmp/dest/usr/share/app/data.txt"
+    privileged_copy_tree "$tmp/stage" "$tmp/dest"
+    status=$?
+    local still_open
+    still_open="$(cat <&9)"
+    exec 9<&-
+
+    assert_status 0 "$status" "the tree should be installed over an existing file"
+    assert_eq "data" "$(cat "$tmp/dest/usr/share/app/data.txt")" "the destination holds the new content"
+    assert_eq "old-data" "$still_open" "a process that had the old file open still reads the old content"
+    [[ "$(stat -c %i "$tmp/dest/usr/share/app/data.txt")" != "$inode_before" ]] \
+        || fail "the destination should be a new file, not the old inode rewritten"
+}
+
+test_privileged_copy_tree_leaves_no_temporary_files() {
+    local tmp left
+    tmp="$(new_tmpdir)"
+    make_stage_fixture "$tmp"
+
+    privileged_copy_tree "$tmp/stage" "$tmp/dest"
+    left="$(find "$tmp/dest" -name '*caelestia-new*' | wc -l)"
+
+    assert_eq "0" "$left" "the staging names must not outlive the copy"
+}
+
+test_privileged_copy_file_replaces_a_file_instead_of_writing_into_it() {
+    local tmp status inode_before still_open
+    tmp="$(new_tmpdir)"
+    mkdir -p "$tmp/dest"
+    printf 'new-binary\n' > "$tmp/source.bin"
+    printf 'old-binary\n' > "$tmp/dest/tool"
+    inode_before="$(stat -c %i "$tmp/dest/tool")"
+
+    exec 9< "$tmp/dest/tool"
+    privileged_copy_file "$tmp/source.bin" "$tmp/dest/tool" 0755
+    status=$?
+    still_open="$(cat <&9)"
+    exec 9<&-
+
+    assert_status 0 "$status" "a file should be installed over an existing one"
+    assert_eq "new-binary" "$(cat "$tmp/dest/tool")" "the destination holds the new content"
+    assert_eq "old-binary" "$still_open" "an open handle on the old file still reads the old content"
+    assert_eq "755" "$(stat -c %a "$tmp/dest/tool")" "with the requested mode"
+    [[ "$(stat -c %i "$tmp/dest/tool")" != "$inode_before" ]] \
+        || fail "the destination should be a new file, not the old inode rewritten"
+    assert_eq "0" "$(find "$tmp/dest" -name '*caelestia-new*' | wc -l)" "and no temporary file is left"
+}
+
+test_privileged_copy_file_failed_replace_leaves_nothing_behind() {
+    local tmp status
+    tmp="$(new_tmpdir)"
+    mkdir -p "$tmp/dest/tool"
+    printf 'new\n' > "$tmp/source.bin"
+
+    privileged_copy_file "$tmp/source.bin" "$tmp/dest/tool" 0755
+    status=$?
+
+    assert_status 1 "$status" "a file cannot replace a directory"
+    [[ -d "$tmp/dest/tool" ]] || fail "the directory should be untouched"
+    assert_eq "0" "$(find "$tmp/dest" -name '*caelestia-new*' | wc -l)" "and the temporary file is removed"
+}
+
+test_privileged_copy_tree_failed_replace_leaves_nothing_behind() {
+    local tmp status
+    tmp="$(new_tmpdir)"
+    make_stage_fixture "$tmp"
+    mkdir -p "$tmp/dest/usr/share/app/data.txt"
+
+    privileged_copy_tree "$tmp/stage" "$tmp/dest" 2>/dev/null
+    status=$?
+
+    assert_status 1 "$status" "a file that cannot take its place makes the copy fail"
+    [[ -d "$tmp/dest/usr/share/app/data.txt" ]] || fail "the directory in its way should be untouched"
+    assert_eq "0" "$(find "$tmp/dest" -name '*caelestia-new*' | wc -l)" "and no temporary file is left"
+}
+
+test_privileged_copy_file_opens_its_source_without_following_a_link() {
+    assert_contains "$(declare -f privileged_copy_file)" 'iflag=nofollow' \
+        "the privileged side must refuse a link swapped in after the check"
+    assert_contains "$(declare -f privileged_copy_tree)" 'iflag=nofollow' \
+        "and so must the tree copy"
+}
+
 run_tests

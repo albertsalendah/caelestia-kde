@@ -22,12 +22,26 @@ tree_has_no_symlinks() {
 # Copies "$1" to "$2" as root with mode "$3". The source is opened with O_NOFOLLOW, so a
 # link planted between a check and the copy is refused by the kernel rather than followed;
 # that is what a check-then-copy cannot promise.
+#
+# The file is written next to its destination and renamed over it, never into it: a
+# process that has the old file mapped (KWin with an effect plugin, a running binary)
+# keeps the old inode, whereas writing into the same inode changes the pages under it
+# and takes that process down.
 privileged_copy_file() {
     local src="$1" dest="$2" mode="${3:-0644}"
 
     regular_file "$src" || return 1
-    caelestia_sudo dd if="$src" of="$dest" iflag=nofollow status=none 2>/dev/null || return 1
-    caelestia_sudo chmod "$mode" "$dest" || return 1
+    caelestia_sudo bash -s -- "$src" "$dest" "$mode" 2>/dev/null << 'EOF' || return 1
+src="$1"
+dest="$2"
+mode="$3"
+tmp="$(mktemp -- "$dest.caelestia-new.XXXXXX")" || exit 1
+if dd if="$src" of="$tmp" iflag=nofollow status=none && chmod "$mode" "$tmp" && mv -fT -- "$tmp" "$dest"; then
+    exit 0
+fi
+rm -f -- "$tmp"
+exit 1
+EOF
 }
 
 # Where a staged build may write, as the first directory component of a relative path. A
@@ -132,11 +146,20 @@ while IFS= read -r -d "" path; do
     # The tree is this user's, so a file they made setuid would arrive as root's setuid
     # binary; only the read, write and execute bits are carried across.
     printf -v mode '%o' "$(( 8#$raw & 0777 ))"
-    if ! dd if="$path" of="$dest/$rel" iflag=nofollow status=none 2>/dev/null; then
+    # Written beside the destination and renamed over it, never into it: a plugin KWin has
+    # mapped (the workspace-tracker effect) keeps its old inode, where writing into the
+    # same inode changes the pages under the running compositor and crashes it.
+    if ! tmp="$(mktemp -- "$dest/$rel.caelestia-new.XXXXXX" 2>/dev/null)"; then
         status=1
         continue
     fi
-    chmod "$mode" "$dest/$rel" || status=1
+    if ! dd if="$path" of="$tmp" iflag=nofollow status=none 2>/dev/null \
+        || ! chmod "$mode" "$tmp" \
+        || ! mv -fT -- "$tmp" "$dest/$rel"; then
+        rm -f -- "$tmp"
+        status=1
+        continue
+    fi
     copied=$((copied + 1))
 done < <(find "$src" \( -type f -o -type l \) -print0 2>/dev/null)
 

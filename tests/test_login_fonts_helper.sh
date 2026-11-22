@@ -57,9 +57,9 @@ test_mirror_login_fonts_copies_each_font_without_following_a_link() {
         mirror_login_fonts
     ) || fail "mirror_login_fonts should succeed when a theme font is present"
 
-    assert_file_contains "$log" 'dd if=' "the font should be copied without following a link"
-    assert_file_contains "$log" 'iflag=nofollow' "which is what makes the copy refuse one"
-    assert_file_contains "$log" 'chmod 0644' "and the mirrored font should stay readable"
+    assert_file_contains "$log" 'bash -s -- ' "the font should be copied by the privileged copy helper"
+    assert_file_contains "$log" "$tmp/share/fonts/caelestia/Rubik-VariableFont_wght.ttf 0644" \
+        "to the system font directory, and the mirrored font should stay readable"
     assert_file_not_contains "$log" 'install -m 644' "install follows a link, so it must not do the copy"
     assert_eq "font-data" "$(cat "$tmp/share/fonts/caelestia/Rubik-VariableFont_wght.ttf")" \
         "the font's contents should land in the system font directory"
