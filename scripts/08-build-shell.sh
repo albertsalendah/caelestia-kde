@@ -222,6 +222,7 @@ SHELL_PRUNE_KEEP=(
     .current_commit
     .current_version
     .update_branch
+    .update_source
     .checkout
     assets/fonts
     assets/icons/yet-another-monochrome-icon-set
