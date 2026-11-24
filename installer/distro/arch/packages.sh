@@ -90,11 +90,13 @@ UTILITY_PACKAGES=(
 # kwin_wayland_wrapper, which the session starts) are named because the stand-in for
 # plasma-workspace (scripts/arch-plasma-stub.sh, installed first on a machine that has none)
 # provides the name but brings none of the real package's dependencies.
+# kdialog (the Launcher page's "Select KDE icon" runs `kdialog --geticon`) and orca (the screen reader the
+# Accessibility page starts) are small, need no Plasma package and used to arrive with plasma-workspace.
 SESSION_PACKAGES=(
     plasma-workspace kscreenlocker plasma5support layer-shell-qt
     xdg-desktop-portal-kde xorg-xwayland polkit-kde-agent powerdevil kscreen
     plasma-integration kde-cli-tools kwin
-    konsole dolphin ark
+    konsole dolphin ark kdialog orca
 )
 
 PACKAGES=()

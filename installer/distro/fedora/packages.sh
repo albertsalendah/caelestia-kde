@@ -161,10 +161,13 @@ UTILITY_PACKAGES=(
 # layer-shell-qt (the SDDM Wayland greeter and the lockscreen), the portal and polkit agent,
 # powerdevil (brightness, idle, lid and Keep Awake), kscreen (monitor settings page) and the
 # default apps. plasma-systemsettings is optional and hosts the kscreen page.
+# kdialog (the Launcher page's "Select KDE icon" runs `kdialog --geticon`) and orca (the screen reader the
+# Accessibility page starts) need no Plasma package: a dnf preview shows 17 packages, 93 MiB, none of them
+# plasma-workspace or plasma-desktop.
 SESSION_PACKAGES=(
     plasma-integration kwin kscreenlocker plasma5support layer-shell-qt
     xdg-desktop-portal-kde xorg-x11-server-Xwayland polkit-kde powerdevil kscreen
-    konsole dolphin ark
+    konsole dolphin ark kdialog orca
 )
 
 COPR_CORE=(app2unit libcava)

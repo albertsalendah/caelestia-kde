@@ -97,4 +97,17 @@ test_fedora_system_settings_sound_and_bluetooth_follow_the_menu_switches() {
     assert_not_contains "$(fedora_session_packages)" "plasma-systemsettings" "System Settings stays out of the fixed set so it can be skipped"
 }
 
+# Two shell features call a program that no package list named: the Launcher page's "Select KDE icon"
+# runs `kdialog --geticon` (nothing happened on a machine without kdialog) and the Accessibility page
+# starts Orca. Both used to arrive with plasma-workspace and need no Plasma package themselves.
+test_both_lists_name_the_programs_the_launcher_and_accessibility_pages_start() {
+    local needed
+    for needed in kdialog orca; do
+        assert_contains "$(session_packages)" "$needed" "Arch's session set names $needed"
+        assert_contains "$(fedora_session_packages)" "$needed" "Fedora's session set names $needed"
+    done
+    assert_contains "$(cat "$REPO_ROOT/shell/modules/nexus/pages/panels/LauncherPanel.qml")" '"kdialog"' "the icon button really starts kdialog"
+    assert_contains "$(cat "$REPO_ROOT/shell/services/Accessibility.qml")" 'execDetached(["orca"])' "and the Accessibility service still starts orca"
+}
+
 run_tests

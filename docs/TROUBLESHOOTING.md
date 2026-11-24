@@ -570,9 +570,9 @@ qdbus6 org.kde.KWin /Effects org.kde.kwin.Effects.isEffectLoaded zoom
 qdbus6 org.kde.KWin /Effects org.kde.kwin.Effects.listOfEffects | tr ',' '\n' | grep -i colour
 ```
 
-The screen reader is Orca, which has to be installed (`orca` on Arch, `gnome-orca`
-elsewhere). The page reports it as missing rather than offering a button that cannot
-work.
+The screen reader is Orca, which the installer installs on Arch and Fedora (`orca`;
+`gnome-orca` on other distributions). If it was removed, the page reports it as missing
+rather than offering a button that cannot work.
 
 ### 3.15 Displays Page Is Empty or Changes Do Not Stick
 

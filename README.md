@@ -124,8 +124,8 @@ field (full variant), so you can pick Caelestia or Plasma.
 
 **Packages.** (Arch; Fedora's list is under "Fedora" below.) The session installs `plasma-workspace`, `kscreenlocker`, `plasma5support`,
 `layer-shell-qt`, `xdg-desktop-portal-kde`, `xorg-xwayland`, `polkit-kde-agent`, `powerdevil`,
-`kscreen`, `plasma-integration`, `kde-cli-tools`, `kwin`, `konsole`, `dolphin`, `ark` and `systemsettings`,
-because the shell calls their tools. `plasma-integration`, `kde-cli-tools` and `kwin` are named because the
+`kscreen`, `plasma-integration`, `kde-cli-tools`, `kwin`, `konsole`, `dolphin`, `ark`, `kdialog`, `orca` and `systemsettings`,
+because the shell calls their tools (`kdialog` is the icon picker of the Launcher page, `orca` the screen reader of the Accessibility page). `plasma-integration`, `kde-cli-tools` and `kwin` are named because the
 `plasma-workspace` stand-in below brings none of the real package's dependencies; without
 `plasma-integration`, `kwin_wayland` crashes at start and every login bounces back to the login screen.
 `plasma-workspace` brings the `plasmashell` binary and a Plasma login entry with it, but nothing in
@@ -144,7 +144,7 @@ and only when your own `~/.config/mimeapps.list` does not name one already.
 **Fedora.** The same step runs on Fedora, with the same files. A minimal install (Fedora Everything) boots to a text console, so with any of the three login managers above the step also sets the boot target to `graphical.target`; `uninstall.sh` sets it back. The packages are `plasma-integration` (the Qt platform theme that gives Qt apps the KDE colours and file dialogs),
 `kwin` (it ships the `kwin_wayland_wrapper` the session starts), `kscreenlocker`, `plasma5support`,
 `layer-shell-qt`, `xdg-desktop-portal-kde`, `xorg-x11-server-Xwayland`, `polkit-kde`, `powerdevil`,
-`kscreen`, `konsole`, `dolphin`, `ark` and `plasma-systemsettings`, plus `pipewire-pulseaudio`,
+`kscreen`, `konsole`, `dolphin`, `ark`, `kdialog`, `orca` and `plasma-systemsettings`, plus `pipewire-pulseaudio`,
 `pipewire-alsa`, `bluedevil` and `bluez`; the same menu switches turn System Settings, PipeWire and
 Bluetooth off. `plasma-workspace` and `plasma-desktop` are not installed on Fedora, and nothing in the list requires or
 recommends them; the shell has fallbacks for the two things only `plasma-workspace` provided (the KDE colour-scheme command and the logout service). The icons of old X11 apps (Java and Compose apps such as AB Download Manager) need KDE's `xembedsniproxy`, which ships only inside `plasma-workspace`; when `plasma-workspace` is not installed the step builds a copy of it (`src/xembed-sni-proxy`, taken from `plasma-workspace` v6.8.2) with CMake and installs it under `/usr/local`, and a failed build only costs those icons. Debian is still skipped. The Fedora installer does not
