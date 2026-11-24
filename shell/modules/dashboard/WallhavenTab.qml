@@ -32,6 +32,132 @@ Item {
     property int selectedIndex: -1
     readonly property bool selectedWallpaperDownloading: downloadState === "progress" && selectedWallpaper?.id === downloadingWallpaperId
     readonly property bool selectedWallpaperFeedbackVisible: downloadState !== "idle" && selectedWallpaper?.id === downloadingWallpaperId
+    readonly property list<MenuItem> modeItems: [
+        MenuItem {
+            text: qsTr("Latest")
+            value: "date_added"
+        },
+        MenuItem {
+            text: qsTr("Toplist")
+            value: "toplist"
+        },
+        MenuItem {
+            text: qsTr("Hot")
+            value: "hot"
+        },
+        MenuItem {
+            text: qsTr("Random")
+            value: "random"
+        },
+        MenuItem {
+            text: qsTr("Best match")
+            value: "relevance"
+        }
+    ]
+    readonly property list<MenuItem> rangeItems: [
+        MenuItem {
+            text: qsTr("Past day")
+            value: "1d"
+        },
+        MenuItem {
+            text: qsTr("Past 3 days")
+            value: "3d"
+        },
+        MenuItem {
+            text: qsTr("Past week")
+            value: "1w"
+        },
+        MenuItem {
+            text: qsTr("Past month")
+            value: "1M"
+        },
+        MenuItem {
+            text: qsTr("Past 3 months")
+            value: "3M"
+        },
+        MenuItem {
+            text: qsTr("Past 6 months")
+            value: "6M"
+        },
+        MenuItem {
+            text: qsTr("Past year")
+            value: "1y"
+        }
+    ]
+    // Wallhaven's categories are a three-digit switch: general, anime, people.
+    readonly property list<MenuItem> categoryItems: [
+        MenuItem {
+            text: qsTr("All categories")
+            value: "111"
+        },
+        MenuItem {
+            text: qsTr("General")
+            value: "100"
+        },
+        MenuItem {
+            text: qsTr("Anime")
+            value: "010"
+        },
+        MenuItem {
+            text: qsTr("People")
+            value: "001"
+        }
+    ]
+    // Wallhaven has no genres: a topic is a search word, put into the search box where it can be edited.
+    readonly property list<MenuItem> topicItems: [
+        MenuItem {
+            text: qsTr("Any topic")
+            value: ""
+        },
+        MenuItem {
+            text: qsTr("Nature")
+            value: "nature"
+        },
+        MenuItem {
+            text: qsTr("Landscape")
+            value: "landscape"
+        },
+        MenuItem {
+            text: qsTr("Space")
+            value: "space"
+        },
+        MenuItem {
+            text: qsTr("Cityscape")
+            value: "cityscape"
+        },
+        MenuItem {
+            text: qsTr("Cars")
+            value: "cars"
+        },
+        MenuItem {
+            text: qsTr("Minimal")
+            value: "minimal"
+        },
+        MenuItem {
+            text: qsTr("Abstract")
+            value: "abstract"
+        },
+        MenuItem {
+            text: qsTr("Animals")
+            value: "animals"
+        },
+        MenuItem {
+            text: qsTr("Architecture")
+            value: "architecture"
+        },
+        MenuItem {
+            text: qsTr("Dark")
+            value: "dark"
+        },
+        MenuItem {
+            text: qsTr("Cyberpunk")
+            value: "cyberpunk"
+        },
+        MenuItem {
+            text: qsTr("Games")
+            value: "games"
+        }
+    ]
 
     function selectWallpaper(index) {
         if (index >= 0 && index < root.currentResults.length) {
@@ -53,7 +179,15 @@ Item {
         }
     }
 
+    // An empty search box browses with the chosen mode, category and period.
+    function load() {
+        root.isLoading = true;
+        WallhavenSearcher.search(root.searchQuery);
+    }
+
     anchors.fill: parent
+
+    Component.onCompleted: root.load()
 
     onDetailPanelOpenChanged: {
         if (!detailPanelOpen) {
@@ -166,31 +300,77 @@ Item {
                         clearIcon.visible: false
                         onTextChanged: root.searchQuery = text
 
-                        Keys.onReturnPressed: {
-                            if (root.searchQuery.trim()) {
-                                root.isLoading = true;
-                                WallhavenSearcher.search(root.searchQuery);
-                            }
-                        }
+                        Keys.onReturnPressed: root.load()
                     }
 
                     IconButton {
                         icon: "north"
                         onClicked: {
-                            if (root.searchQuery.trim()) {
-                                root.isLoading = true;
-                                WallhavenSearcher.searchRandom(root.searchQuery);
-                            }
+                            WallhavenSearcher.setSorting("random");
+                            root.load();
                         }
                     }
 
                     IconButton {
                         icon: "refresh"
-                        onClicked: {
-                            if (root.searchQuery.trim()) {
-                                root.isLoading = true;
-                                WallhavenSearcher.search(root.searchQuery);
-                            }
+                        onClicked: root.load()
+                    }
+                }
+
+                Flow {
+                    Layout.fillWidth: true
+                    spacing: Tokens.spacing.small
+
+                    SplitButton {
+                        id: modeButton
+
+                        type: SplitButton.Tonal
+                        menuItems: root.modeItems
+                        active: root.modeItems.find(i => i.value === WallhavenSearcher.filters.sorting) ?? root.modeItems[0]
+                        stateLayer.onClicked: modeButton.expanded = !modeButton.expanded
+                        menu.onItemSelected: item => {
+                            WallhavenSearcher.setSorting(item.value);
+                            root.load();
+                        }
+                    }
+
+                    SplitButton {
+                        id: rangeButton
+
+                        type: SplitButton.Tonal
+                        visible: WallhavenSearcher.filters.sorting === "toplist"
+                        menuItems: root.rangeItems
+                        active: root.rangeItems.find(i => i.value === WallhavenSearcher.filters.topRange) ?? root.rangeItems[3]
+                        stateLayer.onClicked: rangeButton.expanded = !rangeButton.expanded
+                        menu.onItemSelected: item => {
+                            WallhavenSearcher.setFilter("topRange", item.value);
+                            root.load();
+                        }
+                    }
+
+                    SplitButton {
+                        id: categoryButton
+
+                        type: SplitButton.Tonal
+                        menuItems: root.categoryItems
+                        active: root.categoryItems.find(i => i.value === WallhavenSearcher.filters.categories) ?? root.categoryItems[0]
+                        stateLayer.onClicked: categoryButton.expanded = !categoryButton.expanded
+                        menu.onItemSelected: item => {
+                            WallhavenSearcher.setFilter("categories", item.value);
+                            root.load();
+                        }
+                    }
+
+                    SplitButton {
+                        id: topicButton
+
+                        type: SplitButton.Tonal
+                        menuItems: root.topicItems
+                        active: root.topicItems.find(i => i.value !== "" && i.value === root.searchQuery.trim().toLowerCase()) ?? root.topicItems[0]
+                        stateLayer.onClicked: topicButton.expanded = !topicButton.expanded
+                        menu.onItemSelected: item => {
+                            searchField.text = item.value;
+                            root.load();
                         }
                     }
                 }

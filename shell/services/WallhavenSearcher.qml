@@ -24,6 +24,8 @@ Singleton {
     property int currentPage: 1
     property int lastPage: 1
     property string lastSeed: ""
+    property bool hasSearched: false
+    property int requestSerial: 0
     property list<var> results
     property var currentWallpaper: null
     property string activeDownloadId: ""
@@ -33,7 +35,7 @@ Singleton {
     property var filters: {
         "categories": "111",
         "purity": "100",
-        "sorting": "relevance",
+        "sorting": "date_added",
         "order": "desc",
         "topRange": "1M",
         "atleast": "",
@@ -97,18 +99,9 @@ Singleton {
         return url + paramList.join("&");
     }
 
-    function search(query: string, page: int): void {
-        if (!query || query.trim() === "")
-            return;
-
-        if (!page || page < 1)
-            page = 1;
-
-        lastQuery = query;
-        currentPage = page;
-
+    function searchParams(query: string, page: int): var {
         const params = {
-            "q": query,
+            "q": query || "",
             "categories": filters.categories,
             "purity": filters.purity,
             "sorting": filters.sorting,
@@ -116,6 +109,9 @@ Singleton {
             "page": page.toString()
         };
 
+        // The toplist is ranked over a period; without it the API uses its own default.
+        if (filters.sorting === "toplist" && filters.topRange)
+            params.topRange = filters.topRange;
         if (filters.atleast)
             params.atleast = filters.atleast;
         if (filters.resolutions)
@@ -125,7 +121,19 @@ Singleton {
         if (filters.colors)
             params.colors = filters.colors;
 
-        const url = buildUrl("/search", params);
+        return params;
+    }
+
+    // An empty query browses: the API answers /search without q (latest, toplist, hot or random).
+    function search(query: string, page: int): void {
+        if (!page || page < 1)
+            page = 1;
+
+        lastQuery = query || "";
+        currentPage = page;
+        hasSearched = true;
+
+        const url = buildUrl("/search", searchParams(lastQuery, page));
         Logger.log("Wallhaven search:", url.replace(/([?&])apikey=[^&]*/, "$1apikey=<redacted>"));
 
         runSearch(url);
@@ -153,7 +161,7 @@ Singleton {
     }
 
     function searchNextPage(): void {
-        if (currentPage < lastPage && lastQuery) {
+        if (currentPage < lastPage && hasSearched) {
             if (filters.sorting === "random" && lastSeed) {
                 currentPage++;
                 const params = {
@@ -173,7 +181,12 @@ Singleton {
     }
 
     function runSearch(url: string): void {
+        // The dropdowns can start a new search before the last answer is in: only the newest counts.
+        const serial = ++requestSerial;
         Requests.get(url, text => {
+            if (serial !== requestSerial)
+                return;
+
             try {
                 const json = JSON.parse(text);
                 results = json.data || [];
@@ -188,7 +201,12 @@ Singleton {
                 console.error("Wallhaven parse error:", e);
                 searchComplete([], {});
             }
-        }, () => searchComplete([], {}));
+        }, () => {
+            if (serial !== requestSerial)
+                return;
+
+            searchComplete([], {});
+        });
     }
 
     function loadPage(url: string): void {
@@ -235,7 +253,7 @@ Singleton {
         filters = {
             "categories": "111",
             "purity": apiKey ? "110" : "100",
-            "sorting": "relevance",
+            "sorting": "date_added",
             "order": "desc",
             "topRange": "1M",
             "atleast": "",
