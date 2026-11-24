@@ -122,6 +122,53 @@ test_the_dropdowns_offer_the_modes_the_categories_and_the_topics() {
     assert_contains "$tab" 'WallhavenSearcher.setFilter("topRange", item.value);' "the period dropdown sets the filter"
 }
 
+test_the_grid_columns_follow_the_width_and_leave_no_strip() {
+    have_node || return 0
+    local cols cw ch
+    cols="$(sed -n 's/^ *readonly property int columns: //p' "$TAB")"
+    cw="$(sed -n 's/^ *cellWidth: //p' "$TAB")"
+    ch="$(sed -n 's/^ *cellHeight: //p' "$TAB")"
+    assert_eq "1" "$(printf '%s\n' "$cols" | wc -l | tr -d ' ')" "one columns line in the tab"
+    # The file's own three expressions, evaluated for a width.
+    grid() {
+        node -e "
+            const at = width => { const columns = $cols; const cellWidth = $cw; const cellHeight = $ch; return { columns, cellWidth, cellHeight }; };
+            const r = at($1);
+            console.log(r.columns + ' ' + r.cellWidth + ' ' + r.cellHeight);
+        "
+    }
+    assert_eq "6 211 160" "$(grid 1270)" "a wide page gets six wider cells"
+    assert_eq "7 185 141" "$(grid 1300)" "and a seventh column once it fits"
+    assert_eq "2 150 114" "$(grid 300)" "a narrow page keeps two columns"
+    assert_eq "1 0 0" "$(grid 0)" "an unsized grid is one empty column, not a division by zero"
+    assert_eq "ok" "$(node -e "
+        let bad = 0;
+        for (let width = 100; width <= 2600; width++) {
+            const columns = $cols; const cellWidth = $cw;
+            if (width - columns * cellWidth >= columns || cellWidth < 100 || cellWidth > 400) bad++;
+        }
+        console.log(bad === 0 ? 'ok' : 'bad ' + bad);
+    ")" "at every width the leftover is under a pixel per column and the cells stay between 100 and 400 px"
+}
+
+test_the_grid_takes_the_height_the_rows_above_leave() {
+    have_node || return 0
+    local expr
+    expr="$(sed -n 's/^ *Layout.preferredHeight: //p' "$TAB")"
+    assert_eq "1" "$(printf '%s\n' "$expr" | wc -l | tr -d ' ')" "one preferred height in the tab"
+    run_height() {
+        node -e "
+            const o = h => ({ height: h });
+            const heroRow = o(60), searchRow = o(40), filterFlow = o(30), statusRow = o(20);
+            const mainLayout = { spacing: 10 }, mainFlickable = o($1);
+            console.log($expr);
+        "
+    }
+    assert_eq "610" "$(run_height 800)" "the window height minus each row above and the four gaps"
+    assert_eq "400" "$(run_height 500)" "a small window keeps 400 and scrolls"
+    assert_contains "$(cat "$TAB")" 'id: statusRow' "the rows it subtracts have ids"
+}
+
 test_both_default_filter_sets_start_on_the_latest() {
     assert_eq "2" "$(grep -c '"sorting": "date_added"' "$SERVICE")" "the property and resetFilters agree"
     assert_eq "0" "$(grep -c '"sorting": "relevance"' "$SERVICE")" "no default is left on relevance"

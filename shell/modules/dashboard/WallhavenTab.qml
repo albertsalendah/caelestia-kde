@@ -250,6 +250,8 @@ Item {
                 spacing: Tokens.spacing.medium
 
                 RowLayout {
+                    id: heroRow
+
                     spacing: Tokens.spacing.small
                     Layout.fillWidth: true
 
@@ -286,6 +288,8 @@ Item {
                 }
 
                 RowLayout {
+                    id: searchRow
+
                     Layout.fillWidth: true
                     spacing: Tokens.spacing.small
 
@@ -318,6 +322,8 @@ Item {
                 }
 
                 Flow {
+                    id: filterFlow
+
                     Layout.fillWidth: true
                     spacing: Tokens.spacing.small
 
@@ -376,6 +382,8 @@ Item {
                 }
 
                 RowLayout {
+                    id: statusRow
+
                     StyledText {
                         text: root.currentResults.length > 0 ? qsTr("Found %1 wallpapers (page %2 of %3)").arg(root.currentResults.length).arg(WallhavenSearcher.currentPage).arg(WallhavenSearcher.lastPage) : qsTr("No results")
                         font: Tokens.font.body.small
@@ -399,11 +407,18 @@ Item {
                 GridView {
                     id: resultsGrid
 
+                    // About 200 px per thumbnail: the columns follow the width and the cells
+                    // stretch to fill it, so a wide window has no empty strip on the right.
+                    readonly property int columns: Math.max(1, Math.round(width / 200))
+
                     Layout.fillWidth: true
                     implicitHeight: 400
+                    // What is left of the window under the rows above; a small window keeps 400
+                    // and the page scrolls as before.
+                    Layout.preferredHeight: Math.max(400, mainFlickable.height - heroRow.height - searchRow.height - filterFlow.height - statusRow.height - mainLayout.spacing * 4)
 
-                    cellWidth: 200
-                    cellHeight: 152
+                    cellWidth: Math.floor(width / columns)
+                    cellHeight: Math.round(cellWidth * 0.76)
 
                     model: root.currentResults
                     clip: true
