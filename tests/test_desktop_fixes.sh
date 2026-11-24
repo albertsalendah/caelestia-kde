@@ -9,7 +9,6 @@ DESKTOP="$REPO_ROOT/shell/modules/background/desktopicons"
 CLOCK_SRC="$(cat "$DESKTOP/widgets/ClockWidget.qml")"
 MEDIA_SRC="$(cat "$DESKTOP/widgets/MediaWidget.qml")"
 BG_SRC="$(cat "$REPO_ROOT/shell/modules/background/Background.qml")"
-STARTUP_TASK="$REPO_ROOT/shell/services/startuptasks/06-kde-desktop-mode.sh"
 
 # LayoutEngine.js is a .pragma library with no Qt dependencies, so node can run it
 # directly: each script below runs against it with node's assert.
@@ -85,21 +84,6 @@ test_media_art_is_kept_while_it_reloads_on_resize() {
 test_disabled_quickshell_desktop_stops_background_drawing() {
     assert_contains "$BG_SRC" '!Config.background.disableQuickshellDesktop' \
         "the wallpaper loader and background surface must be gated on disableQuickshellDesktop"
-}
-
-test_startup_task_reads_disabled_quickshell_desktop_mode() {
-    local tmp
-    tmp="$(new_tmpdir)"
-    mkdir -p "$tmp/config/caelestia" "$tmp/scripts"
-    echo '{"background": {"disableQuickshellDesktop": true}}' > "$tmp/config/caelestia/shell.json"
-    printf '#!/bin/sh\necho "$1" > "%s/mode"\n' "$tmp" > "$tmp/scripts/sync-kde-wallpaper-layout.sh"
-    chmod +x "$tmp/scripts/sync-kde-wallpaper-layout.sh"
-    (
-        export XDG_CONFIG_HOME="$tmp/config"
-        export SCRIPTS_DIR="$tmp/scripts"
-        bash "$STARTUP_TASK"
-    ) || fail "startup task failed"
-    assert_eq "folder" "$(cat "$tmp/mode" 2>/dev/null)" "mode should be folder when disableQuickshellDesktop is true"
 }
 
 test_skwd_wall_hook_startup_task_updates_config() {

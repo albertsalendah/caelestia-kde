@@ -40,7 +40,9 @@ test_the_mode_has_one_owner() {
 
 test_the_two_modes_stay_exclusive() {
     assert_file_contains "$EDITOR" 'ContextMenuStore.editMode = false;' "entering the widget mode must leave the Plasma one"
-    assert_file_contains "$MENU" 'WidgetEditor.close();' "entering the Plasma mode must leave the widget one"
+    # The menu entry that entered the Plasma mode is gone (it needs plasmashell), so nothing in the menu
+    # sets that mode any more.
+    assert_file_not_contains "$MENU" 'ContextMenuStore.editMode = true;' "the menu no longer enters the Plasma mode"
 }
 
 test_the_card_has_one_drag_surface() {

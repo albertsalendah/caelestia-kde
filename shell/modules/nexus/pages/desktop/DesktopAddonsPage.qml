@@ -194,6 +194,7 @@ PageBase {
             }
 
             ToggleRow {
+                last: true
                 Layout.topMargin: Tokens.spacing.extraSmall / 2 - parent.spacing
                 Layout.fillWidth: true
                 enabled: root.visualizerAvailable && Config.background.visualiser.enabled && Config.background.visualiser.autoHide
@@ -203,18 +204,6 @@ PageBase {
                 reset: ({ node: GlobalConfig.background.visualiser, setting: "hideOnAllMonitors" })
                 checked: Config.background.visualiser.hideOnAllMonitors
                 onToggled: GlobalConfig.background.visualiser.hideOnAllMonitors = checked
-            }
-
-            InfoRow {
-                last: true
-                Layout.fillWidth: true
-                Layout.topMargin: Tokens.spacing.extraSmall / 2 - parent.spacing
-                enabled: root.visualizerAvailable && Config.background.visualiser.enabled
-                opacity: enabled ? 1 : 0.5
-                icon: "info"
-                wrapSubtext: true
-                label: qsTr("Configure Visualizer")
-                subtext: qsTr("Right click on desktop -> Edit Plasma Widgets -> Right click visualizer -> Configure")
             }
         }
 

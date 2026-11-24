@@ -30,7 +30,6 @@ Singleton {
             widgetGroupEntry(defaultWidgetEntries()),
             { id: "arrange_icons", label: qsTr("Arrange Icons"), icon: "sort", action: "ArrangeIcons", enabled: true, type: "default" },
             { id: "toggle_desktop_icons", label: qsTr("Desktop Icons"), icon: "desktop_windows", action: "ToggleDesktopIcons", enabled: true, type: "default" },
-            { id: "enter_edit_mode", label: qsTr("Edit Plasma Widgets"), icon: "dashboard", action: "EnterEditMode", enabled: true, type: "default" },
             { id: "next_wallpaper", label: qsTr("Next Wallpaper"), icon: "skip_next", action: "Wallpapers.next()", enabled: true, type: "default" },
             { id: "wallpaper_style", label: qsTr("Wallpaper & style"), icon: "wallpaper", action: "WindowFactory.create()", enabled: true, type: "default" },
             { id: "system_settings", label: qsTr("System Settings"), icon: "settings", command: "systemsettings", enabled: true, type: "default" },
@@ -121,6 +120,10 @@ Singleton {
                 result.push(made);
                 continue;
             }
+
+            // "Edit Plasma Widgets" only worked with plasmashell, which this session never runs.
+            if (entry.action === "EnterEditMode")
+                continue;
 
             if (isWidgetAction(entry.action)) {
                 if (!group) {

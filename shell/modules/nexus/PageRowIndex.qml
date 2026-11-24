@@ -1296,13 +1296,6 @@ QtObject {
             subPage: "desktopAddons"
         },
         {
-            label: qsTr("Disable Quickshell Desktop"),
-            description: qsTr("Completely disable quickshell desktop features and use plasma desktop."),
-            section: qsTr("Desktop"),
-            pageIdx: 1,
-            subPage: "desktop"
-        },
-        {
             label: qsTr("Show Desktop Icons"),
             description: qsTr("Enable icons for Caelestia desktop"),
             section: qsTr("Desktop"),

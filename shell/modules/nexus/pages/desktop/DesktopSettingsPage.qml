@@ -47,23 +47,6 @@ PageBase {
         ToggleRow {
             Layout.fillWidth: true
             first: true
-            text: qsTr("Disable Quickshell Desktop")
-            subtext: qsTr("Completely disable quickshell desktop features and use plasma desktop.")
-            checked: Config.background.disableQuickshellDesktop
-            onToggled: {
-                GlobalConfig.background.disableQuickshellDesktop = checked;
-                for (let i = 0; i < Quickshell.screens.length; i++) {
-                    let sConf = GlobalConfig.forScreen(Quickshell.screens[i].name);
-                    if (sConf)
-                        sConf.background.resetOption("disableQuickshellDesktop");
-                }
-                GlobalConfig.save();
-                DesktopLayout.syncKdeWallpaperLayout(checked ? "folder" : "desktop");
-            }
-        }
-
-        ToggleRow {
-            Layout.fillWidth: true
             text: qsTr("Show Desktop Icons")
             subtext: qsTr("Enable icons for Caelestia desktop")
             reset: ({

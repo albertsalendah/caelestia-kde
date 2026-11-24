@@ -46,11 +46,6 @@ Controls.Menu {
             ContextMenuStore.toggleIcons(root.screenName);
             return;
         }
-        if (entry.action === "EnterEditMode") {
-            WidgetEditor.close();
-            ContextMenuStore.editMode = true;
-            return;
-        }
         if (entry.action === "EditWidgets") {
             WidgetEditor.toggle();
             // The menu held the keyboard while it was open, so the desktop has to
